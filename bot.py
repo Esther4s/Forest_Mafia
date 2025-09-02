@@ -716,7 +716,7 @@ class ForestMafiaBot:
 
         # Проверяем, что это группа, а не личные сообщения
         if chat_id == user_id:
-            await update.message.reply_text("❌ Игра доступна только в группах!")
+            await update.message.reply_text("❌ Настройки доступны только в группах!")
             return
 
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -724,21 +724,27 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ Только администраторы могут изменять настройки!")
             return
 
-        if chat_id not in self.games:
-            await update.message.reply_text("❌ В этом чате нет активной игры!\nИспользуйте /join чтобы присоединиться.")
-            return
-
-        game = self.games[chat_id]
         test_mode_text = "🧪 Тестовый режим: ВКЛ" if self.global_settings.is_test_mode() else "🧪 Тестовый режим: ВЫКЛ"
 
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
             [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
-            [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")],
+            [InlineKeyboardButton("📈 Глобальные настройки", callback_data="settings_global")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
         ]
-        await update.message.reply_text("⚙️ Настройки игры\n\nВыберите, что хотите изменить:", reply_markup=InlineKeyboardMarkup(keyboard))
+
+        # Если есть активная игра, добавляем кнопку сброса статистики
+        if chat_id in self.games:
+            keyboard.insert(-1, [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")])
+
+        settings_text = (
+            "⚙️ Настройки бота\n\n"
+            f"{self.global_settings.get_settings_summary()}\n\n"
+            "Выберите, что хотите изменить:"
+        )
+
+        await update.message.reply_text(settings_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
@@ -751,19 +757,21 @@ class ForestMafiaBot:
             await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
             return
 
-        if chat_id not in self.games:
-            await query.edit_message_text("❌ В этом чате нет активной игре!")
-            return
-
-        game = self.games[chat_id]
+        game = self.games.get(chat_id)  # Игра может отсутствовать
+        
         if query.data == "settings_timers":
             await self.show_timer_settings(query, context, game)
         elif query.data == "settings_roles":
             await self.show_role_settings(query, context, game)
         elif query.data == "settings_toggle_test":
             await self.toggle_test_mode(query, context, game)
+        elif query.data == "settings_global":
+            await self.show_global_settings(query, context)
         elif query.data == "settings_reset":
-            await self.reset_game_stats(query, context, game)
+            if game:
+                await self.reset_game_stats(query, context, game)
+            else:
+                await query.edit_message_text("❌ Нет активной игры для сброса статистики!")
         elif query.data == "settings_close":
             await query.edit_message_text("⚙️ Настройки закрыты")
 
@@ -792,8 +800,9 @@ class ForestMafiaBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    async def toggle_test_mode(self, query, context, game: Game):
-        if game.phase != GamePhase.WAITING:
+    async def toggle_test_mode(self, query, context, game: Optional[Game]):
+        # Проверяем, можно ли изменить тестовый режим
+        if game and game.phase != GamePhase.WAITING:
             await query.edit_message_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
             return
 
@@ -801,12 +810,66 @@ class ForestMafiaBot:
         mode_text = "включен" if self.global_settings.is_test_mode() else "выключен"
         min_players = self.global_settings.get_min_players()
 
-        await query.edit_message_text(
+        result_text = (
             f"🧪 Тестовый режим {mode_text}!\n\n"
             f"📋 Минимум игроков: {min_players}\n"
-            f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
-            f"👥 Текущих игроков: {len(game.players)}"
         )
+
+        if game:
+            result_text += (
+                f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
+                f"👥 Текущих игроков: {len(game.players)}"
+            )
+        else:
+            result_text += "ℹ️ Создайте игру командой /join для применения настроек"
+
+        await query.edit_message_text(result_text)
+
+    async def show_global_settings(self, query, context):
+        """Показывает глобальные настройки бота"""
+        keyboard = [
+            [InlineKeyboardButton("⬅️ Назад к настройкам", callback_data="settings_back")]
+        ]
+        
+        await query.edit_message_text(
+            self.global_settings.get_settings_summary(),
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def handle_settings_back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Возвращает к главному меню настроек"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+
+        test_mode_text = "🧪 Тестовый режим: ВКЛ" if self.global_settings.is_test_mode() else "🧪 Тестовый режим: ВЫКЛ"
+
+        keyboard = [
+            [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
+            [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
+            [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
+            [InlineKeyboardButton("📈 Глобальные настройки", callback_data="settings_global")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
+        ]
+
+        # Если есть активная игра, добавляем кнопку сброса статистики
+        if chat_id in self.games:
+            keyboard.insert(-1, [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")])
+
+        settings_text = (
+            "⚙️ Настройки бота\n\n"
+            f"{self.global_settings.get_settings_summary()}\n\n"
+            "Выберите, что хотите изменить:"
+        )
+
+        await query.edit_message_text(settings_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
     async def reset_game_stats(self, query, context, game: Game):
         if game.phase != GamePhase.WAITING:
@@ -962,7 +1025,7 @@ class ForestMafiaBot:
         # settings submenu/back handlers
         application.add_handler(CallbackQueryHandler(self.show_timer_settings, pattern=r"^timer_"))
         application.add_handler(CallbackQueryHandler(self.show_role_settings, pattern=r"^role_"))
-        application.add_handler(CallbackQueryHandler(self.settings, pattern=r"^settings_back$"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings_back, pattern=r"^settings_back$"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
 
         # Установка команд после старта бота
@@ -990,13 +1053,10 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ Только администраторы могут изменять тестовый режим!")
             return
 
-        if chat_id not in self.games:
-            await update.message.reply_text("❌ В этом чате нет активной игры! Тестовый режим применяется к текущей игре.")
-            return
+        game = self.games.get(chat_id)  # Игра может отсутствовать
 
-        game = self.games[chat_id]
-
-        if game.phase != GamePhase.WAITING:
+        # Проверяем, можно ли изменить тестовый режим
+        if game and game.phase != GamePhase.WAITING:
             await update.message.reply_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
             return
 
@@ -1004,12 +1064,20 @@ class ForestMafiaBot:
         mode_text = "включен" if self.global_settings.is_test_mode() else "выключен"
         min_players = self.global_settings.get_min_players()
 
-        await update.message.reply_text(
+        result_text = (
             f"🧪 Тестовый режим {mode_text}!\n\n"
             f"📋 Минимум игроков: {min_players}\n"
-            f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
-            f"👥 Текущих игроков: {len(game.players)}"
         )
+
+        if game:
+            result_text += (
+                f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
+                f"👥 Текущих игроков: {len(game.players)}"
+            )
+        else:
+            result_text += "ℹ️ Создайте игру командой /join для применения настроек"
+
+        await update.message.reply_text(result_text)
 
 
 if __name__ == "__main__":
