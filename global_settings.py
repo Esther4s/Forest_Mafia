@@ -102,3 +102,32 @@ class GlobalSettings:
             f"☀️ Длительность дня: {self.get('day_duration', 300)}с\n"
             f"🗳️ Длительность голосования: {self.get('voting_duration', 120)}с"
         )
+class GlobalSettings:
+    def __init__(self):
+        self._test_mode = True
+        self._min_players_normal = 6
+        self._min_players_test = 3
+        self._night_duration = 60
+        self._day_duration = 300
+        self._voting_duration = 120
+        
+    def is_test_mode(self):
+        return self._test_mode
+    
+    def toggle_test_mode(self):
+        self._test_mode = not self._test_mode
+        return self._test_mode
+    
+    def get_min_players(self):
+        return self._min_players_test if self._test_mode else self._min_players_normal
+    
+    def get_settings_summary(self):
+        mode_text = "🧪 Тестовый режим" if self._test_mode else "🎮 Обычный режим"
+        return (
+            f"📊 Текущие настройки:\n\n"
+            f"🎯 Режим: {mode_text}\n"
+            f"👥 Минимум игроков: {self.get_min_players()}\n"
+            f"🌙 Ночь: {self._night_duration} сек\n"
+            f"☀️ День: {self._day_duration // 60} мин\n"
+            f"🗳️ Голосование: {self._voting_duration // 60} мин"
+        )

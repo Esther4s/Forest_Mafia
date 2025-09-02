@@ -1159,6 +1159,38 @@ class ForestMafiaBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+    async def handle_timer_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает настройки таймеров"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+
+        # Показываем настройки таймеров
+        await self.show_timer_settings(query, context)
+
+    async def handle_role_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает настройки ролей"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+
+        # Показываем настройки ролей
+        await self.show_role_settings(query, context)
+
     async def handle_settings_back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Возвращает к главному меню настроек"""
         query = update.callback_query
@@ -1378,10 +1410,9 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.handle_day_actions, pattern=r"^day_"))
         application.add_handler(CallbackQueryHandler(self.handle_wolf_voting, pattern=r"^wolf_vote_"))
         # settings submenu/back handlers
-        application.add_handler(CallbackQueryHandler(self.show_timer_settings, pattern=r"^timer_"))
-        application.add_handler(CallbackQueryHandler(self.show_role_settings, pattern=r"^role_"))
+        application.add_handler(CallbackQueryHandler(self.handle_timer_settings, pattern=r"^timer_"))
+        application.add_handler(CallbackQueryHandler(self.handle_role_settings, pattern=r"^role_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings_back, pattern=r"^settings_back$"))
-        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
 
         # Установка команд после старта бота
         async def post_init(application):
