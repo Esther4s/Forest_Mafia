@@ -575,32 +575,38 @@ class ForestMafiaBot:
             night_actions.clear_actions()
     
     async def handle_night_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик ночных действий"""
+        query = update.callback_query
+        user_id = query.from_user.id
+
         # Находим игру, в которой участвует игрок
         if user_id in self.player_games:
             chat_id = self.player_games[user_id]
             if chat_id in self.night_interfaces:
                 night_interface = self.night_interfaces[chat_id]
                 await night_interface.handle_night_action(update, context)
+    
+    async def handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик настроек игры"""
         query = update.callback_query
         await query.answer()
-        
+
         user_id = query.from_user.id
         chat_id = query.message.chat.id
-        
+
         # Проверяем права администратора
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
         if chat_member.status not in ['creator', 'administrator']:
             await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
             return
-        
+
         if chat_id not in self.games:
             await query.edit_message_text("❌ В этом чате нет активной игры!")
             return
-        
+
         game = self.games[chat_id]
         data = query.data.split('_')[1]
-        
+
         if data == "timers":
             await self.show_timer_settings(query, context, game)
         elif data == "roles":
@@ -609,6 +615,35 @@ class ForestMafiaBot:
             await self.reset_game_stats(query, context, game)
         elif data == "close":
             await query.edit_message_text("⚙️ Настройки закрыты")
+
+    async def handle_settings_back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик кнопки 'Назад' и других настроек"""
+        query = update.callback_query
+        await query.answer()
+
+        user_id = query.from_user.id
+        chat_id = query.message.chat.id
+
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+
+        game = self.games[chat_id]
+        data = query.data
+
+        if data == "settings_back":
+            # Возвращаемся к главному меню настроек
+            await self.settings(update, context)
+        elif data.startswith("timer_"):
+            await self.handle_timer_setting(query, context, game, data)
+        elif data.startswith("role_"):
+            await self.handle_role_setting(query, context, game, data)
     
     async def show_timer_settings(self, query, context, game):
         """Показывает настройки таймеров"""
