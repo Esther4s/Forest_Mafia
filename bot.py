@@ -604,11 +604,16 @@ class ForestMafiaBot:
             return
 
         # Отправляем уведомление в общий чат
-        await update.message.reply_text(
+        chat_message = (
             "🗳️ Время голосования за изгнание!\n\n"
             "У вас есть 2 минуты, чтобы проголосовать в личных сообщениях за изгнание зверя из леса.\n\n"
             "📱 Проверьте личные сообщения с ботом для голосования."
         )
+        
+        if hasattr(update, 'message') and update.message:
+            await update.message.reply_text(chat_message)
+        elif hasattr(update, 'callback_query') and update.callback_query:
+            await context.bot.send_message(chat_id=game.chat_id, text=chat_message)
 
         # Отправляем меню голосования каждому живому игроку в личку
         for voter in alive_players:
@@ -1034,9 +1039,9 @@ class ForestMafiaBot:
         game = self.games.get(chat_id)  # Игра может отсутствовать
         
         if query.data == "settings_timers":
-            await self.show_timer_settings(query, context, game)
+            await self.show_timer_settings(query, context)
         elif query.data == "settings_roles":
-            await self.show_role_settings(query, context, game)
+            await self.show_role_settings(query, context)
         elif query.data == "settings_toggle_test":
             await self.toggle_test_mode(query, context, game)
         elif query.data == "settings_global":
@@ -1049,7 +1054,7 @@ class ForestMafiaBot:
         elif query.data == "settings_close":
             await query.edit_message_text("⚙️ Настройки закрыты")
 
-    async def show_timer_settings(self, query, context, game: Game):
+    async def show_timer_settings(self, query, context):
         keyboard = [
             [InlineKeyboardButton("🌙 Ночь: 60с", callback_data="timer_night_60")],
             [InlineKeyboardButton("☀️ День: 5мин", callback_data="timer_day_300")],
@@ -1061,7 +1066,7 @@ class ForestMafiaBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    async def show_role_settings(self, query, context, game: Game):
+    async def show_role_settings(self, query, context):
         keyboard = [
             [InlineKeyboardButton("🐺 Волки: 25%", callback_data="role_wolves_25")],
             [InlineKeyboardButton("🦊 Лиса: 15%", callback_data="role_fox_15")],
