@@ -42,7 +42,7 @@ class Game:
         self.votes = {}
         self.game_start_time = None
         self.phase_end_time = None
-        self.is_test_mode = False # Added for test mode
+        self.is_test_mode = True  # Enabled test mode by default
 
     def add_player(self, user_id: int, username: str) -> bool:
         """Добавляет игрока в игру"""

@@ -74,11 +74,94 @@ class ForestMafiaBot:
         )
         await update.message.reply_text(rules_text)
 
+    # ---------------- callback helpers ----------------
+    async def join_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+        username = query.from_user.username or query.from_user.full_name or str(user_id)
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:  # Это личные сообщения
+            await query.edit_message_text("❌ Игра доступна только в группах! Добавьте бота в группу и попробуйте там.")
+            return
+
+        # already in another game?
+        if user_id in self.player_games:
+            other_chat = self.player_games[user_id]
+            if other_chat != chat_id:
+                await query.edit_message_text("❌ Вы уже участвуете в игре в другом чате!")
+                return
+
+        # create game if needed
+        if chat_id not in self.games:
+            self.games[chat_id] = Game(chat_id)
+            self.night_actions[chat_id] = NightActions(self.games[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+
+        game = self.games[chat_id]
+
+        if game.phase != GamePhase.WAITING:
+            await query.edit_message_text("❌ Игра уже идёт! Дождитесь её окончания.")
+            return
+
+        if game.add_player(user_id, username):
+            self.player_games[user_id] = chat_id
+            max_players = getattr(game, "MAX_PLAYERS", 12)
+            await query.edit_message_text(f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}")
+        else:
+            await query.edit_message_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
+
+    async def status_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        chat_id = query.message.chat.id
+
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте /join чтобы присоединиться.")
+            return
+
+        game = self.games[chat_id]
+
+        if game.phase == GamePhase.WAITING:
+            status_text = (
+                "⏳ Ожидание игроков...\n\n"
+                f"👥 Игроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
+                f"📋 Минимум для начала: {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS}\n\n"
+                "Список игроков:\n"
+            )
+            for player in game.players.values():
+                status_text += f"• {player.username}\n"
+            if game.can_start_game():
+                status_text += "\n✅ Можно начинать игру!"
+            else:
+                status_text += f"\n⏳ Нужно ещё {max(0, (TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS) - len(game.players))} игроков"
+        else:
+            phase_names = {
+                GamePhase.NIGHT: "🌙 Ночь",
+                GamePhase.DAY: "☀️ День", 
+                GamePhase.VOTING: "🗳️ Голосование",
+                GamePhase.GAME_OVER: "🏁 Игра окончена"
+            }
+            status_text = (
+                f"🎮 Игра идёт\n\n"
+                f"📊 Фаза: {phase_names.get(game.phase, 'Неизвестно')}\n"
+                f"🔄 Раунд: {game.current_round}\n"
+                f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
+                "Живые игроки:\n"
+            )
+            for p in game.get_alive_players():
+                status_text += f"• {p.username}\n"
+
+        await query.edit_message_text(status_text)
+
     # ---------------- join / leave / status ----------------
     async def join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:  # Это личные сообщения
+            await update.message.reply_text("❌ Игра доступна только в группах! Добавьте бота в группу и попробуйте там.")
+            return
 
         # already in another game?
         if user_id in self.player_games:
@@ -111,6 +194,11 @@ class ForestMafiaBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
 
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text("❌ Игра доступна только в группах!")
+            return
+
         if chat_id not in self.games:
             await update.message.reply_text("❌ В этом чате нет активной игры!")
             return
@@ -136,6 +224,11 @@ class ForestMafiaBot:
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == update.effective_user.id:
+            await update.message.reply_text("❌ Игра доступна только в группах!")
+            return
 
         if chat_id not in self.games:
             await update.message.reply_text("❌ В этом чате нет активной игры!\nИспользуйте /join чтобы присоединиться.")
@@ -179,6 +272,11 @@ class ForestMafiaBot:
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text("❌ Игра доступна только в группах!")
+            return
 
         # Проверяем права администратора
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -231,6 +329,11 @@ class ForestMafiaBot:
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text("❌ Игра доступна только в группах!")
+            return
+
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
         if chat_member.status not in ['creator', 'administrator']:
             await update.message.reply_text("❌ Только администраторы могут принудительно завершать игру!")
@@ -242,6 +345,29 @@ class ForestMafiaBot:
 
         game = self.games[chat_id]
         await self._end_game_internal(update, context, game, "Администратор принудительно завершил игру")
+
+    async def clear_all_games(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        user_id = update.effective_user.id
+        
+        # Проверяем, что команда от создателя бота (можете изменить это условие)
+        if user_id != 123456789:  # Замените на ваш user_id
+            await update.message.reply_text("❌ Недостаточно прав для выполнения команды!")
+            return
+
+        games_count = len(self.games)
+        players_count = len(self.player_games)
+
+        # Очищаем все игровые сессии
+        self.games.clear()
+        self.player_games.clear()
+        self.night_actions.clear()
+        self.night_interfaces.clear()
+
+        await update.message.reply_text(
+            f"🧹 Все игровые сессии очищены!\n\n"
+            f"📊 Было завершено игр: {games_count}\n"
+            f"👥 Было освобождено игроков: {players_count}"
+        )
 
     async def _end_game_internal(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, reason: str):
         game.phase = GamePhase.GAME_OVER
@@ -405,16 +531,8 @@ class ForestMafiaBot:
         query = update.callback_query
         await query.answer()
         
-        # Создаем фиктивный update для callback
         if query.data == "welcome_start_game":
-            # Создаем новый Update объект для join
-            fake_update = Update(
-                update_id=update.update_id,
-                message=query.message,
-                effective_chat=update.effective_chat,
-                effective_user=update.effective_user
-            )
-            await self.join(fake_update, context)
+            await self.join_from_callback(query, context)
         elif query.data == "welcome_rules":
             await query.edit_message_text(
                 "📖 Правила игры 'Лесная Возня':\n\n"
@@ -429,18 +547,17 @@ class ForestMafiaBot:
                 "🏆 Цель: уничтожить команду противника"
             )
         elif query.data == "welcome_status":
-            fake_update = Update(
-                update_id=update.update_id,
-                message=query.message,
-                effective_chat=update.effective_chat,
-                effective_user=update.effective_user
-            )
-            await self.status(fake_update, context)
+            await self.status_from_callback(query, context)
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text("❌ Игра доступна только в группах!")
+            return
 
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
         if chat_member.status not in ['creator', 'administrator']:
@@ -564,11 +681,12 @@ class ForestMafiaBot:
         commands = [
             BotCommand("start", "🌲 Приветствие и начало работы"),
             BotCommand("rules", "📖 Правила игры"),
-            BotCommand("join", "✅ Присоединиться к игре"),
+            BotCommand("join", "✅ Присоединиться к игре (только группы)"),
             BotCommand("leave", "👋 Покинуть игру"),
             BotCommand("start_game", "🎮 Начать игру (админы)"),
             BotCommand("end_game", "🏁 Завершить игру (админы)"),
             BotCommand("force_end", "⛔ Принудительно завершить (админы)"),
+            BotCommand("clear_all_games", "🧹 Очистить все игры (супер-админ)"),
             BotCommand("settings", "⚙️ Настройки игры (админы)"),
             BotCommand("status", "📊 Статус текущей игры"),
         ]
@@ -589,6 +707,7 @@ class ForestMafiaBot:
         application.add_handler(CommandHandler("start_game", self.start_game))
         application.add_handler(CommandHandler("end_game", self.end_game))
         application.add_handler(CommandHandler("force_end", self.force_end))
+        application.add_handler(CommandHandler("clear_all_games", self.clear_all_games))
         application.add_handler(CommandHandler("settings", self.settings))
         application.add_handler(CommandHandler("status", self.status))
 
