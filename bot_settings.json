@@ -1,0 +1,16 @@
+{
+  "test_mode": true,
+  "min_players_normal": 6,
+  "min_players_test": 3,
+  "max_players": 12,
+  "night_duration": 60,
+  "day_duration": 300,
+  "voting_duration": 120,
+  "role_distribution": {
+    "wolves": 0.25,
+    "fox": 0.15,
+    "hares": 0.35,
+    "mole": 0.15,
+    "beaver": 0.1
+  }
+}
