@@ -22,8 +22,8 @@ class ForestMafiaBot:
         self.night_actions: Dict[int, NightActions] = {}  # chat_id -> NightActions
         self.night_interfaces: Dict[int, NightInterface] = {}  # chat_id -> NightInterface
         
-    async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /start"""
+    async def start_old(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Старый обработчик команды /start для справки"""
         await update.message.reply_text(
             "🌲 Добро пожаловать в Лесную Возню! 🌲\n\n"
             "Это ролевая игра 'Мафия' с лесными зверушками.\n\n"
@@ -906,13 +906,76 @@ class ForestMafiaBot:
         }
         return role_info.get(role, {"name": "Неизвестно", "description": "Роль не определена"})
     
+    async def setup_bot_commands(self, application):
+        """Настраивает команды бота в меню"""
+        from telegram import BotCommand
+        
+        commands = [
+            BotCommand("start", "🌲 Приветствие и начало работы"),
+            BotCommand("rules", "📖 Правила игры"),
+            BotCommand("join", "✅ Присоединиться к игре"),
+            BotCommand("leave", "👋 Покинуть игру"),
+            BotCommand("start_game", "🎮 Начать игру (админы)"),
+            BotCommand("end_game", "🏁 Завершить игру (админы)"),
+            BotCommand("force_end", "⛔ Принудительно завершить (админы)"),
+            BotCommand("settings", "⚙️ Настройки игры (админы)"),
+            BotCommand("status", "📊 Статус текущей игры"),
+        ]
+        
+        await application.bot.set_my_commands(commands)
+    
+    async def welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Отправляет приветственное сообщение с кнопкой"""
+        keyboard = [
+            [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
+            [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
+            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        welcome_text = (
+            "🌲 **Добро пожаловать в Лесную Возню!** 🌲\n\n"
+            "🎭 Это захватывающая ролевая игра в стиле 'Мафия' с лесными зверушками!\n\n"
+            "🐺 **Хищники:** Волки и Лиса\n"
+            "🐰 **Травоядные:** Зайцы, Крот и Бобёр\n\n"
+            "🎯 **Цель:** Уничтожить команду противника!\n\n"
+            "👥 Для игры нужно минимум 6 игроков\n"
+            "⏰ Игра состоит из ночных и дневных фаз\n\n"
+            "Нажмите кнопку ниже, чтобы начать!"
+        )
+        
+        await update.message.reply_text(
+            welcome_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    async def handle_welcome_buttons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик кнопок приветственного сообщения"""
+        query = update.callback_query
+        await query.answer()
+        
+        if query.data == "welcome_start_game":
+            await self.join(update, context)
+        elif query.data == "welcome_rules":
+            await self.rules(update, context)
+        elif query.data == "welcome_status":
+            await self.status(update, context)
+    
     def run(self):
         """Запускает бота"""
         # Создаем приложение
         application = Application.builder().token(BOT_TOKEN).build()
         
+        # Настраиваем команды бота
+        application.job_queue.run_once(
+            lambda context: self.setup_bot_commands(application),
+            when=1
+        )
+        
         # Добавляем обработчики команд
-        application.add_handler(CommandHandler("start", self.start))
+        application.add_handler(CommandHandler("start", self.welcome_message))
         application.add_handler(CommandHandler("rules", self.rules))
         application.add_handler(CommandHandler("join", self.join))
         application.add_handler(CommandHandler("leave", self.leave))
@@ -928,6 +991,7 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern="^settings_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings_back, pattern="^(settings_back|timer_|role_)"))
         application.add_handler(CallbackQueryHandler(self.handle_set_values, pattern="^set_(timer|role)_"))
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern="^welcome_"))
         
         # Запускаем бота
         application.run_polling()
