@@ -701,6 +701,9 @@ class ForestMafiaBot:
         if query.data == "welcome_start_game":
             await self.join_from_callback(query, context)
         elif query.data == "welcome_rules":
+            keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
             await query.edit_message_text(
                 "📖 Правила игры 'Лесная Возня':\n\n"
                 "🎭 Роли:\n"
@@ -711,10 +714,33 @@ class ForestMafiaBot:
                 "🦦 Бобёр (Травоядные) - возвращает украденные запасы\n\n"
                 "🌙 Ночные фазы: Волки → Лиса → Бобёр → Крот\n"
                 "☀️ Дневные фазы: обсуждение и голосование\n"
-                "🏆 Цель: уничтожить команду противника"
+                "🏆 Цель: уничтожить команду противника",
+                reply_markup=reply_markup
             )
         elif query.data == "welcome_status":
             await self.status_from_callback(query, context)
+        elif query.data == "welcome_back":
+            # Возвращаемся к приветственному сообщению
+            keyboard = [
+                [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
+                [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            welcome_text = (
+                "🌲 *Добро пожаловать в Лесную Возню!* 🌲\n\n"
+                "🎭 Это ролевая игра в стиле 'Мафия' с лесными зверушками!\n\n"
+                "🐺 *Хищники:* Волки и Лиса\n"
+                "🐰 *Травоядные:* Зайцы, Крот и Бобёр\n\n"
+                "🎯 *Цель:* Уничтожить команду противника!\n\n"
+                f"👥 Для игры нужно минимум {self.global_settings.get_min_players()} игроков\n"
+                f"{'🧪 ТЕСТОВЫЙ РЕЖИМ АКТИВЕН' if self.global_settings.is_test_mode() else ''}\n"
+                "⏰ Игра состоит из ночных и дневных фаз\n\n"
+                "Нажмите кнопку ниже, чтобы начать!"
+            )
+
+            await query.edit_message_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def handle_day_actions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает действия дневной фазы"""
