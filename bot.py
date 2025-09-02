@@ -576,17 +576,11 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.reset_game_stats, pattern=r"^settings_reset$"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
 
-        # отложенная установка команд через JobQueue (будет выполнено после старта)
-        def schedule_set_commands(context):
-            # контекст — JobQueueContext, внутри него запускаем coro
-            asyncio.create_task(self.setup_bot_commands(application))
-
-        try:
-            application.job_queue.run_once(schedule_set_commands, when=1)
-        except Exception as e:
-            logger.warning(f"Не удалось запланировать установку команд через JobQueue: {e}")
-            # попробуем вызвать сразу (без loop) — безопасно, если бот ещё не стартовал, будет поймано
-            asyncio.create_task(self.setup_bot_commands(application))
+        # Установка команд после старта бота
+        async def post_init(application):
+            await self.setup_bot_commands(application)
+        
+        application.post_init = post_init
 
         # Запуск бота (blocking call)
         application.run_polling()
