@@ -440,7 +440,21 @@ class ForestMafiaBot:
 
     async def start_day_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_day()
-        await update.message.reply_text("☀️ Восходит солнце! Лес просыпается.\n\n🌲 Начинается дневное обсуждение.\nУ вас есть 5 минут, чтобы обсудить ночные события и решить, кого изгнать.")
+        
+        # Создаем кнопки для дневной фазы
+        keyboard = [
+            [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")],
+            [InlineKeyboardButton("🐺 Выбрать волка", callback_data="day_choose_wolf")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "☀️ Восходит солнце! Лес просыпается.\n\n"
+            "🌲 Начинается дневное обсуждение.\n"
+            "У вас есть 5 минут, чтобы обсудить ночные события и решить, кого изгнать.\n\n"
+            "Используйте кнопки ниже для управления фазой:",
+            reply_markup=reply_markup
+        )
         asyncio.create_task(self.day_phase_timer(update, context, game))
 
     async def day_phase_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -561,6 +575,65 @@ class ForestMafiaBot:
             )
         elif query.data == "welcome_status":
             await self.status_from_callback(query, context)
+
+    async def handle_day_actions(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает действия дневной фазы"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+        
+        # Проверяем права администратора
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+            if chat_member.status not in ['creator', 'administrator']:
+                await query.edit_message_text("❌ Только администраторы могут управлять игрой!")
+                return
+        except Exception:
+            await query.edit_message_text("❌ Ошибка проверки прав!")
+            return
+        
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+        
+        game = self.games[chat_id]
+        
+        if query.data == "day_end_discussion":
+            if game.phase != GamePhase.DAY:
+                await query.edit_message_text("❌ Сейчас не время обсуждения!")
+                return
+            
+            await query.edit_message_text("🏁 Администратор завершил обсуждение досрочно!")
+            await self.start_voting_phase(update, context, game)
+            
+        elif query.data == "day_choose_wolf":
+            if game.phase != GamePhase.DAY:
+                await query.edit_message_text("❌ Выбор волка доступен только в дневной фазе!")
+                return
+            
+            # Показываем всех живых игроков для выбора волка
+            alive_players = game.get_alive_players()
+            if not alive_players:
+                await query.edit_message_text("❌ Нет живых игроков!")
+                return
+            
+            keyboard = []
+            for player in alive_players:
+                keyboard.append([InlineKeyboardButton(
+                    f"🐺 {player.username}",
+                    callback_data=f"wolf_select_{player.user_id}"
+                )])
+            
+            keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="wolf_select_cancel")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "🐺 Выберите игрока, которого хотите назначить волком:\n\n"
+                "⚠️ Это действие изменит роль игрока!",
+                reply_markup=reply_markup
+            )
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -685,6 +758,74 @@ class ForestMafiaBot:
             await night_interface.send_night_results(context, results)
             night_actions.clear_actions()
 
+    async def handle_wolf_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает выбор волка администратором"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+        
+        # Проверяем права администратора
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+            if chat_member.status not in ['creator', 'administrator']:
+                await query.edit_message_text("❌ Только администраторы могут управлять игрой!")
+                return
+        except Exception:
+            await query.edit_message_text("❌ Ошибка проверки прав!")
+            return
+        
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+        
+        game = self.games[chat_id]
+        data = query.data.split('_')
+        
+        if len(data) == 3 and data[2] == "cancel":
+            await query.edit_message_text("❌ Выбор волка отменен.")
+            return
+        
+        if len(data) != 3:
+            await query.edit_message_text("❌ Ошибка данных!")
+            return
+        
+        target_id = int(data[2])
+        
+        if target_id not in game.players:
+            await query.edit_message_text("❌ Игрок не найден!")
+            return
+        
+        target_player = game.players[target_id]
+        
+        if not target_player.is_alive:
+            await query.edit_message_text("❌ Нельзя назначить мертвого игрока волком!")
+            return
+        
+        # Меняем роль игрока на волка
+        old_role = target_player.role
+        target_player.role = Role.WOLF
+        target_player.team = Team.PREDATORS
+        
+        await query.edit_message_text(
+            f"🐺 Игрок {target_player.username} назначен волком!\n\n"
+            f"📝 Предыдущая роль: {self.get_role_info(old_role)['name']}\n"
+            f"📝 Новая роль: {self.get_role_info(Role.WOLF)['name']}"
+        )
+        
+        # Уведомляем игрока о смене роли
+        try:
+            role_info = self.get_role_info(Role.WOLF)
+            await context.bot.send_message(
+                chat_id=target_id,
+                text=f"🐺 Ваша роль изменена администратором!\n\n"
+                     f"🎭 Новая роль: {role_info['name']}\n"
+                     f"📝 Описание: {role_info['description']}"
+            )
+        except Exception as e:
+            logger.error(f"Не удалось уведомить игрока {target_id} о смене роли: {e}")
+
     # ---------------- helper ----------------
     async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Отправляет кнопку просмотра роли игрокам без ночных действий"""
@@ -772,6 +913,8 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.handle_night_action, pattern=r"^night_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^settings_"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
+        application.add_handler(CallbackQueryHandler(self.handle_day_actions, pattern=r"^day_"))
+        application.add_handler(CallbackQueryHandler(self.handle_wolf_selection, pattern=r"^wolf_select_"))
         # settings submenu/back handlers
         application.add_handler(CallbackQueryHandler(self.show_timer_settings, pattern=r"^timer_"))
         application.add_handler(CallbackQueryHandler(self.show_role_settings, pattern=r"^role_"))
