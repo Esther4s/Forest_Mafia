@@ -89,7 +89,12 @@ class ForestMafiaBot:
         if user_id in self.player_games:
             other_chat = self.player_games[user_id]
             if other_chat != chat_id:
-                await query.edit_message_text("❌ Вы уже участвуете в игре в другом чате!")
+                try:
+                    other_chat_info = await context.bot.get_chat(other_chat)
+                    chat_name = other_chat_info.title or f"Чат {other_chat}"
+                except:
+                    chat_name = f"Чат {other_chat}"
+                await query.edit_message_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
                 return
 
         # create game if needed
@@ -167,7 +172,12 @@ class ForestMafiaBot:
         if user_id in self.player_games:
             other_chat = self.player_games[user_id]
             if other_chat != chat_id:
-                await update.message.reply_text("❌ Вы уже участвуете в игре в другом чате!")
+                try:
+                    other_chat_info = await context.bot.get_chat(other_chat)
+                    chat_name = other_chat_info.title or f"Чат {other_chat}"
+                except:
+                    chat_name = f"Чат {other_chat}"
+                await update.message.reply_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
                 return
 
         # create game if needed
@@ -568,9 +578,13 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ В этом чате нет активной игры!\nИспользуйте /join чтобы присоединиться.")
             return
 
+        game = self.games[chat_id]
+        test_mode_text = "🧪 Тестовый режим: ВКЛ" if game.is_test_mode else "🧪 Тестовый режим: ВЫКЛ"
+        
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
+            [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
             [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
         ]
@@ -596,6 +610,8 @@ class ForestMafiaBot:
             await self.show_timer_settings(query, context, game)
         elif query.data == "settings_roles":
             await self.show_role_settings(query, context, game)
+        elif query.data == "settings_toggle_test":
+            await self.toggle_test_mode(query, context, game)
         elif query.data == "settings_reset":
             await self.reset_game_stats(query, context, game)
         elif query.data == "settings_close":
@@ -624,6 +640,22 @@ class ForestMafiaBot:
         await query.edit_message_text(
             "🎭 Настройки распределения ролей\n\nТекущие значения:\n🐺 Волки: 25%\n🦊 Лиса: 15%\n🦫 Крот: 15%\n🦦 Бобёр: 10%\n🐰 Зайцы: 35% (автоматически)\n\nВыберите роль для изменения:",
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def toggle_test_mode(self, query, context, game: Game):
+        if game.phase != GamePhase.WAITING:
+            await query.edit_message_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
+            return
+        
+        game.is_test_mode = not game.is_test_mode
+        mode_text = "включен" if game.is_test_mode else "выключен"
+        min_players = 3 if game.is_test_mode else 6
+        
+        await query.edit_message_text(
+            f"🧪 Тестовый режим {mode_text}!\n\n"
+            f"📋 Минимум игроков: {min_players}\n"
+            f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
+            f"👥 Текущих игроков: {len(game.players)}"
         )
 
     async def reset_game_stats(self, query, context, game: Game):
@@ -719,7 +751,7 @@ class ForestMafiaBot:
         # settings submenu/back handlers
         application.add_handler(CallbackQueryHandler(self.show_timer_settings, pattern=r"^timer_"))
         application.add_handler(CallbackQueryHandler(self.show_role_settings, pattern=r"^role_"))
-        application.add_handler(CallbackQueryHandler(self.reset_game_stats, pattern=r"^settings_reset$"))
+        application.add_handler(CallbackQueryHandler(self.settings, pattern=r"^settings_back$"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
 
         # Установка команд после старта бота
