@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN', 'your_bot_token_here')
+BOT_TOKEN = os.getenv('BOT_TOKEN', '8314318680:AAHcpsrR4ffz19Ur6xc6cw1zZ0uydfTsCAQ')
 
 # Game settings
 MIN_PLAYERS = 6

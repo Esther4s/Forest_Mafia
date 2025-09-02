@@ -575,18 +575,12 @@ class ForestMafiaBot:
             night_actions.clear_actions()
     
     async def handle_night_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик ночных действий"""
-        query = update.callback_query
-        user_id = query.from_user.id
-        
         # Находим игру, в которой участвует игрок
         if user_id in self.player_games:
             chat_id = self.player_games[user_id]
-                    if chat_id in self.night_interfaces:
-            night_interface = self.night_interfaces[chat_id]
-            await night_interface.handle_night_action(update, context)
-    
-    async def handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+            if chat_id in self.night_interfaces:
+                night_interface = self.night_interfaces[chat_id]
+                await night_interface.handle_night_action(update, context)
         """Обработчик настроек игры"""
         query = update.callback_query
         await query.answer()
