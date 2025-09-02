@@ -48,7 +48,13 @@ class NightInterface:
                 "⏭️ Пропустить ход",
                 callback_data=f"night_{actions['type']}_skip"
             )])
-        
+
+        # Добавляем кнопку "Посмотреть роль"
+        keyboard.append([InlineKeyboardButton(
+            "🎭 Посмотреть мою роль",
+            callback_data=f"night_view_role_{player_id}"
+        )])
+
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         try:
@@ -68,12 +74,6 @@ class NightInterface:
         user_id = query.from_user.id
         data = query.data.split('_')
         
-        if len(data) != 3:
-            return
-        
-        action_type = data[1]
-        target_id = data[2]
-        
         # Проверяем, что игрок действительно в игре
         if user_id not in self.game.players:
             await query.edit_message_text("❌ Вы не участвуете в игре!")
@@ -83,6 +83,41 @@ class NightInterface:
         if not player.is_alive:
             await query.edit_message_text("❌ Вы мертвы и не можете совершать действия!")
             return
+
+        action_type = data[1]
+
+        # Проверяем, если это просмотр роли
+        if action_type == "view" and data[1] == "role":
+            role_info = self.get_role_info(player.role)
+            team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
+
+            role_modal_text = (
+                f"🎭 Ваша роль в игре:\n\n"
+                f"👤 {role_info['name']}\n"
+                f"🏴 Команда: {team_name}\n\n"
+                f"📝 Описание:\n{role_info['description']}\n\n"
+                f"🌙 Раунд: {self.game.current_round}\n"
+                f"💚 Статус: {'Живой' if player.is_alive else 'Мертвый'}"
+            )
+
+            await query.edit_message_text(
+                role_modal_text,
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("↩️ Вернуться к действиям", callback_data=f"night_back_to_actions_{user_id}")
+                ]])
+            )
+            return
+
+        # Проверяем возврат к действиям
+        if action_type == "back" and data[1] == "to" and data[2] == "actions":
+            await self.send_night_actions_menu(context, user_id)
+            return
+        
+        if len(data) != 3:
+            return
+        
+        action_type = data[1]
+        target_id = data[2]
         
         # Обрабатываем действие в зависимости от типа
         success = False

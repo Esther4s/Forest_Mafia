@@ -425,6 +425,9 @@ class ForestMafiaBot:
 
         # меню ночных действий
         await self.send_night_actions_to_players(context, game)
+        
+        # Отправляем кнопку просмотра роли игрокам без ночных действий (зайцы)
+        await self.send_role_button_to_passive_players(context, game)
 
         # таймер ночи (запускаем как таск)
         asyncio.create_task(self.night_phase_timer(update, context, game))
@@ -683,6 +686,27 @@ class ForestMafiaBot:
             night_actions.clear_actions()
 
     # ---------------- helper ----------------
+    async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Отправляет кнопку просмотра роли игрокам без ночных действий"""
+        passive_roles = [Role.HARE]  # Зайцы не имеют ночных действий
+        
+        for player in game.players.values():
+            if player.is_alive and player.role in passive_roles:
+                keyboard = [[InlineKeyboardButton(
+                    "🎭 Посмотреть мою роль",
+                    callback_data=f"night_view_role_{player.user_id}"
+                )]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                try:
+                    await context.bot.send_message(
+                        chat_id=player.user_id,
+                        text="🌙 Ночь в лесу...\n\nВы спите, но можете посмотреть свою роль:",
+                        reply_markup=reply_markup
+                    )
+                except Exception as e:
+                    logger.error(f"Не удалось отправить кнопку роли игроку {player.user_id}: {e}")
+
     def get_role_info(self, role: Role) -> Dict[str, str]:
         role_info = {
             Role.WOLF: {
