@@ -17,6 +17,7 @@ from game_logic import Game, GamePhase, Role, Team, Player  # ваши реал�
 from config import BOT_TOKEN, MIN_PLAYERS, TEST_MODE, TEST_MIN_PLAYERS  # ваши настройки
 from night_actions import NightActions
 from night_interface import NightInterface
+from global_settings import GlobalSettings # Импортируем GlobalSettings
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -35,6 +36,8 @@ class ForestMafiaBot:
         self.night_actions: Dict[int, NightActions] = {}
         # chat_id -> NightInterface
         self.night_interfaces: Dict[int, NightInterface] = {}
+        # Global settings instance
+        self.global_settings = GlobalSettings()
 
     # ---------------- basic commands ----------------
     async def welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -51,8 +54,8 @@ class ForestMafiaBot:
             "🐺 *Хищники:* Волки и Лиса\n"
             "🐰 *Травоядные:* Зайцы, Крот и Бобёр\n\n"
             "🎯 *Цель:* Уничтожить команду противника!\n\n"
-            f"👥 Для игры нужно минимум {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS} игроков\n"
-            f"{'🧪 ТЕСТОВЫЙ РЕЖИМ АКТИВЕН' if TEST_MODE else ''}\n"
+            f"👥 Для игры нужно минимум {self.global_settings.get_min_players()} игроков\n"
+            f"{'🧪 ТЕСТОВЫЙ РЕЖИМ АКТИВЕН' if self.global_settings.is_test_mode() else ''}\n"
             "⏰ Игра состоит из ночных и дневных фаз\n\n"
             "Нажмите кнопку ниже, чтобы начать!"
         )
@@ -100,6 +103,7 @@ class ForestMafiaBot:
         # create game if needed
         if chat_id not in self.games:
             self.games[chat_id] = Game(chat_id)
+            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
 
@@ -126,10 +130,11 @@ class ForestMafiaBot:
         game = self.games[chat_id]
 
         if game.phase == GamePhase.WAITING:
+            min_players = self.global_settings.get_min_players()
             status_text = (
                 "⏳ Ожидание игроков...\n\n"
                 f"👥 Игроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
-                f"📋 Минимум для начала: {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS}\n\n"
+                f"📋 Минимум для начала: {min_players}\n\n"
                 "Список игроков:\n"
             )
             for player in game.players.values():
@@ -137,11 +142,11 @@ class ForestMafiaBot:
             if game.can_start_game():
                 status_text += "\n✅ Можно начинать игру!"
             else:
-                status_text += f"\n⏳ Нужно ещё {max(0, (TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS) - len(game.players))} игроков"
+                status_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
         else:
             phase_names = {
                 GamePhase.NIGHT: "🌙 Ночь",
-                GamePhase.DAY: "☀️ День", 
+                GamePhase.DAY: "☀️ День",
                 GamePhase.VOTING: "🗳️ Голосование",
                 GamePhase.GAME_OVER: "🏁 Игра окончена"
             }
@@ -183,6 +188,7 @@ class ForestMafiaBot:
         # create game if needed
         if chat_id not in self.games:
             self.games[chat_id] = Game(chat_id)
+            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
 
@@ -247,10 +253,11 @@ class ForestMafiaBot:
         game = self.games[chat_id]
 
         if game.phase == GamePhase.WAITING:
+            min_players = self.global_settings.get_min_players()
             status_text = (
                 "⏳ Ожидание игроков...\n\n"
                 f"👥 Игроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
-                f"📋 Минимум для начала: {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS}\n\n"
+                f"📋 Минимум для начала: {min_players}\n\n"
                 "Список игроков:\n"
             )
             for player in game.players.values():
@@ -258,7 +265,7 @@ class ForestMafiaBot:
             if game.can_start_game():
                 status_text += "\n✅ Можно начинать игру!"
             else:
-                status_text += f"\n⏳ Нужно ещё {max(0, MIN_PLAYERS - len(game.players))} игроков"
+                status_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
         else:
             phase_names = {
                 GamePhase.NIGHT: "🌙 Ночь",
@@ -300,7 +307,7 @@ class ForestMafiaBot:
 
         game = self.games[chat_id]
 
-        min_players = TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS
+        min_players = self.global_settings.get_min_players()
         if not game.can_start_game():
             await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {min_players} игроков.")
             return
@@ -358,7 +365,7 @@ class ForestMafiaBot:
 
     async def clear_all_games(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
-        
+
         # Проверяем, что команда от создателя бота (можете изменить это условие)
         if user_id != 123456789:  # Замените на ваш user_id
             await update.message.reply_text("❌ Недостаточно прав для выполнения команды!")
@@ -425,8 +432,8 @@ class ForestMafiaBot:
 
         # меню ночных действий
         await self.send_night_actions_to_players(context, game)
-        
-        # Отправляем кнопку просмотра роли игрокам без ночных действий (зайцы)
+
+        # Отправляем кнопку просмотра роли игрокам без ночных действий
         await self.send_role_button_to_passive_players(context, game)
 
         # таймер ночи (запускаем как таск)
@@ -440,14 +447,14 @@ class ForestMafiaBot:
 
     async def start_day_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_day()
-        
+
         # Создаем кнопки для дневной фазы
         keyboard = [
             [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")],
             [InlineKeyboardButton("🐺 Выбрать волка", callback_data="day_choose_wolf")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        
+
         await update.message.reply_text(
             "☀️ Восходит солнце! Лес просыпается.\n\n"
             "🌲 Начинается дневное обсуждение.\n"
@@ -557,7 +564,7 @@ class ForestMafiaBot:
     async def handle_welcome_buttons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
-        
+
         if query.data == "welcome_start_game":
             await self.join_from_callback(query, context)
         elif query.data == "welcome_rules":
@@ -580,10 +587,10 @@ class ForestMafiaBot:
         """Обрабатывает действия дневной фазы"""
         query = update.callback_query
         await query.answer()
-        
+
         chat_id = query.message.chat.id
         user_id = query.from_user.id
-        
+
         # Проверяем права администратора
         try:
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -593,42 +600,42 @@ class ForestMafiaBot:
         except Exception:
             await query.edit_message_text("❌ Ошибка проверки прав!")
             return
-        
+
         if chat_id not in self.games:
             await query.edit_message_text("❌ В этом чате нет активной игры!")
             return
-        
+
         game = self.games[chat_id]
-        
+
         if query.data == "day_end_discussion":
             if game.phase != GamePhase.DAY:
                 await query.edit_message_text("❌ Сейчас не время обсуждения!")
                 return
-            
+
             await query.edit_message_text("🏁 Администратор завершил обсуждение досрочно!")
             await self.start_voting_phase(update, context, game)
-            
+
         elif query.data == "day_choose_wolf":
             if game.phase != GamePhase.DAY:
                 await query.edit_message_text("❌ Выбор волка доступен только в дневной фазе!")
                 return
-            
+
             # Показываем всех живых игроков для выбора волка
             alive_players = game.get_alive_players()
             if not alive_players:
                 await query.edit_message_text("❌ Нет живых игроков!")
                 return
-            
+
             keyboard = []
             for player in alive_players:
                 keyboard.append([InlineKeyboardButton(
                     f"🐺 {player.username}",
                     callback_data=f"wolf_select_{player.user_id}"
                 )])
-            
+
             keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="wolf_select_cancel")])
             reply_markup = InlineKeyboardMarkup(keyboard)
-            
+
             await query.edit_message_text(
                 "🐺 Выберите игрока, которого хотите назначить волком:\n\n"
                 "⚠️ Это действие изменит роль игрока!",
@@ -655,8 +662,8 @@ class ForestMafiaBot:
             return
 
         game = self.games[chat_id]
-        test_mode_text = "🧪 Тестовый режим: ВКЛ" if game.is_test_mode else "🧪 Тестовый режим: ВЫКЛ"
-        
+        test_mode_text = "🧪 Тестовый режим: ВКЛ" if self.global_settings.is_test_mode() else "🧪 Тестовый режим: ВЫКЛ"
+
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
@@ -722,11 +729,11 @@ class ForestMafiaBot:
         if game.phase != GamePhase.WAITING:
             await query.edit_message_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
             return
-        
-        game.is_test_mode = not game.is_test_mode
-        mode_text = "включен" if game.is_test_mode else "выключен"
-        min_players = 3 if game.is_test_mode else 6
-        
+
+        self.global_settings.toggle_test_mode() # Используем метод для переключения
+        mode_text = "включен" if self.global_settings.is_test_mode() else "выключен"
+        min_players = self.global_settings.get_min_players()
+
         await query.edit_message_text(
             f"🧪 Тестовый режим {mode_text}!\n\n"
             f"📋 Минимум игроков: {min_players}\n"
@@ -762,10 +769,10 @@ class ForestMafiaBot:
         """Обрабатывает выбор волка администратором"""
         query = update.callback_query
         await query.answer()
-        
+
         chat_id = query.message.chat.id
         user_id = query.from_user.id
-        
+
         # Проверяем права администратора
         try:
             chat_member = await context.bot.get_chat_member(chat_id, user_id)
@@ -775,45 +782,45 @@ class ForestMafiaBot:
         except Exception:
             await query.edit_message_text("❌ Ошибка проверки прав!")
             return
-        
+
         if chat_id not in self.games:
             await query.edit_message_text("❌ В этом чате нет активной игры!")
             return
-        
+
         game = self.games[chat_id]
         data = query.data.split('_')
-        
+
         if len(data) == 3 and data[2] == "cancel":
             await query.edit_message_text("❌ Выбор волка отменен.")
             return
-        
+
         if len(data) != 3:
             await query.edit_message_text("❌ Ошибка данных!")
             return
-        
+
         target_id = int(data[2])
-        
+
         if target_id not in game.players:
             await query.edit_message_text("❌ Игрок не найден!")
             return
-        
+
         target_player = game.players[target_id]
-        
+
         if not target_player.is_alive:
             await query.edit_message_text("❌ Нельзя назначить мертвого игрока волком!")
             return
-        
+
         # Меняем роль игрока на волка
         old_role = target_player.role
         target_player.role = Role.WOLF
         target_player.team = Team.PREDATORS
-        
+
         await query.edit_message_text(
             f"🐺 Игрок {target_player.username} назначен волком!\n\n"
             f"📝 Предыдущая роль: {self.get_role_info(old_role)['name']}\n"
             f"📝 Новая роль: {self.get_role_info(Role.WOLF)['name']}"
         )
-        
+
         # Уведомляем игрока о смене роли
         try:
             role_info = self.get_role_info(Role.WOLF)
@@ -830,7 +837,7 @@ class ForestMafiaBot:
     async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Отправляет кнопку просмотра роли игрокам без ночных действий"""
         passive_roles = [Role.HARE]  # Зайцы не имеют ночных действий
-        
+
         for player in game.players.values():
             if player.is_alive and player.role in passive_roles:
                 keyboard = [[InlineKeyboardButton(
@@ -838,7 +845,7 @@ class ForestMafiaBot:
                     callback_data=f"night_view_role_{player.user_id}"
                 )]]
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                
+
                 try:
                     await context.bot.send_message(
                         chat_id=player.user_id,
@@ -886,6 +893,7 @@ class ForestMafiaBot:
             BotCommand("clear_all_games", "🧹 Очистить все игры (супер-админ)"),
             BotCommand("settings", "⚙️ Настройки игры (админы)"),
             BotCommand("status", "📊 Статус текущей игры"),
+            BotCommand("test_mode", "🧪 Включить/выключить тестовый режим (админы)"), # Добавлена команда для тестового режима
         ]
         try:
             await application.bot.set_my_commands(commands)
@@ -907,6 +915,7 @@ class ForestMafiaBot:
         application.add_handler(CommandHandler("clear_all_games", self.clear_all_games))
         application.add_handler(CommandHandler("settings", self.settings))
         application.add_handler(CommandHandler("status", self.status))
+        application.add_handler(CommandHandler("test_mode", self.handle_test_mode_command)) # Обработчик команды test_mode
 
         # callbacks
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern=r"^vote_"))
@@ -924,11 +933,48 @@ class ForestMafiaBot:
         # Установка команд после старта бота
         async def post_init(application):
             await self.setup_bot_commands(application)
-        
+
         application.post_init = post_init
 
         # Запуск бота (blocking call)
         application.run_polling()
+
+    async def handle_test_mode_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает команду /test_mode для включения/выключения тестового режима."""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text("❌ Управление тестовым режимом доступно только в группах!")
+            return
+
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await update.message.reply_text("❌ Только администраторы могут изменять тестовый режим!")
+            return
+
+        if chat_id not in self.games:
+            await update.message.reply_text("❌ В этом чате нет активной игры! Тестовый режим применяется к текущей игре.")
+            return
+
+        game = self.games[chat_id]
+
+        if game.phase != GamePhase.WAITING:
+            await update.message.reply_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
+            return
+
+        self.global_settings.toggle_test_mode() # Используем метод для переключения
+        mode_text = "включен" if self.global_settings.is_test_mode() else "выключен"
+        min_players = self.global_settings.get_min_players()
+
+        await update.message.reply_text(
+            f"🧪 Тестовый режим {mode_text}!\n\n"
+            f"📋 Минимум игроков: {min_players}\n"
+            f"🎮 Можно начать игру: {'✅' if game.can_start_game() else '❌'}\n"
+            f"👥 Текущих игроков: {len(game.players)}"
+        )
 
 
 if __name__ == "__main__":
