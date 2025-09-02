@@ -687,6 +687,25 @@ class ForestMafiaBot:
         game.total_voters = len(alive_players)
         game.voting_type = "exile"  # Помечаем тип голосования
         
+        # Добавляем резервное голосование в группе через 5 секунд
+        await asyncio.sleep(5)
+        
+        group_keyboard = []
+        for p in alive_players:
+            group_keyboard.append([InlineKeyboardButton(f"🗳️ Изгнать {p.username}", callback_data=f"vote_{p.user_id}")])
+        
+        group_reply_markup = InlineKeyboardMarkup(group_keyboard)
+        
+        await context.bot.send_message(
+            chat_id=game.chat_id,
+            text=(
+                "🗳️ Резервное голосование в группе!\n\n"
+                "Если вы не получили личное сообщение для голосования, можете проголосовать здесь:\n"
+                "(Каждый игрок может проголосовать только один раз)"
+            ),
+            reply_markup=group_reply_markup
+        )
+        
         asyncio.create_task(self.voting_timer(context, game, update))
 
     async def start_wolf_voting_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -793,13 +812,21 @@ class ForestMafiaBot:
 
     async def voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game, update: Update):
         """Таймер для голосования с проверкой досрочного завершения"""
-        for _ in range(120):  # Проверяем каждую секунду в течение 2 минут
+        logger.info(f"Голосование начато. Игроков: {len(game.get_alive_players())}, total_voters: {getattr(game, 'total_voters', 'НЕ УСТАНОВЛЕНО')}")
+        
+        for i in range(120):  # Проверяем каждую секунду в течение 2 минут
             await asyncio.sleep(1)
             
             # Проверяем, все ли проголосовали
-            if game.phase == GamePhase.VOTING and hasattr(game, 'total_voters'):
-                if len(game.votes) >= game.total_voters:
-                    # Все проголосовали - завершаем досрочно
+            if game.phase == GamePhase.VOTING and hasattr(game, 'total_voters') and hasattr(game, 'voting_type'):
+                current_votes = len(game.votes)
+                expected_voters = game.total_voters
+                
+                logger.info(f"Голосование ({game.voting_type}): {current_votes}/{expected_voters} проголосовали")
+                
+                # Проверяем досрочное завершение только для голосования за изгнание
+                if game.voting_type == "exile" and current_votes >= expected_voters:
+                    logger.info("Все игроки проголосовали! Завершаем голосование досрочно.")
                     await context.bot.send_message(
                         chat_id=game.chat_id, 
                         text="⚡ Все игроки проголосовали! Голосование завершено досрочно."
@@ -809,18 +836,38 @@ class ForestMafiaBot:
             
             # Если игра завершилась или фаза изменилась - выходим
             if game.phase != GamePhase.VOTING:
+                logger.info(f"Голосование прервано: фаза изменилась на {game.phase}")
                 return
         
         # Время вышло
         if game.phase == GamePhase.VOTING:
+            logger.info("Время голосования истекло. Обрабатываем результаты.")
             await self.process_voting_results(update, context, game)
+        else:
+            logger.info(f"Голосование завершилось, но фаза уже {game.phase}")
 
     async def process_voting_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        logger.info(f"Обработка результатов голосования. Голосов: {len(game.votes)}")
+        
         exiled_player = game.process_voting()
+        
+        # Формируем сообщение с результатами
         if exiled_player:
-            await update.message.reply_text(f"🚫 {exiled_player.username} изгнан из леса!\nЕго роль: {self.get_role_info(exiled_player.role)['name']}")
+            result_text = f"🚫 {exiled_player.username} изгнан из леса!\nЕго роль: {self.get_role_info(exiled_player.role)['name']}"
         else:
-            await update.message.reply_text("🤝 Ничья в голосовании! Никто не изгнан.")
+            result_text = "🤝 Ничья в голосовании! Никто не изгнан."
+        
+        logger.info(f"Результат голосования: {result_text}")
+        
+        # Отправляем результат
+        try:
+            if hasattr(update, 'message') and update.message:
+                await update.message.reply_text(result_text)
+            else:
+                await context.bot.send_message(chat_id=game.chat_id, text=result_text)
+        except Exception as e:
+            logger.error(f"Ошибка отправки результатов голосования: {e}")
+            await context.bot.send_message(chat_id=game.chat_id, text=result_text)
 
         # Очищаем атрибуты голосования
         if hasattr(game, 'total_voters'):
@@ -828,10 +875,13 @@ class ForestMafiaBot:
         if hasattr(game, 'voting_type'):
             delattr(game, 'voting_type')
 
+        # Проверяем условия окончания игры
         winner = game.check_game_end()
         if winner:
+            logger.info(f"Игра завершена! Победила команда: {winner}")
             await self.end_game_winner(update, context, game, winner)
         else:
+            logger.info("Игра продолжается. Начинаем новую ночь.")
             await self.start_new_night(update, context, game)
 
     async def process_wolf_voting_results(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
