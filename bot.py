@@ -79,47 +79,47 @@ class ForestMafiaBot:
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text = (
-            "🆘 **Как играть в 'Лесную Возню'** 🆘\n\n"
-            "📝 **Пошаговая инструкция:**\n\n"
-            "1️⃣ **Присоединение к игре:**\n"
+            "🆘 Как играть в 'Лесную Возню' 🆘\n\n"
+            "📝 Пошаговая инструкция:\n\n"
+            "1️⃣ Присоединение к игре:\n"
             "   • Используйте /join чтобы присоединиться\n"
             "   • Минимум 6 игроков для начала (3 в тестовом режиме)\n"
             "   • Максимум 12 игроков\n\n"
-            "2️⃣ **Запуск игры:**\n"
+            "2️⃣ Запуск игры:\n"
             "   • Администратор использует /start_game\n"
             "   • Бот автоматически распределит роли\n"
             "   • Каждый получит роль в личные сообщения\n\n"
-            "3️⃣ **Ночная фаза (60 сек):**\n"
+            "3️⃣ Ночная фаза (60 сек):\n"
             "   🐺 Волки выбирают жертву (с 2-й ночи)\n"
             "   🦊 Лиса ворует запасы (с 2-й ночи)\n"
             "   🦦 Бобёр возвращает запасы\n"
             "   🦫 Крот проверяет команды\n"
             "   🐰 Зайцы спят\n\n"
-            "4️⃣ **Дневная фаза (5 мин):**\n"
+            "4️⃣ Дневная фаза (5 мин):\n"
             "   • Обсуждение ночных событий\n"
             "   • Поиск хищников\n"
             "   • Кнопка 'Кто волк?' для дополнительного голосования\n\n"
-            "5️⃣ **Голосование (2 мин):**\n"
+            "5️⃣ Голосование (2 мин):\n"
             "   • Голосование за изгнание в личных сообщениях\n"
             "   • Если все проголосовали - завершается досрочно\n"
             "   • Игрок с наибольшим количеством голосов изгоняется\n\n"
-            "🏆 **Условия победы:**\n"
-            "   • **Травоядные:** уничтожить всех хищников\n"
-            "   • **Хищники:** уничтожить всех травоядных\n\n"
-            "🎭 **Роли:**\n"
-            "🐺 **Волки** - едят по ночам, знают друг друга\n"
-            "🦊 **Лиса** - ворует еду, после 2 краж жертва уходит\n"
-            "🐰 **Зайцы** - мирные жители\n"
-            "🦫 **Крот** - узнаёт команды других игроков\n"
-            "🦦 **Бобёр** - возвращает украденную еду, защищён от лисы\n\n"
-            "💡 **Полезные команды:**\n"
+            "🏆 Условия победы:\n"
+            "   • Травоядные: уничтожить всех хищников\n"
+            "   • Хищники: уничтожить всех травоядных\n\n"
+            "🎭 Роли:\n"
+            "🐺 Волки - едят по ночам, знают друг друга\n"
+            "🦊 Лиса - ворует еду, после 2 краж жертва уходит\n"
+            "🐰 Зайцы - мирные жители\n"
+            "🦫 Крот - узнаёт команды других игроков\n"
+            "🦦 Бобёр - возвращает украденную еду, защищён от лисы\n\n"
+            "💡 Полезные команды:\n"
             "/rules - правила игры\n"
             "/status - статус игры\n"
             "/leave - покинуть игру (до начала)\n"
             "/settings - настройки (админы)\n\n"
-            "🎮 **Удачной игры!**"
+            "🎮 Удачной игры!"
         )
-        await update.message.reply_text(help_text, parse_mode='Markdown')
+        await update.message.reply_text(help_text)
 
     # ---------------- callback helpers ----------------
     async def join_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
@@ -1142,9 +1142,9 @@ class ForestMafiaBot:
 
     async def show_timer_settings(self, query, context):
         keyboard = [
-            [InlineKeyboardButton("🌙 Ночь: 60с", callback_data="timer_night_60")],
-            [InlineKeyboardButton("☀️ День: 5мин", callback_data="timer_day_300")],
-            [InlineKeyboardButton("🗳️ Голосование: 2мин", callback_data="timer_vote_120")],
+            [InlineKeyboardButton("🌙 Изменить длительность ночи", callback_data="timer_night")],
+            [InlineKeyboardButton("☀️ Изменить длительность дня", callback_data="timer_day")],
+            [InlineKeyboardButton("🗳️ Изменить длительность голосования", callback_data="timer_vote")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
         ]
         await query.edit_message_text(
@@ -1214,8 +1214,16 @@ class ForestMafiaBot:
             await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
             return
 
-        # Показываем настройки таймеров
-        await self.show_timer_settings(query, context)
+        # Обрабатываем конкретные настройки таймеров
+        if query.data.startswith("timer_night"):
+            await self.show_night_duration_options(query, context)
+        elif query.data.startswith("timer_day"):
+            await self.show_day_duration_options(query, context)
+        elif query.data.startswith("timer_vote"):
+            await self.show_vote_duration_options(query, context)
+        else:
+            # Показываем общее меню настроек таймеров
+            await self.show_timer_settings(query, context)
 
     async def handle_role_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает настройки ролей"""
@@ -1268,6 +1276,51 @@ class ForestMafiaBot:
 
         await query.edit_message_text(settings_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+    async def show_night_duration_options(self, query, context):
+        """Показывает опции для изменения длительности ночи"""
+        keyboard = [
+            [InlineKeyboardButton("30 секунд", callback_data="set_night_30")],
+            [InlineKeyboardButton("45 секунд", callback_data="set_night_45")],
+            [InlineKeyboardButton("60 секунд ✅", callback_data="set_night_60")],
+            [InlineKeyboardButton("90 секунд", callback_data="set_night_90")],
+            [InlineKeyboardButton("120 секунд", callback_data="set_night_120")],
+            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
+        ]
+        await query.edit_message_text(
+            "🌙 Настройка длительности ночи\n\nВыберите новую длительность ночной фазы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def show_day_duration_options(self, query, context):
+        """Показывает опции для изменения длительности дня"""
+        keyboard = [
+            [InlineKeyboardButton("2 минуты", callback_data="set_day_120")],
+            [InlineKeyboardButton("3 минуты", callback_data="set_day_180")],
+            [InlineKeyboardButton("5 минут ✅", callback_data="set_day_300")],
+            [InlineKeyboardButton("7 минут", callback_data="set_day_420")],
+            [InlineKeyboardButton("10 минут", callback_data="set_day_600")],
+            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
+        ]
+        await query.edit_message_text(
+            "☀️ Настройка длительности дня\n\nВыберите новую длительность дневной фазы:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def show_vote_duration_options(self, query, context):
+        """Показывает опции для изменения длительности голосования"""
+        keyboard = [
+            [InlineKeyboardButton("1 минута", callback_data="set_vote_60")],
+            [InlineKeyboardButton("1.5 минуты", callback_data="set_vote_90")],
+            [InlineKeyboardButton("2 минуты ✅", callback_data="set_vote_120")],
+            [InlineKeyboardButton("3 минуты", callback_data="set_vote_180")],
+            [InlineKeyboardButton("5 минут", callback_data="set_vote_300")],
+            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
+        ]
+        await query.edit_message_text(
+            "🗳️ Настройка длительности голосования\n\nВыберите новую длительность голосования:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
     async def reset_game_stats(self, query, context, game: Game):
         if game.phase != GamePhase.WAITING:
             await query.edit_message_text("❌ Нельзя сбросить статистику во время игры! Дождитесь окончания игры.")
@@ -1276,6 +1329,43 @@ class ForestMafiaBot:
         game.game_start_time = None
         game.phase_end_time = None
         await query.edit_message_text("📊 Статистика игры сброшена!\n\n✅ Раунд: 0\n✅ Время начала: сброшено\n✅ Таймеры: сброшены")
+
+    async def handle_timer_values(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает установку конкретных значений таймеров"""
+        query = update.callback_query
+        await query.answer()
+        
+        chat_id = query.message.chat.id
+        user_id = query.from_user.id
+
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+
+        if query.data == "timer_back":
+            await self.show_timer_settings(query, context)
+            return
+
+        # Обрабатываем установку конкретных значений
+        if query.data.startswith("set_night_"):
+            seconds = int(query.data.split("_")[2])
+            await query.edit_message_text(f"🌙 Длительность ночи изменена на {seconds} секунд!\n\n✅ Новая настройка будет применена для следующих игр.")
+        elif query.data.startswith("set_day_"):
+            seconds = int(query.data.split("_")[2])
+            minutes = seconds // 60
+            await query.edit_message_text(f"☀️ Длительность дня изменена на {minutes} минут!\n\n✅ Новая настройка будет применена для следующих игр.")
+        elif query.data.startswith("set_vote_"):
+            seconds = int(query.data.split("_")[2])
+            if seconds >= 60:
+                minutes = seconds // 60
+                if seconds % 60 == 0:
+                    time_text = f"{minutes} минут"
+                else:
+                    time_text = f"{minutes}.{(seconds % 60)//6} минуты"
+            else:
+                time_text = f"{seconds} секунд"
+            await query.edit_message_text(f"🗳️ Длительность голосования изменена на {time_text}!\n\n✅ Новая настройка будет применена для следующих игр.")
 
     # ---------------- night actions processing ----------------
     async def send_night_actions_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -1461,6 +1551,8 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.handle_timer_settings, pattern=r"^timer_"))
         application.add_handler(CallbackQueryHandler(self.handle_role_settings, pattern=r"^role_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings_back, pattern=r"^settings_back$"))
+        application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^set_"))
+        application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^timer_back"))
 
         # Установка команд после старта бота
         async def post_init(application):
