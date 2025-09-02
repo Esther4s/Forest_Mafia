@@ -487,6 +487,34 @@ class ForestMafiaBot:
 
         asyncio.create_task(self.voting_timer(update, context, game))
 
+    async def start_wolf_voting_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Начинает специальное голосование за волка"""
+        game.start_voting()
+
+        alive_players = game.get_alive_players()
+        if len(alive_players) < 2:
+            await update.message.reply_text("❌ Недостаточно игроков для голосования!")
+            return
+
+        keyboard = [[InlineKeyboardButton(f"🐺 {p.username}", callback_data=f"wolf_vote_{p.user_id}")] for p in alive_players]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            "🐺 Голосование 'Кто волк?'!\n\n"
+            "У вас есть 2 минуты, чтобы проголосовать за того, кого вы подозреваете в том, что он волк.\n"
+            "Этот игрок НЕ будет изгнан, это просто попытка выявить волка!\n\n"
+            "Выберите подозреваемого:",
+            reply_markup=reply_markup
+        )
+
+        asyncio.create_task(self.wolf_voting_timer(update, context, game))
+
+    async def wolf_voting_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Таймер для голосования за волка"""
+        await asyncio.sleep(120)  # 2 минуты
+        if game.phase == GamePhase.VOTING:
+            await self.process_wolf_voting_results(update, context, game)
+
     async def voting_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         await asyncio.sleep(120)
         if game.phase == GamePhase.VOTING:
@@ -504,6 +532,64 @@ class ForestMafiaBot:
             await self.end_game_winner(update, context, game, winner)
         else:
             await self.start_new_night(update, context, game)
+
+    async def process_wolf_voting_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Обрабатывает результаты голосования за волка"""
+        if not game.votes:
+            await update.message.reply_text("🤷‍♂️ Никто не проголосовал в голосовании 'Кто волк?'!")
+            game.start_day()  # Возвращаемся к дневной фазе
+            return
+
+        # Подсчет голосов
+        vote_counts = {}
+        for target_id in game.votes.values():
+            vote_counts[target_id] = vote_counts.get(target_id, 0) + 1
+
+        # Находим игрока с максимальным количеством голосов
+        max_votes = max(vote_counts.values())
+        max_vote_players = [pid for pid, votes in vote_counts.items() if votes == max_votes]
+
+        # Формируем результат
+        if len(max_vote_players) > 1:
+            # Ничья
+            suspects = [game.players[pid].username for pid in max_vote_players]
+            result_text = f"🤔 Ничья в голосовании 'Кто волк?'!\n\nПодозреваемые: {', '.join(suspects)}"
+        else:
+            # Есть лидер
+            suspect_id = max_vote_players[0]
+            suspect = game.players[suspect_id]
+            votes = vote_counts[suspect_id]
+            
+            # Проверяем, действительно ли это волк
+            is_actually_wolf = suspect.role == Role.WOLF
+            
+            if is_actually_wolf:
+                result_text = (f"🎯 Результат голосования 'Кто волк?':\n\n"
+                              f"🐺 {suspect.username} получил больше всего голосов ({votes}) и действительно оказался ВОЛКОМ!\n"
+                              f"👏 Жители угадали!")
+            else:
+                result_text = (f"🎯 Результат голосования 'Кто волк?':\n\n"
+                              f"🐰 {suspect.username} получил больше всего голосов ({votes}), но оказался {self.get_role_info(suspect.role)['name']}!\n"
+                              f"😅 Жители ошиблись!")
+
+        await update.message.reply_text(result_text)
+        
+        # Очищаем голоса и возвращаемся к дневной фазе
+        game.votes.clear()
+        game.start_day()
+        
+        # Возвращаем кнопки дневной фазы
+        keyboard = [
+            [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")],
+            [InlineKeyboardButton("🐺 Выбрать волка", callback_data="day_choose_wolf")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "☀️ Продолжается дневное обсуждение.\n"
+            "Используйте кнопки ниже для управления фазой:",
+            reply_markup=reply_markup
+        )
 
     async def start_new_night(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         await self.start_night_phase(update, context, game)
@@ -617,30 +703,11 @@ class ForestMafiaBot:
 
         elif query.data == "day_choose_wolf":
             if game.phase != GamePhase.DAY:
-                await query.edit_message_text("❌ Выбор волка доступен только в дневной фазе!")
+                await query.edit_message_text("❌ Голосование за волка доступно только в дневной фазе!")
                 return
 
-            # Показываем всех живых игроков для выбора волка
-            alive_players = game.get_alive_players()
-            if not alive_players:
-                await query.edit_message_text("❌ Нет живых игроков!")
-                return
-
-            keyboard = []
-            for player in alive_players:
-                keyboard.append([InlineKeyboardButton(
-                    f"🐺 {player.username}",
-                    callback_data=f"wolf_select_{player.user_id}"
-                )])
-
-            keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="wolf_select_cancel")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            await query.edit_message_text(
-                "🐺 Выберите игрока, которого хотите назначить волком:\n\n"
-                "⚠️ Это действие изменит роль игрока!",
-                reply_markup=reply_markup
-            )
+            await query.edit_message_text("🐺 Администратор инициировал голосование 'Кто волк?'!")
+            await self.start_wolf_voting_phase(update, context, game)
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -765,73 +832,41 @@ class ForestMafiaBot:
             await night_interface.send_night_results(context, results)
             night_actions.clear_actions()
 
-    async def handle_wolf_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает выбор волка администратором"""
+    async def handle_wolf_voting(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает голосование за волка"""
         query = update.callback_query
         await query.answer()
 
-        chat_id = query.message.chat.id
         user_id = query.from_user.id
-
-        # Проверяем права администратора
-        try:
-            chat_member = await context.bot.get_chat_member(chat_id, user_id)
-            if chat_member.status not in ['creator', 'administrator']:
-                await query.edit_message_text("❌ Только администраторы могут управлять игрой!")
-                return
-        except Exception:
-            await query.edit_message_text("❌ Ошибка проверки прав!")
-            return
+        chat_id = query.message.chat.id
 
         if chat_id not in self.games:
             await query.edit_message_text("❌ В этом чате нет активной игры!")
             return
 
         game = self.games[chat_id]
-        data = query.data.split('_')
-
-        if len(data) == 3 and data[2] == "cancel":
-            await query.edit_message_text("❌ Выбор волка отменен.")
+        if game.phase != GamePhase.VOTING:
+            await query.edit_message_text("❌ Голосование уже завершено!")
             return
 
+        data = query.data.split('_')
         if len(data) != 3:
             await query.edit_message_text("❌ Ошибка данных!")
             return
 
         target_id = int(data[2])
-
-        if target_id not in game.players:
-            await query.edit_message_text("❌ Игрок не найден!")
+        
+        # Проверяем, что голосующий жив и в игре
+        voter = game.players.get(user_id)
+        if not voter or not voter.is_alive:
+            await query.edit_message_text("❌ Вы не можете голосовать!")
             return
 
-        target_player = game.players[target_id]
-
-        if not target_player.is_alive:
-            await query.edit_message_text("❌ Нельзя назначить мертвого игрока волком!")
-            return
-
-        # Меняем роль игрока на волка
-        old_role = target_player.role
-        target_player.role = Role.WOLF
-        target_player.team = Team.PREDATORS
-
-        await query.edit_message_text(
-            f"🐺 Игрок {target_player.username} назначен волком!\n\n"
-            f"📝 Предыдущая роль: {self.get_role_info(old_role)['name']}\n"
-            f"📝 Новая роль: {self.get_role_info(Role.WOLF)['name']}"
-        )
-
-        # Уведомляем игрока о смене роли
-        try:
-            role_info = self.get_role_info(Role.WOLF)
-            await context.bot.send_message(
-                chat_id=target_id,
-                text=f"🐺 Ваша роль изменена администратором!\n\n"
-                     f"🎭 Новая роль: {role_info['name']}\n"
-                     f"📝 Описание: {role_info['description']}"
-            )
-        except Exception as e:
-            logger.error(f"Не удалось уведомить игрока {target_id} о смене роли: {e}")
+        if game.vote(user_id, target_id):
+            target_player = game.players[target_id]
+            await query.edit_message_text(f"✅ Вы проголосовали за {target_player.username} как за волка!")
+        else:
+            await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
 
     # ---------------- helper ----------------
     async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -923,7 +958,7 @@ class ForestMafiaBot:
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^settings_"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
         application.add_handler(CallbackQueryHandler(self.handle_day_actions, pattern=r"^day_"))
-        application.add_handler(CallbackQueryHandler(self.handle_wolf_selection, pattern=r"^wolf_select_"))
+        application.add_handler(CallbackQueryHandler(self.handle_wolf_voting, pattern=r"^wolf_vote_"))
         # settings submenu/back handlers
         application.add_handler(CallbackQueryHandler(self.show_timer_settings, pattern=r"^timer_"))
         application.add_handler(CallbackQueryHandler(self.show_role_settings, pattern=r"^role_"))
