@@ -1,4 +1,29 @@
-import random
+from telegram.ext import ApplicationBuilder, JobQueue
+
+# Initialize the application
+application = ApplicationBuilder().token('8314318680:AAHcpsrR4ffz19Ur6xc6cw1zZ0uydfTsCAQ').build()
+
+# Set up the JobQueue
+job_queue = JobQueue(application)import random
+from game_logic import Game, GamePhase, Role, Team, Player
+
+# Your other game logic here
+
+if __name__ == "__main__":
+    # This should be the last line of your main execution block
+    application.run_polling()poetry add "python-telegram-bot[job-queue]"import random
+from job_queue import JobQueue
+
+job_queue = JobQueue(application)job_queue = JobQueue(application)import randomjob_queue = JobQueue(application)
+import randomimport random
+job_queue = JobQueue(application)
+application.job_queue = job_queue
+
+# Now you can schedule jobs using:
+# job_queue.run_once(your_callback_function, when=5)
+
+# Start the bot
+application.run_polling()pip install "python-telegram-bot[job-queue]"import random
 from enum import Enum
 from typing import Dict, List, Optional, Set
 from dataclasses import dataclass
