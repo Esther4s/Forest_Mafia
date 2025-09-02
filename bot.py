@@ -14,7 +14,7 @@ from telegram.ext import (
 )
 
 from game_logic import Game, GamePhase, Role, Team, Player  # ваши реализации
-from config import BOT_TOKEN, MIN_PLAYERS  # ваши настройки
+from config import BOT_TOKEN, MIN_PLAYERS, TEST_MODE, TEST_MIN_PLAYERS  # ваши настройки
 from night_actions import NightActions
 from night_interface import NightInterface
 
@@ -51,7 +51,8 @@ class ForestMafiaBot:
             "🐺 *Хищники:* Волки и Лиса\n"
             "🐰 *Травоядные:* Зайцы, Крот и Бобёр\n\n"
             "🎯 *Цель:* Уничтожить команду противника!\n\n"
-            f"👥 Для игры нужно минимум {MIN_PLAYERS} игроков\n"
+            f"👥 Для игры нужно минимум {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS} игроков\n"
+            f"{'🧪 ТЕСТОВЫЙ РЕЖИМ АКТИВЕН' if TEST_MODE else ''}\n"
             "⏰ Игра состоит из ночных и дневных фаз\n\n"
             "Нажмите кнопку ниже, чтобы начать!"
         )
@@ -146,7 +147,7 @@ class ForestMafiaBot:
             status_text = (
                 "⏳ Ожидание игроков...\n\n"
                 f"👥 Игроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
-                f"📋 Минимум для начала: {MIN_PLAYERS}\n\n"
+                f"📋 Минимум для начала: {TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS}\n\n"
                 "Список игроков:\n"
             )
             for player in game.players.values():
@@ -191,8 +192,9 @@ class ForestMafiaBot:
 
         game = self.games[chat_id]
 
+        min_players = TEST_MIN_PLAYERS if TEST_MODE else MIN_PLAYERS
         if not game.can_start_game():
-            await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {MIN_PLAYERS} игроков.")
+            await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {min_players} игроков.")
             return
 
         if game.phase != GamePhase.WAITING:
@@ -402,13 +404,38 @@ class ForestMafiaBot:
     async def handle_welcome_buttons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         query = update.callback_query
         await query.answer()
+        
+        # Создаем фиктивный update для callback
         if query.data == "welcome_start_game":
-            # simulate a /join for the user in this chat
-            await self.join(update, context)
+            # Создаем новый Update объект для join
+            fake_update = Update(
+                update_id=update.update_id,
+                message=query.message,
+                effective_chat=update.effective_chat,
+                effective_user=update.effective_user
+            )
+            await self.join(fake_update, context)
         elif query.data == "welcome_rules":
-            await self.rules(update, context)
+            await query.edit_message_text(
+                "📖 Правила игры 'Лесная Возня':\n\n"
+                "🎭 Роли:\n"
+                "🐺 Волки (Хищники) - стая, по ночам съедает по зверю\n"
+                "🦊 Лиса (Хищники) - ворует запасы еды\n"
+                "🐰 Зайцы (Травоядные) - мирные зверушки\n"
+                "🦫 Крот (Травоядные) - роет норки, узнаёт команды других зверей\n"
+                "🦦 Бобёр (Травоядные) - возвращает украденные запасы\n\n"
+                "🌙 Ночные фазы: Волки → Лиса → Бобёр → Крот\n"
+                "☀️ Дневные фазы: обсуждение и голосование\n"
+                "🏆 Цель: уничтожить команду противника"
+            )
         elif query.data == "welcome_status":
-            await self.status(update, context)
+            fake_update = Update(
+                update_id=update.update_id,
+                message=query.message,
+                effective_chat=update.effective_chat,
+                effective_user=update.effective_user
+            )
+            await self.status(fake_update, context)
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
