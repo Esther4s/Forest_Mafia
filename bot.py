@@ -99,6 +99,19 @@ class ForestMafiaBot:
                     chat_name = f"Чат {other_chat}"
                 await query.edit_message_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
                 return
+            else:
+                # Игрок уже в этой игре - показываем статус
+                game = self.games[chat_id]
+                max_players = getattr(game, "MAX_PLAYERS", 12)
+                
+                keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    f"ℹ️ Вы уже участвуете в этой игре!\nИгроков: {len(game.players)}/{max_players}",
+                    reply_markup=reply_markup
+                )
+                return
 
         # create game if needed
         if chat_id not in self.games:
@@ -191,6 +204,19 @@ class ForestMafiaBot:
                 except:
                     chat_name = f"Чат {other_chat}"
                 await update.message.reply_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
+                return
+            else:
+                # Игрок уже в этой игре - показываем статус
+                game = self.games[chat_id]
+                max_players = getattr(game, "MAX_PLAYERS", 12)
+                
+                keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await update.message.reply_text(
+                    f"ℹ️ Вы уже участвуете в этой игре!\nИгроков: {len(game.players)}/{max_players}",
+                    reply_markup=reply_markup
+                )
                 return
 
         # create game if needed
