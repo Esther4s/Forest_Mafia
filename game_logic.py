@@ -66,6 +66,15 @@ class Game:
             return True
         return False
     
+    def leave_game(self, user_id: int) -> bool:
+        """Игрок добровольно покидает игру"""
+        if user_id in self.players:
+            player = self.players[user_id]
+            if player.is_alive and self.phase == GamePhase.WAITING:
+                del self.players[user_id]
+                return True
+        return False
+    
     def can_start_game(self) -> bool:
         """Проверяет, можно ли начать игру"""
         return len(self.players) >= 6
