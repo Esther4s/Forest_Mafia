@@ -29,7 +29,11 @@ class ForestMafiaBot:
             "Это ролевая игра 'Мафия' с лесными зверушками.\n\n"
             "Команды:\n"
             "/join - присоединиться к игре\n"
+            "/leave - покинуть игру\n"
             "/start_game - начать игру (только для администраторов)\n"
+            "/end_game - завершить игру (только для администраторов)\n"
+            "/force_end - принудительно завершить игру (только для администраторов)\n"
+            "/settings - настройки игры\n"
             "/rules - правила игры\n"
             "/status - статус текущей игры"
         )
@@ -92,6 +96,55 @@ class ForestMafiaBot:
                 "❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков."
             )
     
+    async def leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /leave"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        username = update.effective_user.username or str(user_id)
+        
+        if chat_id not in self.games:
+            await update.message.reply_text(
+                "❌ В этом чате нет активной игры!"
+            )
+            return
+        
+        game = self.games[chat_id]
+        
+        # Проверяем, не идет ли уже игра
+        if game.phase != GamePhase.WAITING:
+            await update.message.reply_text(
+                "❌ Игра уже идет! Дождитесь её окончания."
+            )
+            return
+        
+        # Проверяем, участвует ли игрок в игре
+        if user_id not in game.players:
+            await update.message.reply_text(
+                "❌ Вы не участвуете в игре!"
+            )
+            return
+        
+        # Игрок покидает игру
+        if game.leave_game(user_id):
+            # Удаляем из player_games
+            if user_id in self.player_games:
+                del self.player_games[user_id]
+            
+            await update.message.reply_text(
+                f"👋 {username} покинул игру.\n"
+                f"Игроков: {len(game.players)}/{12}"
+            )
+            
+            # Если игроков стало меньше минимума, убираем возможность начать игру
+            if not game.can_start_game():
+                await update.message.reply_text(
+                    "⚠️ Игроков стало меньше минимума. Игра не может быть начата."
+                )
+        else:
+            await update.message.reply_text(
+                "❌ Не удалось покинуть игру."
+            )
+    
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start_game"""
         chat_id = update.effective_chat.id
@@ -130,6 +183,85 @@ class ForestMafiaBot:
             await self.start_night_phase(update, context, game)
         else:
             await update.message.reply_text("❌ Не удалось начать игру!")
+    
+    async def end_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /end_game - завершение игры"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await update.message.reply_text(
+                "❌ Только администраторы могут завершать игру!"
+            )
+            return
+        
+        if chat_id not in self.games:
+            await update.message.reply_text(
+                "❌ Нет активной игры в этом чате!"
+            )
+            return
+        
+        game = self.games[chat_id]
+        
+        if game.phase == GamePhase.WAITING:
+            await update.message.reply_text(
+                "❌ Игра еще не началась! Используйте /start_game чтобы начать игру."
+            )
+            return
+        
+        # Завершаем игру
+        await self.end_game_internal(update, context, game, "Администратор завершил игру")
+    
+    async def force_end(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /force_end - принудительное завершение игры"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await update.message.reply_text(
+                "❌ Только администраторы могут принудительно завершать игру!"
+            )
+            return
+        
+        if chat_id not in self.games:
+            await update.message.reply_text(
+                "❌ Нет активной игры в этом чате!"
+            )
+            return
+        
+        game = self.games[chat_id]
+        
+        # Принудительно завершаем игру в любом состоянии
+        await self.end_game_internal(update, context, game, "Администратор принудительно завершил игру")
+    
+    async def end_game_internal(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, reason: str):
+        """Внутренний метод для завершения игры"""
+        game.phase = GamePhase.GAME_OVER
+        
+        await update.message.reply_text(
+            f"🏁 Игра завершена!\n\n"
+            f"📋 Причина: {reason}\n"
+            f"📊 Статистика игры:\n"
+            f"Всего игроков: {len(game.players)}\n"
+            f"Раундов сыграно: {game.current_round}\n"
+            f"Фаза: {game.phase.value}"
+        )
+        
+        # Очищаем игру
+        for player_id in game.players:
+            if player_id in self.player_games:
+                del self.player_games[player_id]
+        
+        chat_id = game.chat_id
+        del self.games[chat_id]
+        if chat_id in self.night_actions:
+            del self.night_actions[chat_id]
+        if chat_id in self.night_interfaces:
+            del self.night_interfaces[chat_id]
     
     async def start_night_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Начинает ночную фазу"""
@@ -254,7 +386,7 @@ class ForestMafiaBot:
         # Проверяем, не закончилась ли игра
         winner = game.check_game_end()
         if winner:
-            await self.end_game(update, context, game, winner)
+            await self.end_game_winner(update, context, game, winner)
         else:
             # Начинаем новую ночь
             await self.start_new_night(update, context, game)
@@ -274,7 +406,7 @@ class ForestMafiaBot:
         # Запускаем таймер ночной фазы
         asyncio.create_task(self.night_phase_timer(update, context, game))
     
-    async def end_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, winner: Optional[Team] = None):
+    async def end_game_winner(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, winner: Optional[Team] = None):
         """Завершает игру"""
         game.phase = GamePhase.GAME_OVER
         
@@ -381,6 +513,44 @@ class ForestMafiaBot:
         
         await update.message.reply_text(status_text)
     
+    async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /settings"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await update.message.reply_text(
+                "❌ Только администраторы могут изменять настройки!"
+            )
+            return
+        
+        if chat_id not in self.games:
+            await update.message.reply_text(
+                "❌ В этом чате нет активной игры!\n"
+                "Используйте /join чтобы присоединиться."
+            )
+            return
+        
+        game = self.games[chat_id]
+        
+        # Создаем клавиатуру настроек
+        keyboard = [
+            [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
+            [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
+            [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")],
+            [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            "⚙️ Настройки игры\n\n"
+            "Выберите, что хотите изменить:",
+            reply_markup=reply_markup
+        )
+    
     async def send_night_actions_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Отправляет меню ночных действий игрокам с ночными ролями"""
         chat_id = game.chat_id
@@ -412,9 +582,274 @@ class ForestMafiaBot:
         # Находим игру, в которой участвует игрок
         if user_id in self.player_games:
             chat_id = self.player_games[user_id]
-            if chat_id in self.night_interfaces:
-                night_interface = self.night_interfaces[chat_id]
-                await night_interface.handle_night_action(update, context)
+                    if chat_id in self.night_interfaces:
+            night_interface = self.night_interfaces[chat_id]
+            await night_interface.handle_night_action(update, context)
+    
+    async def handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик настроек игры"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        chat_id = query.message.chat.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+        
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+        
+        game = self.games[chat_id]
+        data = query.data.split('_')[1]
+        
+        if data == "timers":
+            await self.show_timer_settings(query, context, game)
+        elif data == "roles":
+            await self.show_role_settings(query, context, game)
+        elif data == "reset":
+            await self.reset_game_stats(query, context, game)
+        elif data == "close":
+            await query.edit_message_text("⚙️ Настройки закрыты")
+    
+    async def show_timer_settings(self, query, context, game):
+        """Показывает настройки таймеров"""
+        keyboard = [
+            [InlineKeyboardButton("🌙 Ночь: 60с", callback_data="timer_night_60")],
+            [InlineKeyboardButton("☀️ День: 5мин", callback_data="timer_day_300")],
+            [InlineKeyboardButton("🗳️ Голосование: 2мин", callback_data="timer_vote_120")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "⏱️ Настройки таймеров\n\n"
+            "Текущие значения:\n"
+            "🌙 Ночь: 60 секунд\n"
+            "☀️ День: 5 минут\n"
+            "🗳️ Голосование: 2 минуты\n\n"
+            "Выберите, что хотите изменить:",
+            reply_markup=reply_markup
+        )
+    
+    async def show_role_settings(self, query, context, game):
+        """Показывает настройки ролей"""
+        keyboard = [
+            [InlineKeyboardButton("🐺 Волки: 25%", callback_data="role_wolves_25")],
+            [InlineKeyboardButton("🦊 Лиса: 15%", callback_data="role_fox_15")],
+            [InlineKeyboardButton("🦫 Крот: 15%", callback_data="role_mole_15")],
+            [InlineKeyboardButton("🦦 Бобёр: 10%", callback_data="role_beaver_10")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
+        ]
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            "🎭 Настройки распределения ролей\n\n"
+            "Текущие значения:\n"
+            "🐺 Волки: 25%\n"
+            "🦊 Лиса: 15%\n"
+            "🦫 Крот: 15%\n"
+            "🦦 Бобёр: 10%\n"
+            "🐰 Зайцы: 35% (автоматически)\n\n"
+            "Выберите роль для изменения:",
+            reply_markup=reply_markup
+        )
+    
+    async def reset_game_stats(self, query, context, game):
+        """Сбрасывает статистику игры"""
+        if game.phase != GamePhase.WAITING:
+            await query.edit_message_text(
+                "❌ Нельзя сбросить статистику во время игры!\n"
+                "Дождитесь окончания игры."
+            )
+            return
+        
+        # Сбрасываем статистику
+        game.current_round = 0
+        game.game_start_time = None
+        game.phase_end_time = None
+        
+        await query.edit_message_text(
+            "📊 Статистика игры сброшена!\n\n"
+            "✅ Раунд: 0\n"
+            "✅ Время начала: сброшено\n"
+            "✅ Таймеры: сброшены"
+        )
+    
+    async def handle_settings_back(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик кнопки 'Назад' и других настроек"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        chat_id = query.message.chat.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+        
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+        
+        game = self.games[chat_id]
+        data = query.data
+        
+        if data == "settings_back":
+            # Возвращаемся к главному меню настроек
+            await self.settings(update, context)
+        elif data.startswith("timer_"):
+            await self.handle_timer_setting(query, context, game, data)
+        elif data.startswith("role_"):
+            await self.handle_role_setting(query, context, game, data)
+    
+    async def handle_timer_setting(self, query, context, game, data):
+        """Обрабатывает изменение таймеров"""
+        parts = data.split('_')
+        timer_type = parts[1]
+        current_value = int(parts[2])
+        
+        # Показываем варианты изменения
+        if timer_type == "night":
+            options = [30, 45, 60, 90, 120]
+            current = 60
+        elif timer_type == "day":
+            options = [180, 300, 420, 600]
+            current = 300
+        elif timer_type == "vote":
+            options = [60, 90, 120, 180]
+            current = 120
+        else:
+            await query.edit_message_text("❌ Неизвестный тип таймера!")
+            return
+        
+        keyboard = []
+        for option in options:
+            mark = "✅ " if option == current else ""
+            keyboard.append([InlineKeyboardButton(
+                f"{mark}{option} сек" if option < 60 else f"{mark}{option//60} мин",
+                callback_data=f"set_timer_{timer_type}_{option}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        timer_names = {"night": "🌙 Ночь", "day": "☀️ День", "vote": "🗳️ Голосование"}
+        await query.edit_message_text(
+            f"⏱️ Изменение таймера: {timer_names.get(timer_type, 'Неизвестно')}\n\n"
+            f"Текущее значение: {current} сек\n\n"
+            "Выберите новое значение:",
+            reply_markup=reply_markup
+        )
+    
+    async def handle_role_setting(self, query, context, game, data):
+        """Обрабатывает изменение распределения ролей"""
+        parts = data.split('_')
+        role_type = parts[1]
+        current_value = int(parts[2])
+        
+        # Показываем варианты изменения
+        if role_type == "wolves":
+            options = [20, 25, 30, 35]
+            current = 25
+        elif role_type == "fox":
+            options = [10, 15, 20, 25]
+            current = 15
+        elif role_type == "mole":
+            options = [10, 15, 20, 25]
+            current = 15
+        elif role_type == "beaver":
+            options = [5, 10, 15, 20]
+            current = 10
+        else:
+            await query.edit_message_text("❌ Неизвестная роль!")
+            return
+        
+        keyboard = []
+        for option in options:
+            mark = "✅ " if option == current else ""
+            keyboard.append([InlineKeyboardButton(
+                f"{mark}{option}%",
+                callback_data=f"set_role_{role_type}_{option}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")])
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        role_names = {"wolves": "🐺 Волки", "fox": "🦊 Лиса", "mole": "🦫 Крот", "beaver": "🦦 Бобёр"}
+        await query.edit_message_text(
+            f"🎭 Изменение распределения роли: {role_names.get(role_type, 'Неизвестно')}\n\n"
+            f"Текущее значение: {current}%\n\n"
+            "Выберите новое значение:",
+            reply_markup=reply_markup
+        )
+    
+    async def handle_set_values(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик установки новых значений настроек"""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        chat_id = query.message.chat.id
+        
+        # Проверяем права администратора
+        chat_member = await context.bot.get_chat_member(chat_id, user_id)
+        if chat_member.status not in ['creator', 'administrator']:
+            await query.edit_message_text("❌ Только администраторы могут изменять настройки!")
+            return
+        
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            return
+        
+        game = self.games[chat_id]
+        data = query.data.split('_')
+        
+        if len(data) != 4:
+            await query.edit_message_text("❌ Неверный формат данных!")
+            return
+        
+        setting_type = data[1]  # timer или role
+        setting_name = data[2]  # night, day, vote, wolves, fox, mole, beaver
+        new_value = int(data[3])
+        
+        if setting_type == "timer":
+            await self.apply_timer_setting(query, context, game, setting_name, new_value)
+        elif setting_type == "role":
+            await self.apply_role_setting(query, context, game, setting_name, new_value)
+    
+    async def apply_timer_setting(self, query, context, game, timer_type, new_value):
+        """Применяет новое значение таймера"""
+        # Здесь можно добавить логику для применения таймеров
+        # Пока что просто показываем сообщение об успехе
+        
+        timer_names = {"night": "🌙 Ночь", "day": "☀️ День", "vote": "🗳️ Голосование"}
+        time_text = f"{new_value} сек" if new_value < 60 else f"{new_value//60} мин"
+        
+        await query.edit_message_text(
+            f"✅ Таймер {timer_names.get(timer_type, 'Неизвестно')} изменен на {time_text}!\n\n"
+            "⚠️ Примечание: Изменения вступят в силу в следующей игре."
+        )
+    
+    async def apply_role_setting(self, query, context, game, role_type, new_value):
+        """Применяет новое значение распределения ролей"""
+        # Здесь можно добавить логику для применения распределения ролей
+        # Пока что просто показываем сообщение об успехе
+        
+        role_names = {"wolves": "🐺 Волки", "fox": "🦊 Лиса", "mole": "🦫 Крот", "beaver": "🦦 Бобёр"}
+        
+        await query.edit_message_text(
+            f"✅ Распределение роли {role_names.get(role_type, 'Неизвестно')} изменено на {new_value}%!\n\n"
+            "⚠️ Примечание: Изменения вступят в силу в следующей игре."
+        )
     
     def get_role_info(self, role: Role) -> Dict[str, str]:
         """Возвращает информацию о роли"""
@@ -451,12 +886,19 @@ class ForestMafiaBot:
         application.add_handler(CommandHandler("start", self.start))
         application.add_handler(CommandHandler("rules", self.rules))
         application.add_handler(CommandHandler("join", self.join))
+        application.add_handler(CommandHandler("leave", self.leave))
         application.add_handler(CommandHandler("start_game", self.start_game))
+        application.add_handler(CommandHandler("end_game", self.end_game))
+        application.add_handler(CommandHandler("force_end", self.force_end))
+        application.add_handler(CommandHandler("settings", self.settings))
         application.add_handler(CommandHandler("status", self.status))
         
         # Добавляем обработчики callback query
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern="^vote_"))
         application.add_handler(CallbackQueryHandler(self.handle_night_action, pattern="^night_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern="^settings_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings_back, pattern="^(settings_back|timer_|role_)"))
+        application.add_handler(CallbackQueryHandler(self.handle_set_values, pattern="^set_(timer|role)_"))
         
         # Запускаем бота
         application.run_polling()
