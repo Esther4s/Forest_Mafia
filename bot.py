@@ -116,7 +116,15 @@ class ForestMafiaBot:
         if game.add_player(user_id, username):
             self.player_games[user_id] = chat_id
             max_players = getattr(game, "MAX_PLAYERS", 12)
-            await query.edit_message_text(f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}")
+            
+            # Добавляем инлайн кнопку для присоединения других игроков
+            keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}",
+                reply_markup=reply_markup
+            )
         else:
             await query.edit_message_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
 
@@ -201,7 +209,15 @@ class ForestMafiaBot:
         if game.add_player(user_id, username):
             self.player_games[user_id] = chat_id
             max_players = getattr(game, "MAX_PLAYERS", 12)
-            await update.message.reply_text(f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}")
+            
+            # Добавляем инлайн кнопку для присоединения других игроков
+            keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}",
+                reply_markup=reply_markup
+            )
         else:
             await update.message.reply_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
 
