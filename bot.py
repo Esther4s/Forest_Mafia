@@ -1,5 +1,4 @@
-application.run_polling()
-job_queue = JobQueue(application)#!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import asyncio
@@ -590,8 +589,7 @@ class ForestMafiaBot:
             asyncio.create_task(self.setup_bot_commands(application))
 
         # Запуск бота (blocking call)
-        application.run_polling()job_queue = JobQueue(application)
-import random
+        application.run_polling()
 
 
 if __name__ == "__main__":
