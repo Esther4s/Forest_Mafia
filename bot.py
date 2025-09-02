@@ -493,6 +493,16 @@ class ForestMafiaBot:
     async def _end_game_internal(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, reason: str):
         game.phase = GamePhase.GAME_OVER
 
+        # Открепляем сообщение о присоединении при завершении игры
+        if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
+            try:
+                await context.bot.unpin_chat_message(
+                    chat_id=game.chat_id,
+                    message_id=game.pinned_message_id
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось открепить сообщение: {e}")
+
         await update.message.reply_text(
             f"🏁 Игра завершена!\n\n📋 Причина: {reason}\n📊 Статистика игры:\n"
             f"Всего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}\nФаза: {game.phase.value}"
@@ -514,6 +524,18 @@ class ForestMafiaBot:
     # ---------------- night/day/vote flow ----------------
     async def start_night_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_night()
+        
+        # Открепляем сообщение о присоединении, так как игра началась
+        if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
+            try:
+                await context.bot.unpin_chat_message(
+                    chat_id=game.chat_id,
+                    message_id=game.pinned_message_id
+                )
+                game.pinned_message_id = None
+            except Exception as e:
+                logger.warning(f"Не удалось открепить сообщение: {e}")
+        
         await update.message.reply_text("🌙 Наступает ночь в лесу...\nВсе звери засыпают, кроме ночных обитателей.\n\n🎭 Распределение ролей завершено!")
 
         # ЛС с ролями
@@ -741,6 +763,17 @@ class ForestMafiaBot:
 
     async def end_game_winner(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, winner: Optional[Team] = None):
         game.phase = GamePhase.GAME_OVER
+        
+        # Открепляем сообщение о присоединении при завершении игры
+        if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
+            try:
+                await context.bot.unpin_chat_message(
+                    chat_id=game.chat_id,
+                    message_id=game.pinned_message_id
+                )
+            except Exception as e:
+                logger.warning(f"Не удалось открепить сообщение: {e}")
+        
         if winner:
             winner_text = "🏆 Травоядные победили!" if winner == Team.HERBIVORES else "🏆 Хищники победили!"
             await update.message.reply_text(f"🎉 Игра окончена! {winner_text}\n\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}")
