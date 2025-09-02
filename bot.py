@@ -628,7 +628,11 @@ class ForestMafiaBot:
             except Exception as e:
                 logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
 
-        asyncio.create_task(self.voting_timer(update, context, game))
+        # Сохраняем информацию о количестве игроков для проверки досрочного завершения
+        game.total_voters = len(alive_players)
+        game.voting_type = "exile"  # Помечаем тип голосования
+        
+        asyncio.create_task(self.voting_timer(context, game, update))
 
     async def start_wolf_voting_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Начинает специальное голосование за волка"""
@@ -674,16 +678,57 @@ class ForestMafiaBot:
             except Exception as e:
                 logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
 
-        asyncio.create_task(self.wolf_voting_timer(update, context, game))
+        # Сохраняем информацию о количестве игроков для проверки досрочного завершения
+        game.total_voters = len(alive_players)
+        game.voting_type = "wolf"  # Помечаем тип голосования
+        
+        asyncio.create_task(self.wolf_voting_timer(context, game))
 
-    async def wolf_voting_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Таймер для голосования за волка"""
-        await asyncio.sleep(120)  # 2 минуты
+    async def wolf_voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Таймер для голосования за волка с проверкой досрочного завершения"""
+        for _ in range(120):  # Проверяем каждую секунду в течение 2 минут
+            await asyncio.sleep(1)
+            
+            # Проверяем, все ли проголосовали
+            if game.phase == GamePhase.VOTING and hasattr(game, 'total_voters'):
+                if len(game.votes) >= game.total_voters:
+                    # Все проголосовали - завершаем досрочно
+                    await context.bot.send_message(
+                        chat_id=game.chat_id, 
+                        text="⚡ Все игроки проголосовали! Голосование завершено досрочно."
+                    )
+                    await self.process_wolf_voting_results(context, game)
+                    return
+            
+            # Если игра завершилась или фаза изменилась - выходим
+            if game.phase != GamePhase.VOTING:
+                return
+        
+        # Время вышло
         if game.phase == GamePhase.VOTING:
-            await self.process_wolf_voting_results(update, context, game)
+            await self.process_wolf_voting_results(context, game)
 
-    async def voting_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        await asyncio.sleep(120)
+    async def voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game, update: Update):
+        """Таймер для голосования с проверкой досрочного завершения"""
+        for _ in range(120):  # Проверяем каждую секунду в течение 2 минут
+            await asyncio.sleep(1)
+            
+            # Проверяем, все ли проголосовали
+            if game.phase == GamePhase.VOTING and hasattr(game, 'total_voters'):
+                if len(game.votes) >= game.total_voters:
+                    # Все проголосовали - завершаем досрочно
+                    await context.bot.send_message(
+                        chat_id=game.chat_id, 
+                        text="⚡ Все игроки проголосовали! Голосование завершено досрочно."
+                    )
+                    await self.process_voting_results(update, context, game)
+                    return
+            
+            # Если игра завершилась или фаза изменилась - выходим
+            if game.phase != GamePhase.VOTING:
+                return
+        
+        # Время вышло
         if game.phase == GamePhase.VOTING:
             await self.process_voting_results(update, context, game)
 
@@ -694,16 +739,25 @@ class ForestMafiaBot:
         else:
             await update.message.reply_text("🤝 Ничья в голосовании! Никто не изгнан.")
 
+        # Очищаем атрибуты голосования
+        if hasattr(game, 'total_voters'):
+            delattr(game, 'total_voters')
+        if hasattr(game, 'voting_type'):
+            delattr(game, 'voting_type')
+
         winner = game.check_game_end()
         if winner:
             await self.end_game_winner(update, context, game, winner)
         else:
             await self.start_new_night(update, context, game)
 
-    async def process_wolf_voting_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def process_wolf_voting_results(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Обрабатывает результаты голосования за волка"""
         if not game.votes:
-            await update.message.reply_text("🤷‍♂️ Никто не проголосовал в голосовании 'Кто волк?'!")
+            await context.bot.send_message(
+                chat_id=game.chat_id,
+                text="🤷‍♂️ Никто не проголосовал в голосовании 'Кто волк?'!"
+            )
             game.start_day()  # Возвращаемся к дневной фазе
             return
 
@@ -739,10 +793,14 @@ class ForestMafiaBot:
                               f"🐰 {suspect.username} получил больше всего голосов ({votes}), но оказался {self.get_role_info(suspect.role)['name']}!\n"
                               f"😅 Жители ошиблись!")
 
-        await update.message.reply_text(result_text)
+        await context.bot.send_message(chat_id=game.chat_id, text=result_text)
         
         # Очищаем голоса и возвращаемся к дневной фазе
         game.votes.clear()
+        if hasattr(game, 'total_voters'):
+            delattr(game, 'total_voters')
+        if hasattr(game, 'voting_type'):
+            delattr(game, 'voting_type')
         game.start_day()
         
         # Возвращаем кнопки дневной фазы
@@ -752,9 +810,9 @@ class ForestMafiaBot:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
-            "☀️ Продолжается дневное обсуждение.\n"
-            "Используйте кнопки ниже для управления фазой:",
+        await context.bot.send_message(
+            chat_id=game.chat_id,
+            text="☀️ Продолжается дневное обсуждение.\nИспользуйте кнопки ниже для управления фазой:",
             reply_markup=reply_markup
         )
 
@@ -818,6 +876,12 @@ class ForestMafiaBot:
         if game.vote(user_id, target_id):
             target_player = game.players[target_id]
             await query.edit_message_text(f"✅ Ваш голос зарегистрирован!\nВы проголосовали за изгнание: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
+            
+            # Проверяем, все ли проголосовали (только для обычного голосования)
+            if hasattr(game, 'total_voters') and hasattr(game, 'voting_type') and game.voting_type == "exile":
+                if len(game.votes) >= game.total_voters:
+                    # Все проголосовали - завершаем досрочно
+                    asyncio.create_task(self.complete_exile_voting_early(context, game, update))
         else:
             await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
 
@@ -1143,8 +1207,33 @@ class ForestMafiaBot:
         if game.vote(user_id, target_id):
             target_player = game.players[target_id]
             await query.edit_message_text(f"✅ Вы проголосовали за {target_player.username} как за волка!\n\n🕐 Ожидайте результатов голосования...")
+            
+            # Проверяем, все ли проголосовали
+            if hasattr(game, 'total_voters') and len(game.votes) >= game.total_voters:
+                # Все проголосовали - завершаем досрочно в отдельной задаче
+                asyncio.create_task(self.complete_wolf_voting_early(context, game))
         else:
             await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
+
+    async def complete_wolf_voting_early(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Завершает голосование за волка досрочно"""
+        await asyncio.sleep(0.5)  # Небольшая задержка чтобы все голоса успели обработаться
+        if game.phase == GamePhase.VOTING and hasattr(game, 'voting_type') and game.voting_type == "wolf":
+            await context.bot.send_message(
+                chat_id=game.chat_id, 
+                text="⚡ Все игроки проголосовали! Голосование 'Кто волк?' завершено досрочно."
+            )
+            await self.process_wolf_voting_results(context, game)
+
+    async def complete_exile_voting_early(self, context: ContextTypes.DEFAULT_TYPE, game: Game, update: Update):
+        """Завершает голосование за изгнание досрочно"""
+        await asyncio.sleep(0.5)  # Небольшая задержка чтобы все голоса успели обработаться
+        if game.phase == GamePhase.VOTING and hasattr(game, 'voting_type') and game.voting_type == "exile":
+            await context.bot.send_message(
+                chat_id=game.chat_id, 
+                text="⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно."
+            )
+            await self.process_voting_results(update, context, game)
 
     # ---------------- helper ----------------
     async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
