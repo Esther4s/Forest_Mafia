@@ -477,13 +477,30 @@ class ForestMafiaBot:
             await self._end_game_internal(update, context, game, "Недостаточно игроков для голосования")
             return
 
-        keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in alive_players]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
+        # Отправляем уведомление в общий чат
         await update.message.reply_text(
-            "🗳️ Время голосования!\nУ вас есть 2 минуты, чтобы проголосовать за изгнание зверя из леса.\nВыберите того, кого хотите изгнать:",
-            reply_markup=reply_markup
+            "🗳️ Время голосования за изгнание!\n\n"
+            "У вас есть 2 минуты, чтобы проголосовать в личных сообщениях за изгнание зверя из леса.\n\n"
+            "📱 Проверьте личные сообщения с ботом для голосования."
         )
+
+        # Отправляем меню голосования каждому живому игроку в личку
+        for voter in alive_players:
+            keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in alive_players]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            try:
+                await context.bot.send_message(
+                    chat_id=voter.user_id,
+                    text=(
+                        "🗳️ Время голосования за изгнание!\n\n"
+                        "Выберите игрока, которого вы хотите изгнать из леса.\n"
+                        "У вас есть 2 минуты на голосование:"
+                    ),
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
 
         asyncio.create_task(self.voting_timer(update, context, game))
 
@@ -493,19 +510,43 @@ class ForestMafiaBot:
 
         alive_players = game.get_alive_players()
         if len(alive_players) < 2:
-            await update.message.reply_text("❌ Недостаточно игроков для голосования!")
+            if hasattr(update, 'message') and update.message:
+                await update.message.reply_text("❌ Недостаточно игроков для голосования!")
+            elif hasattr(update, 'callback_query') and update.callback_query:
+                await context.bot.send_message(chat_id=game.chat_id, text="❌ Недостаточно игроков для голосования!")
             return
 
-        keyboard = [[InlineKeyboardButton(f"🐺 {p.username}", callback_data=f"wolf_vote_{p.user_id}")] for p in alive_players]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            "🐺 Голосование 'Кто волк?'!\n\n"
-            "У вас есть 2 минуты, чтобы проголосовать за того, кого вы подозреваете в том, что он волк.\n"
+        # Отправляем уведомление в общий чат
+        chat_message = (
+            "🐺 Голосование 'Кто волк?' началось!\n\n"
+            "У вас есть 2 минуты, чтобы проголосовать в личных сообщениях за того, кого вы подозреваете в том, что он волк.\n"
             "Этот игрок НЕ будет изгнан, это просто попытка выявить волка!\n\n"
-            "Выберите подозреваемого:",
-            reply_markup=reply_markup
+            "📱 Проверьте личные сообщения с ботом для голосования."
         )
+        
+        if hasattr(update, 'message') and update.message:
+            await update.message.reply_text(chat_message)
+        elif hasattr(update, 'callback_query') and update.callback_query:
+            await context.bot.send_message(chat_id=game.chat_id, text=chat_message)
+
+        # Отправляем меню голосования каждому живому игроку в личку
+        for voter in alive_players:
+            keyboard = [[InlineKeyboardButton(f"🐺 {p.username}", callback_data=f"wolf_vote_{p.user_id}")] for p in alive_players]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+
+            try:
+                await context.bot.send_message(
+                    chat_id=voter.user_id,
+                    text=(
+                        "🐺 Голосование 'Кто волк?'!\n\n"
+                        "Выберите игрока, которого вы подозреваете в том, что он волк.\n"
+                        "Этот игрок НЕ будет изгнан - это просто попытка выявить волка!\n\n"
+                        "У вас есть 2 минуты на голосование:"
+                    ),
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
 
         asyncio.create_task(self.wolf_voting_timer(update, context, game))
 
@@ -620,10 +661,15 @@ class ForestMafiaBot:
         await query.answer()
 
         user_id = query.from_user.id
-        chat_id = query.message.chat.id
+        
+        # Находим игру по игроку
+        if user_id not in self.player_games:
+            await query.edit_message_text("❌ Вы не участвуете в игре!")
+            return
 
+        chat_id = self.player_games[user_id]
         if chat_id not in self.games:
-            await query.edit_message_text("❌ В чате нет активной игры.")
+            await query.edit_message_text("❌ Игра не найдена!")
             return
 
         game = self.games[chat_id]
@@ -633,7 +679,8 @@ class ForestMafiaBot:
 
         target_id = int(query.data.split('_', 1)[1])
         if game.vote(user_id, target_id):
-            await query.edit_message_text("✅ Ваш голос зарегистрирован!")
+            target_player = game.players[target_id]
+            await query.edit_message_text(f"✅ Ваш голос зарегистрирован!\nВы проголосовали за изгнание: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
         else:
             await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
 
@@ -901,10 +948,15 @@ class ForestMafiaBot:
         await query.answer()
 
         user_id = query.from_user.id
-        chat_id = query.message.chat.id
+        
+        # Находим игру по игроку
+        if user_id not in self.player_games:
+            await query.edit_message_text("❌ Вы не участвуете в игре!")
+            return
 
+        chat_id = self.player_games[user_id]
         if chat_id not in self.games:
-            await query.edit_message_text("❌ В этом чате нет активной игры!")
+            await query.edit_message_text("❌ Игра не найдена!")
             return
 
         game = self.games[chat_id]
@@ -927,7 +979,7 @@ class ForestMafiaBot:
 
         if game.vote(user_id, target_id):
             target_player = game.players[target_id]
-            await query.edit_message_text(f"✅ Вы проголосовали за {target_player.username} как за волка!")
+            await query.edit_message_text(f"✅ Вы проголосовали за {target_player.username} как за волка!\n\n🕐 Ожидайте результатов голосования...")
         else:
             await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
 
