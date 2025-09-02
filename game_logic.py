@@ -176,11 +176,86 @@ class Game:
         predators = self.get_players_by_team(Team.PREDATORS)
         herbivores = self.get_players_by_team(Team.HERBIVORES)
 
+        # Стандартные условия победы
         if not predators:
             return Team.HERBIVORES
         if not herbivores:
             return Team.PREDATORS
 
+        # Автоматическое завершение игры по дополнительным условиям
+        auto_end_result = self.check_auto_game_end()
+        if auto_end_result is not None:
+            return auto_end_result
+
+        return None
+    
+    def check_auto_game_end(self) -> Optional[Team]:
+        """Проверяет условия автоматического завершения игры"""
+        alive_players = self.get_alive_players()
+        
+        # 1. Слишком мало игроков осталось (менее 3)
+        if len(alive_players) < 3:
+            # Определяем победителя по количеству живых игроков каждой команды
+            predators = self.get_players_by_team(Team.PREDATORS)
+            herbivores = self.get_players_by_team(Team.HERBIVORES)
+            
+            if len(predators) > len(herbivores):
+                return Team.PREDATORS
+            elif len(herbivores) > len(predators):
+                return Team.HERBIVORES
+            else:
+                # Ничья - побеждают травоядные (по умолчанию)
+                return Team.HERBIVORES
+        
+        # 2. Игра длится слишком долго (более 2 часов)
+        if self.game_start_time:
+            game_duration = datetime.now() - self.game_start_time
+            if game_duration.total_seconds() > 7200:  # 2 часа
+                # При таймауте побеждают травоядные
+                return Team.HERBIVORES
+        
+        # 3. Слишком много раундов (более 20)
+        if self.current_round > 20:
+            # При превышении лимита раундов побеждают травоядные
+            return Team.HERBIVORES
+        
+        # 4. Равное количество хищников и травоядных при малом количестве игроков
+        predators = self.get_players_by_team(Team.PREDATORS)
+        herbivores = self.get_players_by_team(Team.HERBIVORES)
+        
+        if len(alive_players) <= 4 and len(predators) == len(herbivores):
+            # При равенстве сил и малом количестве игроков побеждают травоядные
+            return Team.HERBIVORES
+            
+        return None
+    
+    def get_auto_end_reason(self) -> Optional[str]:
+        """Возвращает причину автоматического завершения игры"""
+        alive_players = self.get_alive_players()
+        
+        # 1. Слишком мало игроков осталось (менее 3)
+        if len(alive_players) < 3:
+            return f"⏰ Автоматическое завершение: осталось слишком мало игроков ({len(alive_players)})"
+        
+        # 2. Игра длится слишком долго (более 2 часов)
+        if self.game_start_time:
+            game_duration = datetime.now() - self.game_start_time
+            if game_duration.total_seconds() > 7200:  # 2 часа
+                hours = int(game_duration.total_seconds() // 3600)
+                minutes = int((game_duration.total_seconds() % 3600) // 60)
+                return f"⏰ Автоматическое завершение: игра длится слишком долго ({hours}ч {minutes}м)"
+        
+        # 3. Слишком много раундов (более 20)
+        if self.current_round > 20:
+            return f"⏰ Автоматическое завершение: превышен лимит раундов ({self.current_round})"
+        
+        # 4. Равное количество хищников и травоядных при малом количестве игроков
+        predators = self.get_players_by_team(Team.PREDATORS)
+        herbivores = self.get_players_by_team(Team.HERBIVORES)
+        
+        if len(alive_players) <= 4 and len(predators) == len(herbivores):
+            return f"⏰ Автоматическое завершение: равенство сил при малом количестве игроков ({len(predators)} vs {len(herbivores)})"
+            
         return None
 
     def process_night_actions(self):

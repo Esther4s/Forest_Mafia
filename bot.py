@@ -616,6 +616,12 @@ class ForestMafiaBot:
             await self.start_day_phase(update, context, game)
 
     async def start_day_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        # Проверяем условия автоматического завершения игры
+        winner = game.check_game_end()
+        if winner:
+            await self.end_game_winner(update, context, game, winner)
+            return
+            
         game.start_day()
 
         # Создаем кнопки для дневной фазы
@@ -883,7 +889,15 @@ class ForestMafiaBot:
         
         if winner:
             winner_text = "🏆 Травоядные победили!" if winner == Team.HERBIVORES else "🏆 Хищники победили!"
-            await update.message.reply_text(f"🎉 Игра окончена! {winner_text}\n\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}")
+            
+            # Проверяем причину автоматического завершения
+            auto_end_reason = game.get_auto_end_reason()
+            if auto_end_reason:
+                message_text = f"🎉 Игра окончена! {winner_text}\n\n{auto_end_reason}\n\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}"
+            else:
+                message_text = f"🎉 Игра окончена! {winner_text}\n\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}"
+                
+            await update.message.reply_text(message_text)
         else:
             await update.message.reply_text("🏁 Игра окончена!\nНедостаточно игроков для продолжения.")
 
@@ -1249,6 +1263,12 @@ class ForestMafiaBot:
             results = night_actions.process_all_actions()
             await night_interface.send_night_results(context, results)
             night_actions.clear_actions()
+            
+        # Проверяем условия автоматического завершения игры после ночных действий
+        winner = game.check_game_end()
+        if winner:
+            await self.end_game_winner(update, context, game, winner)
+            return
 
     async def handle_wolf_voting(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает голосование за волка"""
