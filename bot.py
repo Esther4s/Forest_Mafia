@@ -134,10 +134,44 @@ class ForestMafiaBot:
             keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(
-                f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}",
-                reply_markup=reply_markup
-            )
+            join_text = f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}"
+            
+            # Если это первый игрок, отправляем и закрепляем сообщение
+            if len(game.players) == 1:
+                message = await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=join_text,
+                    reply_markup=reply_markup
+                )
+                # Сохраняем ID закрепленного сообщения в игре
+                game.pinned_message_id = message.message_id
+                
+                try:
+                    await context.bot.pin_chat_message(
+                        chat_id=chat_id,
+                        message_id=message.message_id,
+                        disable_notification=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось закрепить сообщение: {e}")
+                
+                await query.edit_message_text("✅ Вы присоединились к игре! Сообщение о присоединении закреплено в чате.")
+            else:
+                # Обновляем закрепленное сообщение, если оно существует
+                if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=game.pinned_message_id,
+                            text=join_text,
+                            reply_markup=reply_markup
+                        )
+                        await query.edit_message_text("✅ Вы присоединились к игре! Закрепленное сообщение обновлено.")
+                    except Exception as e:
+                        logger.warning(f"Не удалось обновить закрепленное сообщение: {e}")
+                        await query.edit_message_text(join_text, reply_markup=reply_markup)
+                else:
+                    await query.edit_message_text(join_text, reply_markup=reply_markup)
         else:
             await query.edit_message_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
 
@@ -240,10 +274,38 @@ class ForestMafiaBot:
             keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await update.message.reply_text(
-                f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}",
-                reply_markup=reply_markup
-            )
+            join_text = f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}"
+            
+            # Если это первый игрок, отправляем и закрепляем сообщение
+            if len(game.players) == 1:
+                message = await update.message.reply_text(join_text, reply_markup=reply_markup)
+                # Сохраняем ID закрепленного сообщения в игре
+                game.pinned_message_id = message.message_id
+                
+                try:
+                    await context.bot.pin_chat_message(
+                        chat_id=chat_id,
+                        message_id=message.message_id,
+                        disable_notification=True
+                    )
+                except Exception as e:
+                    logger.warning(f"Не удалось закрепить сообщение: {e}")
+            else:
+                # Обновляем закрепленное сообщение, если оно существует
+                if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
+                    try:
+                        await context.bot.edit_message_text(
+                            chat_id=chat_id,
+                            message_id=game.pinned_message_id,
+                            text=join_text,
+                            reply_markup=reply_markup
+                        )
+                        await update.message.reply_text("✅ Вы присоединились к игре! Закрепленное сообщение обновлено.")
+                    except Exception as e:
+                        logger.warning(f"Не удалось обновить закрепленное сообщение: {e}")
+                        await update.message.reply_text(join_text, reply_markup=reply_markup)
+                else:
+                    await update.message.reply_text(join_text, reply_markup=reply_markup)
         else:
             await update.message.reply_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
 
