@@ -38,6 +38,8 @@ class ForestMafiaBot:
         self.night_interfaces: Dict[int, NightInterface] = {}
         # Global settings instance
         self.global_settings = GlobalSettings()
+        # Список разрешенных чатов (настроенных через /setup_channel)
+        self.authorized_chats: set = set()
 
     # ---------------- helper functions ----------------
     async def can_bot_write_in_chat(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> bool:
@@ -64,10 +66,24 @@ class ForestMafiaBot:
             return False
 
     async def check_bot_permissions_decorator(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Проверяет права бота перед выполнением команды"""
+        """Проверяет права бота и авторизацию чата перед выполнением команды"""
         chat_id = update.effective_chat.id
         
-        # Проверяем права бота
+        # Разрешаем команды /setup_channel и /remove_channel для настройки чатов
+        if hasattr(update, 'message') and update.message and update.message.text:
+            if update.message.text.startswith('/setup_channel') or update.message.text.startswith('/remove_channel'):
+                # Проверяем только права на запись для этих команд
+                if not await self.can_bot_write_in_chat(context, chat_id):
+                    logger.info(f"Бот не может писать в чате {chat_id}, игнорируем команду")
+                    return False
+                return True
+        
+        # Для всех остальных команд проверяем, что чат авторизован
+        if chat_id not in self.authorized_chats:
+            logger.info(f"Чат {chat_id} не авторизован для игры, игнорируем команду")
+            return False
+        
+        # Проверяем права бота на запись
         if not await self.can_bot_write_in_chat(context, chat_id):
             logger.info(f"Бот не может писать в чате {chat_id}, игнорируем команду")
             return False
@@ -662,7 +678,9 @@ class ForestMafiaBot:
                 )
                 return
             else:
-                # Есть игра в ожидании - показываем статус
+                # Есть игра в ожидании - добавляем в авторизованные чаты если не добавлен
+                self.authorized_chats.add(chat_id)
+                # показываем статус
                 await update.message.reply_text(
                     f"✅ Канал '{chat_name}' уже настроен для игры!\n\n"
                     f"📊 Статус: Ожидание игроков\n"
@@ -674,6 +692,9 @@ class ForestMafiaBot:
         
         # Настраиваем канал для игры
         try:
+            # Добавляем чат в авторизованные
+            self.authorized_chats.add(chat_id)
+            
             # Создаем новую игру
             self.games[chat_id] = Game(chat_id)
             self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
@@ -716,6 +737,76 @@ class ForestMafiaBot:
             await update.message.reply_text(
                 "❌ Произошла ошибка при настройке канала!\n"
                 "Попробуйте еще раз или обратитесь к администратору бота."
+            )
+
+    async def remove_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для удаления канала из авторизованных для игры"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # Проверка прав уже выполнена в check_bot_permissions_decorator через startswith('/remove_channel')
+        
+        # Проверяем, что это группа или канал, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text(
+                "❌ Эта команда доступна только в группах и каналах!"
+            )
+            return
+        
+        # Проверяем права администратора
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+            if chat_member.status not in ['creator', 'administrator']:
+                await update.message.reply_text(
+                    "❌ Только администраторы могут удалять канал из игры!"
+                )
+                return
+        except Exception as e:
+            await update.message.reply_text(
+                "❌ Ошибка при проверке прав администратора."
+            )
+            return
+        
+        # Получаем информацию о чате
+        try:
+            chat_info = await context.bot.get_chat(chat_id)
+            chat_name = chat_info.title or f"Чат {chat_id}"
+        except Exception:
+            chat_name = f"Чат {chat_id}"
+        
+        # Проверяем, есть ли активная игра
+        if chat_id in self.games:
+            game = self.games[chat_id]
+            if game.phase != GamePhase.WAITING:
+                await update.message.reply_text(
+                    f"❌ В канале '{chat_name}' идёт игра!\n"
+                    "Завершите игру перед удалением канала из авторизованных."
+                )
+                return
+            else:
+                # Завершаем игру в ожидании и удаляем все связанные данные
+                for pid in list(game.players.keys()):
+                    if pid in self.player_games:
+                        del self.player_games[pid]
+                del self.games[chat_id]
+                if chat_id in self.night_actions:
+                    del self.night_actions[chat_id]
+                if chat_id in self.night_interfaces:
+                    del self.night_interfaces[chat_id]
+        
+        # Удаляем чат из авторизованных
+        if chat_id in self.authorized_chats:
+            self.authorized_chats.remove(chat_id)
+            await update.message.reply_text(
+                f"✅ Канал '{chat_name}' удален из авторизованных для игры!\n\n"
+                "🚫 Бот больше не будет отвечать на команды в этом канале.\n"
+                "Используйте /setup_channel для повторной настройки."
+            )
+            logger.info(f"Channel {chat_id} ({chat_name}) removed from authorized chats by user {user_id}")
+        else:
+            await update.message.reply_text(
+                f"❌ Канал '{chat_name}' не был настроен для игры.\n"
+                "Используйте /setup_channel для настройки."
             )
 
     async def _end_game_internal(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, reason: str):
@@ -1779,6 +1870,7 @@ class ForestMafiaBot:
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("test_mode", self.handle_test_mode_command)) # Обработчик команды test_mode
         application.add_handler(CommandHandler("setup_channel", self.setup_channel)) # Обработчик команды setup_channel
+        application.add_handler(CommandHandler("remove_channel", self.remove_channel)) # Обработчик команды remove_channel
 
         # callbacks
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern=r"^vote_"))

@@ -9,9 +9,11 @@ Preferred communication style: Simple, everyday language.
 # Recent Changes
 
 ## September 2025
-- **Added permission checking system**: Bot now only responds in channels where it has write permissions
-- **Enhanced security**: Bot silently ignores commands in channels where it cannot write
-- **Improved logging**: All permission-related events are logged for monitoring
+- **Added authorization system**: Bot now only responds in channels specifically set up via `/setup_channel`
+- **Enhanced security**: Bot silently ignores commands in non-authorized channels
+- **Added `/remove_channel` command**: Administrators can remove channels from authorized list  
+- **Improved logging**: All authorization and permission events are logged for monitoring
+- **Channel management**: Authorized channels are tracked in memory and persist during bot session
 
 # System Architecture
 
