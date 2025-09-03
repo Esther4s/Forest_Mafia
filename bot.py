@@ -95,6 +95,89 @@ class ForestMafiaBot:
         
         return True
 
+    # ---------------- helper functions for game logic ----------------
+    def format_player_tag(self, username: str, user_id: int) -> str:
+        """Форматирует тег игрока для отображения"""
+        if username and not username.isdigit():
+            # Если username есть и это не просто ID
+            return f"@{username}" if not username.startswith('@') else username
+        else:
+            # Если username нет или это ID, используем ID
+            return f"ID:{user_id}"
+
+    async def _join_game_common(self, chat_id: int, user_id: int, username: str, context: ContextTypes.DEFAULT_TYPE, 
+                               is_callback: bool = False) -> tuple[bool, str, any]:
+        """
+        Общая логика присоединения к игре
+        Возвращает: (success, message, reply_markup)
+        """
+        # Проверяем, что это группа, а не личные сообщения
+        if chat_id == user_id:
+            return False, "❌ Игра доступна только в группах! Добавьте бота в группу и попробуйте там.", None
+
+        # already in another game?
+        if user_id in self.player_games:
+            other_chat = self.player_games[user_id]
+            if other_chat != chat_id:
+                try:
+                    other_chat_info = await context.bot.get_chat(other_chat)
+                    chat_name = other_chat_info.title or f"Чат {other_chat}"
+                except:
+                    chat_name = f"Чат {other_chat}"
+                return False, f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}", None
+            else:
+                # Игрок уже в этой игре - показываем статус
+                game = self.games[chat_id]
+                max_players = getattr(game, "MAX_PLAYERS", 12)
+                
+                keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                message = f"ℹ️ Вы уже участвуете в этой игре!\nИгроков: {len(game.players)}/{max_players}"
+                return False, message, reply_markup
+
+        # create game if needed
+        if chat_id not in self.games:
+            self.games[chat_id] = Game(chat_id)
+            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
+            self.night_actions[chat_id] = NightActions(self.games[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+
+        game = self.games[chat_id]
+
+        if game.phase != GamePhase.WAITING:
+            return False, "❌ Игра уже идёт! Дождитесь её окончания.", None
+
+        if game.add_player(user_id, username):
+            self.player_games[user_id] = chat_id
+            max_players = getattr(game, "MAX_PLAYERS", 12)
+            
+            # Добавляем инлайн кнопку для присоединения других игроков
+            keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Форматируем список игроков с тегами
+            players_list = ""
+            for player in game.players.values():
+                player_tag = self.format_player_tag(player.username, player.user_id)
+                players_list += f"• {player_tag}\n"
+            
+            message = (
+                f"✅ {self.format_player_tag(username, user_id)} присоединился к игре!\n\n"
+                f"👥 Игроков: {len(game.players)}/{max_players}\n"
+                f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
+                f"📝 Участники:\n{players_list}"
+            )
+            
+            if game.can_start_game():
+                message += "\n✅ Можно начинать игру! Используйте /start_game"
+            else:
+                message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+            
+            return True, message, reply_markup
+        else:
+            return False, "❌ Не удалось присоединиться к игре!", None
+
     # ---------------- basic commands ----------------
     async def welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Проверяем права бота в чате
@@ -195,97 +278,33 @@ class ForestMafiaBot:
         user_id = query.from_user.id
         username = query.from_user.username or query.from_user.full_name or str(user_id)
 
-        # Проверяем, что это группа, а не личные сообщения
-        if chat_id == user_id:  # Это личные сообщения
-            await query.edit_message_text("❌ Игра доступна только в группах! Добавьте бота в группу и попробуйте там.")
-            return
-
-        # already in another game?
-        if user_id in self.player_games:
-            other_chat = self.player_games[user_id]
-            if other_chat != chat_id:
-                try:
-                    other_chat_info = await context.bot.get_chat(other_chat)
-                    chat_name = other_chat_info.title or f"Чат {other_chat}"
-                except:
-                    chat_name = f"Чат {other_chat}"
-                await query.edit_message_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
-                return
-            else:
-                # Игрок уже в этой игре - показываем статус
+        success, message, reply_markup = await self._join_game_common(chat_id, user_id, username, context, is_callback=True)
+        
+        if success:
+            try:
                 game = self.games[chat_id]
-                max_players = getattr(game, "MAX_PLAYERS", 12)
+                # Отправляем сообщение о присоединении в чат
+                join_message = await query.message.reply_text(message, reply_markup=reply_markup)
                 
-                keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(
-                    f"ℹ️ Вы уже участвуете в этой игре!\nИгроков: {len(game.players)}/{max_players}",
-                    reply_markup=reply_markup
-                )
-                return
-
-        # create game if needed
-        if chat_id not in self.games:
-            self.games[chat_id] = Game(chat_id)
-            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
-            self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
-
-        game = self.games[chat_id]
-
-        if game.phase != GamePhase.WAITING:
-            await query.edit_message_text("❌ Игра уже идёт! Дождитесь её окончания.")
-            return
-
-        if game.add_player(user_id, username):
-            self.player_games[user_id] = chat_id
-            max_players = getattr(game, "MAX_PLAYERS", 12)
-            
-            # Добавляем инлайн кнопку для присоединения других игроков
-            keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            join_text = f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}"
-            
-            # Если это первый игрок, отправляем и закрепляем сообщение
-            if len(game.players) == 1:
-                message = await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=join_text,
-                    reply_markup=reply_markup
-                )
-                # Сохраняем ID закрепленного сообщения в игре
-                game.pinned_message_id = message.message_id
-                
-                try:
-                    await context.bot.pin_chat_message(
-                        chat_id=chat_id,
-                        message_id=message.message_id,
-                        disable_notification=True
-                    )
-                except Exception as e:
-                    logger.warning(f"Не удалось закрепить сообщение: {e}")
-                
-                await query.edit_message_text("✅ Вы присоединились к игре! Сообщение о присоединении закреплено в чате.")
-            else:
-                # Обновляем закрепленное сообщение, если оно существует
+                # Если есть закрепленное сообщение, открепляем его
                 if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
                     try:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=game.pinned_message_id,
-                            text=join_text,
-                            reply_markup=reply_markup
-                        )
-                        await query.edit_message_text("✅ Вы присоединились к игре! Закрепленное сообщение обновлено.")
-                    except Exception as e:
-                        logger.warning(f"Не удалось обновить закрепленное сообщение: {e}")
-                        await query.edit_message_text(join_text, reply_markup=reply_markup)
-                else:
-                    await query.edit_message_text(join_text, reply_markup=reply_markup)
+                        await context.bot.unpin_chat_message(chat_id, game.pinned_message_id)
+                    except:
+                        pass
+                
+                # Закрепляем новое сообщение
+                await context.bot.pin_chat_message(chat_id, join_message.message_id)
+                game.pinned_message_id = join_message.message_id
+                
+                # Редактируем callback-сообщение
+                await query.edit_message_text(f"✅ Вы присоединились к игре!\nИгроков: {len(game.players)}/12")
+                
+            except Exception as e:
+                logger.error(f"Error in join_from_callback: {e}")
+                await query.edit_message_text("❌ Произошла ошибка при присоединении к игре!")
         else:
-            await query.edit_message_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
+            await query.edit_message_text(message, reply_markup=reply_markup)
 
     async def status_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
         chat_id = query.message.chat.id
@@ -305,7 +324,8 @@ class ForestMafiaBot:
                 "Список игроков:\n"
             )
             for player in game.players.values():
-                status_text += f"• {player.username}\n"
+                player_tag = self.format_player_tag(player.username, player.user_id)
+                status_text += f"• {player_tag}\n"
             if game.can_start_game():
                 status_text += "\n✅ Можно начинать игру!"
             else:
@@ -325,7 +345,8 @@ class ForestMafiaBot:
                 "Живые игроки:\n"
             )
             for p in game.get_alive_players():
-                status_text += f"• {p.username}\n"
+                player_tag = self.format_player_tag(p.username, p.user_id)
+                status_text += f"• {player_tag}\n"
 
         await query.edit_message_text(status_text)
 
@@ -339,91 +360,29 @@ class ForestMafiaBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
 
-        # Проверяем, что это группа, а не личные сообщения
-        if chat_id == user_id:  # Это личные сообщения
-            await update.message.reply_text("❌ Игра доступна только в группах! Добавьте бота в группу и попробуйте там.")
-            return
-
-        # already in another game?
-        if user_id in self.player_games:
-            other_chat = self.player_games[user_id]
-            if other_chat != chat_id:
-                try:
-                    other_chat_info = await context.bot.get_chat(other_chat)
-                    chat_name = other_chat_info.title or f"Чат {other_chat}"
-                except:
-                    chat_name = f"Чат {other_chat}"
-                await update.message.reply_text(f"❌ Вы уже участвуете в игре в другом чате!\nЧат: {chat_name}")
-                return
-            else:
-                # Игрок уже в этой игре - показываем статус
+        success, message, reply_markup = await self._join_game_common(chat_id, user_id, username, context, is_callback=False)
+        
+        if success:
+            # Отправляем сообщение и закрепляем его при необходимости
+            try:
                 game = self.games[chat_id]
-                max_players = getattr(game, "MAX_PLAYERS", 12)
+                join_message = await update.message.reply_text(message, reply_markup=reply_markup)
                 
-                keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await update.message.reply_text(
-                    f"ℹ️ Вы уже участвуете в этой игре!\nИгроков: {len(game.players)}/{max_players}",
-                    reply_markup=reply_markup
-                )
-                return
-
-        # create game if needed
-        if chat_id not in self.games:
-            self.games[chat_id] = Game(chat_id)
-            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
-            self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
-
-        game = self.games[chat_id]
-
-        if game.phase != GamePhase.WAITING:
-            await update.message.reply_text("❌ Игра уже идёт! Дождитесь её окончания.")
-            return
-
-        if game.add_player(user_id, username):
-            self.player_games[user_id] = chat_id
-            max_players = getattr(game, "MAX_PLAYERS", 12)
-            
-            # Добавляем инлайн кнопку для присоединения других игроков
-            keyboard = [[InlineKeyboardButton("🎮 Присоединиться", callback_data="welcome_start_game")]]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            join_text = f"✅ {username} присоединился к игре!\nИгроков: {len(game.players)}/{max_players}"
-            
-            # Если это первый игрок, отправляем и закрепляем сообщение
-            if len(game.players) == 1:
-                message = await update.message.reply_text(join_text, reply_markup=reply_markup)
-                # Сохраняем ID закрепленного сообщения в игре
-                game.pinned_message_id = message.message_id
-                
-                try:
-                    await context.bot.pin_chat_message(
-                        chat_id=chat_id,
-                        message_id=message.message_id,
-                        disable_notification=True
-                    )
-                except Exception as e:
-                    logger.warning(f"Не удалось закрепить сообщение: {e}")
-            else:
-                # Обновляем закрепленное сообщение, если оно существует
+                # Закрепляем сообщение
                 if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
                     try:
-                        await context.bot.edit_message_text(
-                            chat_id=chat_id,
-                            message_id=game.pinned_message_id,
-                            text=join_text,
-                            reply_markup=reply_markup
-                        )
-                        await update.message.reply_text("✅ Вы присоединились к игре! Закрепленное сообщение обновлено.")
-                    except Exception as e:
-                        logger.warning(f"Не удалось обновить закрепленное сообщение: {e}")
-                        await update.message.reply_text(join_text, reply_markup=reply_markup)
-                else:
-                    await update.message.reply_text(join_text, reply_markup=reply_markup)
+                        await context.bot.unpin_chat_message(chat_id, game.pinned_message_id)
+                    except:
+                        pass
+                
+                await context.bot.pin_chat_message(chat_id, join_message.message_id)
+                game.pinned_message_id = join_message.message_id
+                
+            except Exception as e:
+                logger.error(f"Error in join: {e}")
+                await update.message.reply_text("❌ Произошла ошибка при присоединении к игре!")
         else:
-            await update.message.reply_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
+            await update.message.reply_text(message, reply_markup=reply_markup)
 
     async def leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Проверяем права бота в чате
@@ -456,9 +415,27 @@ class ForestMafiaBot:
         if game.leave_game(user_id):
             if user_id in self.player_games:
                 del self.player_games[user_id]
-            await update.message.reply_text(f"👋 {username} покинул игру.\nИгроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}")
-            if not game.can_start_game():
-                await update.message.reply_text("⚠️ Игроков стало меньше минимума. Игра не может быть начата.")
+            
+            player_tag = self.format_player_tag(username, user_id)
+            # Показываем обновленный список игроков с тегами
+            players_list = ""
+            for player in game.players.values():
+                tag = self.format_player_tag(player.username, player.user_id)
+                players_list += f"• {tag}\n"
+            
+            message = (
+                f"👋 {player_tag} покинул игру.\n\n"
+                f"👥 Игроков: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
+                f"📋 Минимум для начала: {self.global_settings.get_min_players()}\n\n"
+                f"📝 Участники:\n{players_list}" if players_list else f"📝 Участников нет\n"
+            )
+            
+            if not game.can_start_game() and len(game.players) > 0:
+                message += f"\n⚠️ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+            elif game.can_start_game():
+                message += "\n✅ Можно начинать игру!"
+                
+            await update.message.reply_text(message)
         else:
             await update.message.reply_text("❌ Не удалось покинуть игру.")
 
@@ -489,7 +466,8 @@ class ForestMafiaBot:
                 "Список игроков:\n"
             )
             for player in game.players.values():
-                status_text += f"• {player.username}\n"
+                player_tag = self.format_player_tag(player.username, player.user_id)
+                status_text += f"• {player_tag}\n"
             if game.can_start_game():
                 status_text += "\n✅ Можно начинать игру!"
             else:
@@ -509,7 +487,8 @@ class ForestMafiaBot:
                 "Живые игроки:\n"
             )
             for p in game.get_alive_players():
-                status_text += f"• {p.username}\n"
+                player_tag = self.format_player_tag(p.username, p.user_id)
+                status_text += f"• {player_tag}\n"
 
         await update.message.reply_text(status_text)
 
