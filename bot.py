@@ -39,8 +39,47 @@ class ForestMafiaBot:
         # Global settings instance
         self.global_settings = GlobalSettings()
 
+    # ---------------- helper functions ----------------
+    async def can_bot_write_in_chat(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> bool:
+        """Проверяет, может ли бот писать в данном чате"""
+        try:
+            # Получаем информацию о боте в чате
+            bot_member = await context.bot.get_chat_member(chat_id, context.bot.id)
+            
+            # Проверяем статус бота
+            if bot_member.status in ['administrator', 'creator']:
+                return True
+            elif bot_member.status == 'member':
+                # Для обычных групп проверяем права на отправку сообщений
+                chat = await context.bot.get_chat(chat_id)
+                if chat.type == 'private':
+                    return True
+                # В группах обычно члены могут писать, если не ограничено
+                return True
+            else:
+                # kicked, left, restricted
+                return False
+        except Exception as e:
+            logger.warning(f"Не удалось проверить права бота в чате {chat_id}: {e}")
+            return False
+
+    async def check_bot_permissions_decorator(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Проверяет права бота перед выполнением команды"""
+        chat_id = update.effective_chat.id
+        
+        # Проверяем права бота
+        if not await self.can_bot_write_in_chat(context, chat_id):
+            logger.info(f"Бот не может писать в чате {chat_id}, игнорируем команду")
+            return False
+        
+        return True
+
     # ---------------- basic commands ----------------
     async def welcome_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         keyboard = [
             [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
@@ -63,6 +102,10 @@ class ForestMafiaBot:
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='Markdown')
 
     async def rules(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         rules_text = (
             "📖 Правила игры 'Лесная Возня':\n\n"
             "🎭 Роли:\n"
@@ -78,6 +121,10 @@ class ForestMafiaBot:
         await update.message.reply_text(rules_text)
 
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         help_text = (
             "🆘 Как играть в 'Лесную Возню' 🆘\n\n"
             "📝 Пошаговая инструкция:\n\n"
@@ -263,6 +310,10 @@ class ForestMafiaBot:
 
     # ---------------- join / leave / status ----------------
     async def join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
@@ -354,6 +405,10 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ Не удалось присоединиться к игре. Возможно, вы уже в игре или достигнут лимит игроков.")
 
     async def leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
@@ -387,6 +442,10 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ Не удалось покинуть игру.")
 
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
 
         # Проверяем, что это группа, а не личные сообщения
@@ -435,6 +494,10 @@ class ForestMafiaBot:
 
     # ---------------- starting / ending game ----------------
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
@@ -470,6 +533,10 @@ class ForestMafiaBot:
             await update.message.reply_text("❌ Не удалось начать игру!")
 
     async def end_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
@@ -491,6 +558,10 @@ class ForestMafiaBot:
         await self._end_game_internal(update, context, game, "Администратор завершил игру")
 
     async def force_end(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
@@ -512,6 +583,10 @@ class ForestMafiaBot:
         await self._end_game_internal(update, context, game, "Администратор принудительно завершил игру")
 
     async def clear_all_games(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         user_id = update.effective_user.id
 
         # Проверяем, что команда от создателя бота (можете изменить это условие)
@@ -536,6 +611,10 @@ class ForestMafiaBot:
 
     async def setup_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда для настройки канала для игры"""
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         
@@ -1231,6 +1310,10 @@ class ForestMafiaBot:
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
@@ -1722,6 +1805,10 @@ class ForestMafiaBot:
 
     async def handle_test_mode_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает команду /test_mode для включения/выключения тестового режима."""
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+            
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
