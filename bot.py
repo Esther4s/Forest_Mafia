@@ -68,6 +68,11 @@ class ForestMafiaBot:
     async def check_bot_permissions_decorator(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Проверяет права бота и авторизацию чата перед выполнением команды"""
         chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # ВСЕГДА разрешаем личные сообщения (необходимо для игры!)
+        if chat_id == user_id:
+            return True
         
         # Разрешаем команды /setup_channel и /remove_channel для настройки чатов
         if hasattr(update, 'message') and update.message and update.message.text:
@@ -78,9 +83,9 @@ class ForestMafiaBot:
                     return False
                 return True
         
-        # Для всех остальных команд проверяем, что чат авторизован
+        # Для групповых чатов проверяем, что чат авторизован
         if chat_id not in self.authorized_chats:
-            logger.info(f"Чат {chat_id} не авторизован для игры, игнорируем команду")
+            logger.info(f"Групповой чат {chat_id} не авторизован для игры, игнорируем команду")
             return False
         
         # Проверяем права бота на запись
