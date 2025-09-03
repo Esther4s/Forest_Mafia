@@ -534,6 +534,111 @@ class ForestMafiaBot:
             f"👥 Было освобождено игроков: {players_count}"
         )
 
+    async def setup_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для настройки канала для игры"""
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        
+        # Проверяем, что это группа или канал, а не личные сообщения
+        if chat_id == user_id:
+            await update.message.reply_text(
+                "❌ Эта команда доступна только в группах и каналах!\n"
+                "Добавьте бота в группу и используйте команду там."
+            )
+            return
+        
+        # Проверяем права администратора
+        try:
+            chat_member = await context.bot.get_chat_member(chat_id, user_id)
+            if chat_member.status not in ['creator', 'administrator']:
+                await update.message.reply_text(
+                    "❌ Только администраторы могут настраивать канал для игры!"
+                )
+                return
+        except Exception as e:
+            await update.message.reply_text(
+                "❌ Ошибка при проверке прав администратора. "
+                "Убедитесь, что бот имеет права для проверки участников."
+            )
+            return
+        
+        # Получаем информацию о чате
+        try:
+            chat_info = await context.bot.get_chat(chat_id)
+            chat_name = chat_info.title or f"Чат {chat_id}"
+            chat_type = chat_info.type
+        except Exception:
+            chat_name = f"Чат {chat_id}"
+            chat_type = "unknown"
+        
+        # Проверяем, есть ли уже активная игра
+        if chat_id in self.games:
+            game = self.games[chat_id]
+            if game.phase != GamePhase.WAITING:
+                await update.message.reply_text(
+                    f"⚠️ В канале '{chat_name}' уже идёт игра!\n"
+                    f"Текущая фаза: {game.phase.value}\n"
+                    f"Участников: {len(game.players)}\n\n"
+                    "Дождитесь окончания текущей игры или используйте /force_end для принудительного завершения."
+                )
+                return
+            else:
+                # Есть игра в ожидании - показываем статус
+                await update.message.reply_text(
+                    f"✅ Канал '{chat_name}' уже настроен для игры!\n\n"
+                    f"📊 Статус: Ожидание игроков\n"
+                    f"👥 Участников: {len(game.players)}/{getattr(game, 'MAX_PLAYERS', 12)}\n"
+                    f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
+                    "Используйте /join для присоединения к игре."
+                )
+                return
+        
+        # Настраиваем канал для игры
+        try:
+            # Создаем новую игру
+            self.games[chat_id] = Game(chat_id)
+            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
+            self.night_actions[chat_id] = NightActions(self.games[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+            
+            # Создаем клавиатуру с быстрыми действиями
+            keyboard = [
+                [InlineKeyboardButton("👥 Присоединиться к игре", callback_data="welcome_start_game")],
+                [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Отправляем сообщение об успешной настройке
+            setup_message = (
+                f"✅ Канал '{chat_name}' успешно настроен для игры 'Лесная Возня'!\n\n"
+                f"🎮 Тип чата: {chat_type}\n"
+                f"📋 Минимум игроков: {self.global_settings.get_min_players()}\n"
+                f"👥 Максимум игроков: {getattr(self.games[chat_id], 'MAX_PLAYERS', 12)}\n"
+                f"🧪 Тестовый режим: {'Включен' if self.global_settings.is_test_mode() else 'Отключен'}\n\n"
+                "🚀 Готово к игре! Участники могут использовать:\n"
+                "• /join - присоединиться к игре\n"
+                "• /status - посмотреть статус\n"
+                "• /rules - изучить правила\n\n"
+                "🎯 Администраторы могут использовать:\n"
+                "• /start_game - начать игру\n"
+                "• /settings - настройки игры\n"
+                "• /end_game - завершить игру\n\n"
+                "Удачной игры! 🌲"
+            )
+            
+            await update.message.reply_text(setup_message, reply_markup=reply_markup)
+            
+            # Логируем успешную настройку
+            logger.info(f"Channel {chat_id} ({chat_name}) successfully set up for Forest Mafia by user {user_id}")
+            
+        except Exception as e:
+            logger.error(f"Error setting up channel {chat_id}: {e}")
+            await update.message.reply_text(
+                "❌ Произошла ошибка при настройке канала!\n"
+                "Попробуйте еще раз или обратитесь к администратору бота."
+            )
+
     async def _end_game_internal(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, reason: str):
         game.phase = GamePhase.GAME_OVER
 
@@ -1566,6 +1671,7 @@ class ForestMafiaBot:
             BotCommand("settings", "⚙️ Настройки игры (админы)"),
             BotCommand("status", "📊 Статус текущей игры"),
             BotCommand("test_mode", "🧪 Включить/выключить тестовый режим (админы)"), # Добавлена команда для тестового режима
+            BotCommand("setup_channel", "⚙️ Настроить этот канал для игры (админы)"), # Добавлена команда для настройки канала
         ]
         try:
             await application.bot.set_my_commands(commands)
@@ -1589,6 +1695,7 @@ class ForestMafiaBot:
         application.add_handler(CommandHandler("settings", self.settings))
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("test_mode", self.handle_test_mode_command)) # Обработчик команды test_mode
+        application.add_handler(CommandHandler("setup_channel", self.setup_channel)) # Обработчик команды setup_channel
 
         # callbacks
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern=r"^vote_"))
