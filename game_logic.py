@@ -44,6 +44,8 @@ class Game:
         self.phase_end_time = None
         self.is_test_mode = True  # Enabled test mode by default
         self.pinned_message_id = None  # ID закрепленного сообщения о присоединении
+        self.total_voters = 0  # Общее количество голосующих
+        self.voting_type = ""  # Тип голосования (exile, wolf, etc.)
 
     def add_player(self, user_id: int, username: str) -> bool:
         """Добавляет игрока в игру"""

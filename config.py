@@ -4,7 +4,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot configuration
-BOT_TOKEN = os.getenv('BOT_TOKEN', '8314318680:AAG1CDOB-SQhyFfCpqDIBm-U8ANz6Ggw94k')
+# Читаем токен из переменных окружения, если это не заглушка - используем его
+token_from_env = os.environ.get('BOT_TOKEN', '').strip("'\"")
+if token_from_env and token_from_env != 'your_bot_token_here':
+    BOT_TOKEN = token_from_env
+else:
+    # Используем резервный токен
+    BOT_TOKEN = '8314318680:AAG1CDOB-SQhyFfCpqDIBm-U8ANz6Ggw94k'
 
 # Game settings
 MIN_PLAYERS = 6
