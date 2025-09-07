@@ -91,6 +91,34 @@ class GameService:
             return False
         finally:
             session.close()
+    
+    @staticmethod
+    def get_all_active_games() -> List[Dict[str, Any]]:
+        """Получить все активные игры"""
+        session = get_db_session()
+        try:
+            games = session.query(Game).filter(
+                Game.status.in_(['waiting', 'active'])
+            ).all()
+            
+            result = []
+            for game in games:
+                result.append({
+                    'id': game.id,
+                    'chat_id': game.chat_id,
+                    'thread_id': game.thread_id,
+                    'status': game.status,
+                    'phase': game.phase,
+                    'round_number': game.round_number,
+                    'created_at': game.created_at,
+                    'started_at': game.started_at,
+                    'finished_at': game.finished_at,
+                    'winner_team': game.winner_team,
+                    'settings': game.settings
+                })
+            return result
+        finally:
+            session.close()
 
 class PlayerService:
     """Сервис для работы с игроками"""
@@ -186,6 +214,31 @@ class PlayerService:
                 session.commit()
                 return True
             return False
+        finally:
+            session.close()
+    
+    @staticmethod
+    def get_game_players(game_id: str) -> List[Dict[str, Any]]:
+        """Получить всех игроков игры"""
+        session = get_db_session()
+        try:
+            players = session.query(Player).filter(Player.game_id == game_id).all()
+            
+            result = []
+            for player in players:
+                result.append({
+                    'id': player.id,
+                    'user_id': player.user_id,
+                    'username': player.username,
+                    'first_name': player.first_name,
+                    'last_name': player.last_name,
+                    'role': player.role,
+                    'team': player.team,
+                    'is_alive': player.is_alive,
+                    'created_at': player.created_at,
+                    'updated_at': player.updated_at
+                })
+            return result
         finally:
             session.close()
 

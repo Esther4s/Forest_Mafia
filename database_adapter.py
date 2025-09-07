@@ -41,6 +41,14 @@ class DatabaseAdapter:
         game = self.game_service.get_active_game(chat_id, thread_id)
         return game.id if game else None
     
+    def get_all_active_games(self) -> List[Dict[str, Any]]:
+        """Получить все активные игры"""
+        return self.game_service.get_all_active_games()
+    
+    def get_game_players(self, game_id: str) -> List[Dict[str, Any]]:
+        """Получить всех игроков игры"""
+        return self.player_service.get_game_players(game_id)
+    
     def start_game(self, game_id: str) -> bool:
         """Начать игру"""
         success = self.game_service.update_game_status(game_id, "active", "night")

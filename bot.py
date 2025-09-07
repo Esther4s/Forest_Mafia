@@ -46,6 +46,54 @@ class ForestWolvesBot:
         self.bot_token = BOT_TOKEN
         # Database adapter
         self.db = DatabaseAdapter()
+        
+        # Загружаем активные игры из базы данных
+        self.load_active_games()
+
+    def load_active_games(self):
+        """Загружает активные игры из базы данных при старте бота"""
+        try:
+            # Получаем все активные игры из БД
+            active_games = self.db.get_all_active_games()
+            
+            for game_data in active_games:
+                chat_id = game_data['chat_id']
+                thread_id = game_data.get('thread_id')
+                
+                # Создаем объект игры
+                game = Game()
+                game.chat_id = chat_id
+                game.thread_id = thread_id
+                game.db_game_id = game_data['id']
+                game.phase = GamePhase(game_data['phase'])
+                game.current_round = game_data.get('round_number', 0)
+                game.status = game_data.get('status', 'active')
+                
+                # Загружаем игроков
+                players_data = self.db.get_game_players(game_data['id'])
+                for player_data in players_data:
+                    player = Player(
+                        user_id=player_data['user_id'],
+                        username=player_data.get('username'),
+                        first_name=player_data.get('first_name'),
+                        last_name=player_data.get('last_name')
+                    )
+                    if player_data.get('role'):
+                        player.role = Role(player_data['role'])
+                    if player_data.get('team'):
+                        player.team = Team(player_data['team'])
+                    player.is_alive = player_data.get('is_alive', True)
+                    
+                    game.players[player.user_id] = player
+                    self.player_games[player.user_id] = chat_id
+                
+                # Сохраняем игру в памяти
+                self.games[chat_id] = game
+                
+                logger.info(f"Загружена активная игра {game_data['id']} для чата {chat_id}")
+                
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке активных игр: {e}")
 
     # ---------------- helper functions ----------------
     async def can_bot_write_in_chat(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> bool:
@@ -266,6 +314,7 @@ class ForestWolvesBot:
             [InlineKeyboardButton("🚀 Начать игру", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила", callback_data="welcome_rules")],
             [InlineKeyboardButton("📊 Статус", callback_data="welcome_status")],
+            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")],
             [InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -528,7 +577,8 @@ class ForestWolvesBot:
         keyboard = [
             [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
         ]
         
         # Добавляем кнопку "Начать игру" если достаточно игроков
@@ -997,6 +1047,115 @@ class ForestWolvesBot:
 
         await query.edit_message_text(status_text)
 
+    async def check_stage_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Проверяет текущий этап игры и отправляет соответствующее сообщение с кнопками"""
+        chat_id = query.message.chat.id
+        thread_id = getattr(query.message, 'message_thread_id', None)
+
+        if chat_id not in self.games:
+            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
+            return
+
+        game = self.games[chat_id]
+
+        # Отправляем сообщение в зависимости от этапа игры
+        if game.phase == GamePhase.WAITING:
+            # Этап регистрации
+            min_players = self.global_settings.get_min_players()
+            stage_text = (
+                "🎮 **Этап: Регистрация игроков**\n\n"
+                f"👥 Игроков: {len(game.players)}/12\n"
+                f"📋 Минимум: {min_players}\n\n"
+                "**Участники:**\n"
+            )
+            for player in game.players.values():
+                player_tag = self.format_player_tag(player.username, player.user_id)
+                stage_text += f"• {player_tag}\n"
+            
+            if game.can_start_game():
+                stage_text += "\n✅ **Можно начинать игру!**"
+            else:
+                stage_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
+            
+            # Кнопки для этапа регистрации
+            keyboard = [
+                [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
+                [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            ]
+            
+            if game.can_start_game():
+                keyboard.insert(0, [InlineKeyboardButton("🚀 Начать игру", callback_data="welcome_start_game")])
+            
+        elif game.phase == GamePhase.NIGHT:
+            # Ночной этап
+            stage_text = (
+                "🌙 **Этап: Ночь**\n\n"
+                f"🔄 Раунд: {game.current_round}\n"
+                f"👥 Живых: {len(game.get_alive_players())}\n\n"
+                "🌲 Все зверушки спят в лесу...\n"
+                "🐺 Хищники планируют свои действия\n"
+                "🦫 Травоядные отдыхают"
+            )
+            
+            # Кнопки для ночного этапа
+            keyboard = [
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            ]
+            
+        elif game.phase == GamePhase.DAY:
+            # Дневной этап
+            stage_text = (
+                "☀️ **Этап: День**\n\n"
+                f"🔄 Раунд: {game.current_round}\n"
+                f"👥 Живых: {len(game.get_alive_players())}\n\n"
+                "🌲 Все зверушки проснулись!\n"
+                "💬 Время для обсуждения и поиска хищников\n"
+                "🗳️ Скоро начнется голосование"
+            )
+            
+            # Кнопки для дневного этапа
+            keyboard = [
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            ]
+            
+        elif game.phase == GamePhase.VOTING:
+            # Этап голосования
+            stage_text = (
+                "🗳️ **Этап: Голосование**\n\n"
+                f"🔄 Раунд: {game.current_round}\n"
+                f"👥 Живых: {len(game.get_alive_players())}\n\n"
+                "🌲 Время решать судьбу подозрительных зверушек!\n"
+                "🗳️ Каждый голосует за изгнание"
+            )
+            
+            # Кнопки для этапа голосования
+            keyboard = [
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            ]
+            
+        else:
+            # Игра окончена
+            stage_text = (
+                "🏁 **Игра окончена!**\n\n"
+                f"🔄 Раунд: {game.current_round}\n"
+                f"👥 Живых: {len(game.get_alive_players())}\n\n"
+                "🌲 Игра завершена!"
+            )
+            
+            # Кнопки для завершенной игры
+            keyboard = [
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            ]
+
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(stage_text, reply_markup=reply_markup, parse_mode='Markdown')
+
     # ---------------- join / leave / status ----------------
     async def join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Проверяем права пользователя
@@ -1442,7 +1601,8 @@ class ForestWolvesBot:
             keyboard = [
                 [InlineKeyboardButton("👥 Присоединиться к игре", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -2284,7 +2444,7 @@ class ForestWolvesBot:
         try:
             # Формируем список тегов участников
             player_tags = []
-            for player in game.players:
+            for player in game.players.values():
                 if player.username:
                     player_tags.append(f"@{player.username}")
                 else:
@@ -2548,6 +2708,8 @@ class ForestWolvesBot:
             )
         elif query.data == "welcome_status":
             await self.status_from_callback(query, context)
+        elif query.data == "check_stage":
+            await self.check_stage_from_callback(query, context)
         elif query.data == "welcome_cancel_game":
             await self.cancel_game_from_welcome(query, context)
         elif query.data == "welcome_back":
@@ -2555,7 +2717,8 @@ class ForestWolvesBot:
             keyboard = [
                 [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
