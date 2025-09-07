@@ -1,6 +1,6 @@
 # Overview
 
-"Лесная Возня" is a Telegram bot that implements a forest-themed version of the classic Mafia party game. Players are assigned roles as various forest animals divided into two teams: predators (wolves and fox) and herbivores (hares, mole, and beaver). The game alternates between night and day phases, where predators hunt their prey while herbivores try to survive and identify the threats during voting phases.
+"Лес и Волки" is a Telegram bot that implements a forest-themed version of the classic Mafia party game. Players are assigned roles as various forest animals divided into two teams: predators (wolves and fox) and herbivores (hares, mole, and beaver). The game alternates between night and day phases, where predators hunt their prey while herbivores try to survive and identify the threats during voting phases.
 
 # User Preferences
 
@@ -9,11 +9,17 @@ Preferred communication style: Simple, everyday language.
 # Recent Changes
 
 ## September 2025
-- **Added authorization system**: Bot now only responds in channels specifically set up via `/setup_channel`
-- **Enhanced security**: Bot silently ignores commands in non-authorized channels
-- **Added `/remove_channel` command**: Administrators can remove channels from authorized list  
+- **Simplified authorization system**: Bot now automatically authorizes chats when players use game commands
+- **Auto-setup functionality**: No need to run `/setup_channel` before starting games - bot works immediately in any chat
+- **Enhanced user experience**: Players can use `/join` and other commands right away without admin setup
+- **Maintained security**: Admin commands `/setup_channel` and `/remove_channel` still available for advanced management
 - **Improved logging**: All authorization and permission events are logged for monitoring
-- **Channel management**: Authorized channels are tracked in memory and persist during bot session
+- **Smart channel management**: Authorized channels are tracked automatically and persist during bot session
+- **Fixed game logic**: Corrected premature game ending for 6-player games - now only ends in draw at final 1v1 confrontation
+- **Balanced gameplay**: Game continues properly with 4+ players instead of ending in automatic draw
+- **Topics support**: Added full support for Telegram Topics - bot can now work in specific topics within a chat
+- **Thread-specific authorization**: `/setup_channel` command now registers bot for specific topic only, not entire chat
+- **Enhanced privacy**: Bot ignores messages from other topics in the same chat, providing better isolation
 
 # System Architecture
 

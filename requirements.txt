@@ -1,5 +1,4 @@
 python-telegram-bot[job-queue]==20.7
 python-dotenv==1.0.0
-python-dotenv==1.0.0
-python-telegram-bot==20.7
-telegram
+sqlalchemy>=2.0.25
+alembic>=1.13.0

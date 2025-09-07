@@ -22,10 +22,10 @@ class NightInterface:
 
         # Создаем заголовок в зависимости от роли
         role_headers = {
-            "wolf": "🐺 Выберите цель для охоты:",
-            "fox": "🦊 Выберите цель для кражи запасов:",
-            "beaver": "🦦 Выберите зверя для помощи:",
-            "mole": "🦫 Выберите зверя для проверки:"
+            "wolf": "🐺 Придёт серенький волчок и укусит за бочок! 🐺 Кхм... Кому же этот кусь достанется этой ночью?",
+            "fox": "🦊 Ну что, хитрая Лиса? 🦊 Кого обворуем этой ночью?",
+            "beaver": "🦦 Ну что, дружок Бобёр? Устроим кому-нибудь утром приятный и вкусный сюрприз?",
+            "mole": "🦫 Ну что, Крот? К кому в норку ты хочешь заглянуть?"
         }
 
         header = role_headers.get(actions["type"], "Выберите действие:")
@@ -42,12 +42,11 @@ class NightInterface:
                 callback_data=f"night_{actions['type']}_{target.user_id}"
             )])
 
-        # Добавляем кнопку "Пропустить ход" если это не первая ночь
-        if self.game.current_round > 1:
-            keyboard.append([InlineKeyboardButton(
-                "⏭️ Пропустить ход",
-                callback_data=f"night_{actions['type']}_skip"
-            )])
+        # Всегда добавляем кнопку "Пропустить ход"
+        keyboard.append([InlineKeyboardButton(
+            "⏭️ Пропустить ход",
+            callback_data=f"night_{actions['type']}_skip"
+        )])
 
         # Добавляем кнопку "Посмотреть роль"
         keyboard.append([InlineKeyboardButton(
@@ -73,15 +72,20 @@ class NightInterface:
 
         user_id = query.from_user.id
         data = query.data.split('_')
+        
+        # Отладочная информация
+        print(f"DEBUG: Обработка ночного действия для пользователя {user_id}")
+        print(f"DEBUG: Callback data: {query.data}")
+        print(f"DEBUG: Разделенные данные: {data}")
 
         # Проверяем, что игрок действительно в игре
         if user_id not in self.game.players:
-            await query.edit_message_text("❌ Вы не участвуете в игре!")
+            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
             return
 
         player = self.game.players[user_id]
         if not player.is_alive:
-            await query.edit_message_text("❌ Вы мертвы и не можете совершать действия!")
+            await query.answer("❌ Вы мертвы и не можете совершать действия!", show_alert=True)
             return
 
         # Проверяем, если это просмотр роли
@@ -98,12 +102,12 @@ class NightInterface:
                 f"💚 Статус: {'Живой' if player.is_alive else 'Мертвый'}"
             )
 
-            await query.edit_message_text(
-                role_modal_text,
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("↩️ Вернуться к действиям", callback_data=f"night_back_to_actions_{user_id}")
-                ]])
-            )
+            # Отправляем роль в личные сообщения вместо замены текущего сообщения
+            try:
+                await context.bot.send_message(chat_id=user_id, text=role_modal_text)
+                await query.answer("✅ Информация о вашей роли отправлена в личные сообщения!", show_alert=True)
+            except Exception as e:
+                await query.answer("❌ Не удалось отправить сообщение в личку!", show_alert=True)
             return
 
         # Проверяем возврат к действиям
@@ -123,7 +127,7 @@ class NightInterface:
 
         if action_type == "wolf" and player.role == Role.WOLF:
             if target_id == "skip":
-                success = True
+                success = self.night_actions.skip_action(user_id)
                 message = "⏭️ Вы пропустили ход"
             else:
                 success = self.night_actions.set_wolf_target(user_id, int(target_id))
@@ -135,7 +139,7 @@ class NightInterface:
 
         elif action_type == "fox" and player.role == Role.FOX:
             if target_id == "skip":
-                success = True
+                success = self.night_actions.skip_action(user_id)
                 message = "⏭️ Вы пропустили ход"
             else:
                 success = self.night_actions.set_fox_target(user_id, int(target_id))
@@ -147,7 +151,7 @@ class NightInterface:
 
         elif action_type == "beaver" and player.role == Role.BEAVER:
             if target_id == "skip":
-                success = True
+                success = self.night_actions.skip_action(user_id)
                 message = "⏭️ Вы пропустили ход"
             else:
                 success = self.night_actions.set_beaver_target(user_id, int(target_id))
@@ -159,7 +163,7 @@ class NightInterface:
 
         elif action_type == "mole" and player.role == Role.MOLE:
             if target_id == "skip":
-                success = True
+                success = self.night_actions.skip_action(user_id)
                 message = "⏭️ Вы пропустили ход"
             else:
                 success = self.night_actions.set_mole_target(user_id, int(target_id))
@@ -195,25 +199,25 @@ class NightInterface:
 
         # Добавляем результаты по категориям
         if results["wolves"]:
-            message += "🐺 Действия волков:\n"
+            message += "🐺 Лес пронзил далёкий стихающий вой.\n"
             for action in results["wolves"]:
                 message += f"• {action}\n"
             message += "\n"
 
         if results["fox"]:
-            message += "🦊 Действия лисы:\n"
+            message += "🦊 А среди деревьев промелькнуло что-то рыжее и проворное.\n"
             for action in results["fox"]:
                 message += f"• {action}\n"
-            message += "\n"
+            message += "Это была хитрая Лиса! Что же ей было нужно в этом домике?\n\n"
 
         if results["beaver"]:
-            message += "🦦 Действия бобра:\n"
+            message += "🦦 А вот Бобру тоже не спится и он шастает по округе с кузовком.\n"
             for action in results["beaver"]:
                 message += f"• {action}\n"
-            message += "\n"
+            message += "Наверное, Бобёр обрадовал кого-то своими пирожками и ушёл спать.\n\n"
 
         if results["mole"]:
-            message += "🦫 Действия крота:\n"
+            message += "🦫 А на работу вышел ночной Крот. Всю ночь он копал тоннель к домику одного из своих соседей…\n"
             for action in results["mole"]:
                 message += f"• {action}\n"
             message += "\n"
@@ -228,7 +232,8 @@ class NightInterface:
         try:
             await context.bot.send_message(
                 chat_id=self.game.chat_id,
-                text=message
+                text=message,
+                message_thread_id=self.game.thread_id
             )
         except Exception as e:
             print(f"Не удалось отправить результаты ночи: {e}")
@@ -280,7 +285,7 @@ class NightInterface:
                 "description": "Вы травоядный! По ночам вы роете норки и узнаёте команды других зверей."
             },
             Role.BEAVER: {
-                "name": "🦦 Бобёр",
+                "name": "🦦 Бобер",
                 "description": "Вы травоядный! Вы можете возвращать украденные запасы другим зверям."
             }
         }

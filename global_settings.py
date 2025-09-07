@@ -7,7 +7,7 @@ class GlobalSettings:
     def __init__(self, settings_file: str = "bot_settings.json"):
         self.settings_file = settings_file
         self.default_settings = {
-            "test_mode": True,
+            "test_mode": False,
             "min_players_normal": 6,
             "min_players_test": 3,
             "max_players": 12,
@@ -20,6 +20,17 @@ class GlobalSettings:
                 "hares": 0.35,
                 "mole": 0.15,
                 "beaver": 0.10
+            },
+            "auto_end_conditions": {
+                "max_rounds": 25,
+                "max_game_duration_hours": 3,
+                "min_alive_players": 3
+            },
+            "forest_wolves_features": {
+                "fox_death_threshold": 2,
+                "beaver_protection_enabled": True,
+                "mole_revelation_threshold": 0.8,
+                "herbivore_survival_threshold": 0.7
             }
         }
         self.settings = self.load_settings()
@@ -87,11 +98,26 @@ class GlobalSettings:
         timer_key = f"{timer_type}_duration"
         return self.set(timer_key, duration)
     
+    def update_auto_end_condition(self, condition: str, value: Any) -> bool:
+        """Обновляет условие автоматического завершения"""
+        auto_end = self.get("auto_end_conditions", {})
+        auto_end[condition] = value
+        return self.set("auto_end_conditions", auto_end)
+    
+    def update_forest_feature(self, feature: str, value: Any) -> bool:
+        """Обновляет настройку лесной мафии"""
+        features = self.get("forest_wolves_features", {})
+        features[feature] = value
+        return self.set("forest_wolves_features", features)
+    
     def get_settings_summary(self) -> str:
         """Возвращает краткую информацию о текущих настройках"""
         test_mode = "ВКЛ" if self.is_test_mode() else "ВЫКЛ"
         min_players = self.get_min_players()
         max_players = self.get("max_players", 12)
+        
+        auto_end = self.get("auto_end_conditions", {})
+        forest_features = self.get("forest_wolves_features", {})
         
         return (
             f"⚙️ Глобальные настройки бота:\n\n"
@@ -100,34 +126,35 @@ class GlobalSettings:
             f"👥 Максимум игроков: {max_players}\n"
             f"🌙 Длительность ночи: {self.get('night_duration', 60)}с\n"
             f"☀️ Длительность дня: {self.get('day_duration', 300)}с\n"
-            f"🗳️ Длительность голосования: {self.get('voting_duration', 120)}с"
+            f"🗳️ Длительность голосования: {self.get('voting_duration', 120)}с\n\n"
+            f"🌲 Лес и Волки:\n"
+            f"🦊 Порог смерти лисы: {forest_features.get('fox_death_threshold', 2)}\n"
+            f"🦦 Защита бобра: {'ВКЛ' if forest_features.get('beaver_protection_enabled', True) else 'ВЫКЛ'}\n"
+            f"🦫 Порог раскрытия крота: {int(forest_features.get('mole_revelation_threshold', 0.8) * 100)}%\n"
+            f"🌿 Порог выживания травоядных: {int(forest_features.get('herbivore_survival_threshold', 0.7) * 100)}%\n\n"
+            f"⏰ Автозавершение:\n"
+            f"🎮 Максимум раундов: {auto_end.get('max_rounds', 25)}\n"
+            f"⏱️ Максимум времени: {auto_end.get('max_game_duration_hours', 3)}ч\n"
+            f"👥 Минимум живых: {auto_end.get('min_alive_players', 3)}"
         )
-class GlobalSettings:
-    def __init__(self):
-        self._test_mode = True
-        self._min_players_normal = 6
-        self._min_players_test = 3
-        self._night_duration = 60
-        self._day_duration = 300
-        self._voting_duration = 120
-        
-    def is_test_mode(self):
-        return self._test_mode
     
-    def toggle_test_mode(self):
-        self._test_mode = not self._test_mode
-        return self._test_mode
+    def reset_to_defaults(self) -> bool:
+        """Сбрасывает настройки к значениям по умолчанию"""
+        self.settings = self.default_settings.copy()
+        return self.save_settings()
     
-    def get_min_players(self):
-        return self._min_players_test if self._test_mode else self._min_players_normal
+    def export_settings(self) -> str:
+        """Экспортирует настройки в JSON строку"""
+        return json.dumps(self.settings, ensure_ascii=False, indent=2)
     
-    def get_settings_summary(self):
-        mode_text = "🧪 Тестовый режим" if self._test_mode else "🎮 Обычный режим"
-        return (
-            f"📊 Текущие настройки:\n\n"
-            f"🎯 Режим: {mode_text}\n"
-            f"👥 Минимум игроков: {self.get_min_players()}\n"
-            f"🌙 Ночь: {self._night_duration} сек\n"
-            f"☀️ День: {self._day_duration // 60} мин\n"
-            f"🗳️ Голосование: {self._voting_duration // 60} мин"
-        )
+    def import_settings(self, settings_json: str) -> bool:
+        """Импортирует настройки из JSON строки"""
+        try:
+            imported_settings = json.loads(settings_json)
+            # Проверяем, что все ключи корректны
+            for key in imported_settings:
+                if key in self.default_settings:
+                    self.settings[key] = imported_settings[key]
+            return self.save_settings()
+        except (json.JSONDecodeError, KeyError):
+            return False

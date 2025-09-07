@@ -1,0 +1,22 @@
+services:
+- type: web
+  name: forest-mafia-bot
+  env: python
+  buildCommand: pip install -r requirements.txt
+  startCommand: python bot.py
+  envVars:
+  - key: BOT_TOKEN
+    value: your_actual_bot_token
+  - key: ENVIRONMENT
+    value: production
+  - key: LOG_LEVEL
+    value: INFO
+  - key: DATABASE_URL
+    fromDatabase:
+      name: forest-mafia-db
+      property: connectionString
+
+databases:
+- name: forest-mafia-db
+  databaseName: forest_mafia
+  user: forest_mafia

@@ -4,20 +4,22 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Bot configuration
-# Читаем токен из переменных окружения, если это не заглушка - используем его
-token_from_env = os.environ.get('BOT_TOKEN', '').strip("'\"")
-if token_from_env and token_from_env != 'your_bot_token_here':
-    BOT_TOKEN = token_from_env
-else:
-    # Используем резервный токен
-    BOT_TOKEN = '8314318680:AAG1CDOB-SQhyFfCpqDIBm-U8ANz6Ggw94k'
+# Читаем токен из переменных окружения
+BOT_TOKEN = os.environ.get('BOT_TOKEN', '').strip("'\"")
+if not BOT_TOKEN or BOT_TOKEN == 'your_bot_token_here':
+    raise ValueError(
+        "BOT_TOKEN не установлен! Создайте файл .env и добавьте BOT_TOKEN=your_actual_token"
+    )
+
+# Database configuration
+DATABASE_URL = os.environ.get('DATABASE_URL', 'sqlite:///forest_mafia.db')
 
 # Game settings
 MIN_PLAYERS = 6
 MAX_PLAYERS = 12
 
-# Test mode settings
-TEST_MODE = True  # Включить для тестирования с меньшим количеством игроков
+# Production mode settings
+TEST_MODE = False  # Отключить для продакшена
 TEST_MIN_PLAYERS = 3  # Минимум игроков в тестовом режиме
 
 # Role distribution (percentages)

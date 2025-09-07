@@ -1,0 +1,22 @@
+name: forest-mafia-bot
+services:
+- name: bot
+  source_dir: /
+  github:
+    repo: your-username/forest-mafia-bot
+    branch: main
+  run_command: python bot.py
+  environment_slug: python
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  envs:
+  - key: BOT_TOKEN
+    value: your_actual_bot_token
+  - key: ENVIRONMENT
+    value: production
+  - key: LOG_LEVEL
+    value: INFO
+databases:
+- name: forest-mafia-db
+  engine: PG
+  version: "13"

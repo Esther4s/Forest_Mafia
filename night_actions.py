@@ -1,6 +1,9 @@
 import random
 from typing import Dict, List, Optional
 from game_logic import Game, Player, Role, Team
+from mole_logic import Mole
+from fox_logic import Fox
+from beaver_logic import Beaver
 
 class NightActions:
     def __init__(self, game: Game):
@@ -9,6 +12,7 @@ class NightActions:
         self.fox_targets = {}   # user_id -> target_user_id
         self.beaver_targets = {} # user_id -> target_user_id
         self.mole_targets = {}  # user_id -> target_user_id
+        self.skipped_actions = set()  # user_id игроков, которые пропустили ход
     
     def set_wolf_target(self, wolf_id: int, target_id: int) -> bool:
         """Устанавливает цель для волка"""
@@ -28,11 +32,15 @@ class NightActions:
         if target.role == Role.WOLF:
             return False
         
+        # Волки не могут есть лису (союзники)
+        if target.role == Role.FOX:
+            return False
+        
         self.wolf_targets[wolf_id] = target_id
         return True
     
     def set_fox_target(self, fox_id: int, target_id: int) -> bool:
-        """Устанавливает цель для лисы"""
+        """Устанавливает цель для лисы согласно правилам Лесной Возни"""
         fox = self.game.players.get(fox_id)
         target = self.game.players.get(target_id)
         
@@ -45,15 +53,23 @@ class NightActions:
         if not target.is_alive:
             return False
         
-        # Лиса не может воровать у бобра (он защищен)
+        # Лиса не может воровать у бобра (он защищен от лисы)
         if target.role == Role.BEAVER:
+            return False
+        
+        # Лиса не может воровать у волков (союзники)
+        if target.role == Role.WOLF:
+            return False
+        
+        # Лиса не может воровать у лисы
+        if target.role == Role.FOX:
             return False
         
         self.fox_targets[fox_id] = target_id
         return True
     
     def set_beaver_target(self, beaver_id: int, target_id: int) -> bool:
-        """Устанавливает цель для бобра"""
+        """Устанавливает цель для бобра согласно правилам Лесной Возни"""
         beaver = self.game.players.get(beaver_id)
         target = self.game.players.get(target_id)
         
@@ -67,7 +83,7 @@ class NightActions:
             return False
         
         # Бобёр может помогать только тем, у кого украли еду
-        if target.is_fox_stolen == 0:
+        if getattr(target, 'stolen_supplies', 0) == 0:
             return False
         
         self.beaver_targets[beaver_id] = target_id
@@ -92,6 +108,23 @@ class NightActions:
             return False
         
         self.mole_targets[mole_id] = target_id
+        return True
+    
+    def skip_action(self, player_id: int) -> bool:
+        """Пропускает ночное действие для игрока"""
+        player = self.game.players.get(player_id)
+        if not player or not player.is_alive:
+            return False
+        
+        # Добавляем в список пропустивших
+        self.skipped_actions.add(player_id)
+        
+        # Удаляем из всех списков целей (если был)
+        self.wolf_targets.pop(player_id, None)
+        self.fox_targets.pop(player_id, None)
+        self.beaver_targets.pop(player_id, None)
+        self.mole_targets.pop(player_id, None)
+        
         return True
     
     def process_all_actions(self) -> Dict[str, List[str]]:
@@ -151,69 +184,117 @@ class NightActions:
             target = self.game.players[target_id]
             target.is_alive = False
             
-            results.append(f"🐺 Волки съели {target.username}!")
+            # Обновляем статистику
+            if target.team == Team.HERBIVORES:
+                self.game.herbivore_survivals += 1
+            self.game.predator_kills += 1
+            
+            # Сбрасываем счетчик выживания для убитого игрока
+            target.consecutive_nights_survived = 0
+            
+            # Получаем русское название роли
+            from role_translator import get_role_name_russian
+            role_name = get_role_name_russian(target.role)
+            results.append(f"🐺 Волки съели {target.username} ({role_name})!")
         
         return results
     
     def _process_fox_actions(self) -> List[str]:
-        """Обрабатывает действия лисы"""
+        """Обрабатывает действия лисы согласно правилам Лесной Возни"""
         results = []
         
         for fox_id, target_id in self.fox_targets.items():
             fox = self.game.players[fox_id]
             target = self.game.players[target_id]
             
-            if fox and target and fox.is_alive and target.is_alive:
-                # Увеличиваем счетчик краж
-                target.is_fox_stolen += 1
+            if fox and target and fox.is_alive:
+                # Обновляем время последнего действия лисы
+                fox.last_action_round = self.game.current_round
                 
-                if target.is_fox_stolen == 1:
-                    results.append(f"🦊 Лиса украла запасы у {target.username}!")
-                elif target.is_fox_stolen == 2:
-                    results.append(f"🦊 Лиса снова украла запасы у {target.username}! У него не осталось еды на зиму.")
-                else:
-                    results.append(f"🦊 Лиса украла запасы у {target.username} (уже {target.is_fox_stolen} раз)!")
+                # Проверяем, защищён ли игрок бобром
+                beaver_protection = Beaver.is_protected_from_fox(target)
+                
+                # Используем новую логику воровства лисы
+                message, success, death = Fox.steal(target, beaver_protection)
+                results.append(message)
+                
+                if success:
+                    self.game.fox_thefts += 1
+                
+                if death:
+                    # Обновляем статистику смертей
+                    if target.team == Team.HERBIVORES:
+                        self.game.herbivore_survivals += 1
+                    self.game.predator_kills += 1
         
         return results
     
     def _process_beaver_actions(self) -> List[str]:
-        """Обрабатывает действия бобра"""
+        """Обрабатывает действия бобра согласно правилам Лесной Возни"""
         results = []
         
         for beaver_id, target_id in self.beaver_targets.items():
             beaver = self.game.players[beaver_id]
             target = self.game.players[target_id]
             
-            if beaver and target and beaver.is_alive and target.is_alive:
-                if target.is_fox_stolen > 0:
-                    # Бобёр компенсирует весь ущерб
-                    target.is_fox_stolen = 0
-                    target.is_beaver_protected = True
-                    results.append(f"🦦 Бобёр вернул запасы {target.username}!")
+            if beaver and beaver.is_alive:
+                # Обновляем время последнего действия бобра
+                beaver.last_action_round = self.game.current_round
+                
+                if target and target.is_alive:
+                    # Бобёр защищает указанного игрока
+                    Beaver.set_protection(target, True)
+                    self.game.beaver_protections += 1
+                    
+                    # Проверяем, может ли бобёр восстановить припасы
+                    if Beaver.can_restore_supplies(target):
+                        restore_message, restore_success = Beaver.restore_supplies(target)
+                        if restore_success:
+                            results.append(restore_message)
+                        else:
+                            # Если не может восстановить, просто защищает
+                            message = Beaver.defend(target)
+                            results.append(message)
+                    else:
+                        # Если нечего восстанавливать, просто защищает
+                        message = Beaver.defend(target)
+                        results.append(message)
+                else:
+                    # Бобёр защищает только себя
+                    message = Beaver.defend(None)
+                    results.append(message)
         
         return results
     
     def _process_mole_actions(self) -> List[str]:
-        """Обрабатывает действия крота"""
+        """Обрабатывает действия крота согласно правилам Лесной Возни"""
         results = []
         
         for mole_id, target_id in self.mole_targets.items():
             mole = self.game.players[mole_id]
             target = self.game.players[target_id]
             
-            if mole and target and mole.is_alive and target.is_alive:
-                team_name = "Хищники" if target.team == Team.PREDATORS else "Травоядные"
-                results.append(f"🦫 Крот узнал, что {target.username} - {team_name}")
+            if mole and target and mole.is_alive:
+                # Обновляем время последнего действия крота
+                mole.last_action_round = self.game.current_round
+
+                # Используем новую логику проверки крота
+                check_result = Mole.check_player(target, self.game.current_round)
+                results.append(check_result)
         
         return results
     
     def _check_fox_deaths(self) -> List[str]:
-        """Проверяет смерти от кражи лисы"""
+        """Проверяет смерти от кражи лисы согласно правилам Лесной Возни"""
         deaths = []
         
         for player in self.game.players.values():
             if player.is_alive and player.is_fox_stolen >= 2 and not player.is_beaver_protected:
                 player.is_alive = False
+                
+                # Сбрасываем счетчик выживания
+                player.consecutive_nights_survived = 0
+                
                 deaths.append(f"🦊 {player.username} ушел жить в соседний лес из-за кражи запасов!")
         
         return deaths
@@ -228,24 +309,30 @@ class NightActions:
         
         if player.role == Role.WOLF:
             # Волк может выбрать цель для еды
-            alive_targets = [p for p in self.game.get_alive_players() if p.role != Role.WOLF]
+            alive_targets = [p for p in self.game.get_alive_players() 
+                           if p.role not in [Role.WOLF, Role.FOX]]
             actions["type"] = "wolf"
             actions["targets"] = alive_targets
             actions["current_target"] = self.wolf_targets.get(player_id)
+            actions["description"] = "Выберите жертву для охоты"
         
         elif player.role == Role.FOX:
-            # Лиса может выбрать цель для кражи
-            alive_targets = [p for p in self.game.get_alive_players() if p.role != Role.BEAVER]
+            # Лиса может выбрать цель для кражи (кроме бобра, волков и лис)
+            alive_targets = [p for p in self.game.get_alive_players() 
+                           if p.role not in [Role.BEAVER, Role.WOLF, Role.FOX]]
             actions["type"] = "fox"
             actions["targets"] = alive_targets
             actions["current_target"] = self.fox_targets.get(player_id)
+            actions["description"] = "Выберите жертву для кражи запасов (бобёр защищен)"
         
         elif player.role == Role.BEAVER:
-            # Бобёр может помочь тем, у кого украли еду
-            stolen_targets = [p for p in self.game.get_alive_players() if p.is_fox_stolen > 0]
+            # Бобёр может помочь всем, у кого украли еду (не знает команды)
+            stolen_targets = [p for p in self.game.get_alive_players() 
+                            if p.is_fox_stolen > 0]
             actions["type"] = "beaver"
             actions["targets"] = stolen_targets
             actions["current_target"] = self.beaver_targets.get(player_id)
+            actions["description"] = "Выберите кого защитить от лисы"
         
         elif player.role == Role.MOLE:
             # Крот может проверить любого живого игрока
@@ -253,6 +340,12 @@ class NightActions:
             actions["type"] = "mole"
             actions["targets"] = alive_targets
             actions["current_target"] = self.mole_targets.get(player_id)
+            actions["description"] = "Выберите кого проверить"
+        
+        elif player.role == Role.HARE:
+            # Заяц не имеет ночных действий
+            actions["type"] = "hare"
+            actions["description"] = "Заяц спит и набирается сил"
         
         return actions
     
@@ -262,3 +355,54 @@ class NightActions:
         self.fox_targets.clear()
         self.beaver_targets.clear()
         self.mole_targets.clear()
+        self.skipped_actions.clear()
+    
+    def are_all_actions_completed(self) -> bool:
+        """Проверяет, все ли игроки выполнили ночные действия"""
+        alive_players = [p for p in self.game.players.values() if p.is_alive]
+        
+        for player in alive_players:
+            if player.role == Role.WOLF:
+                # Волк должен выбрать цель или пропустить
+                if player.user_id not in self.wolf_targets and player.user_id not in self.skipped_actions:
+                    return False
+            elif player.role == Role.FOX:
+                # Лиса должна выбрать цель или пропустить
+                if player.user_id not in self.fox_targets and player.user_id not in self.skipped_actions:
+                    return False
+            elif player.role == Role.BEAVER:
+                # Бобер должен выбрать цель или пропустить
+                if player.user_id not in self.beaver_targets and player.user_id not in self.skipped_actions:
+                    return False
+            elif player.role == Role.MOLE:
+                # Крот должен выбрать цель или пропустить
+                if player.user_id not in self.mole_targets and player.user_id not in self.skipped_actions:
+                    return False
+            # Зайцы не имеют ночных действий
+        
+        return True
+    
+    def get_action_summary(self) -> str:
+        """Возвращает краткое описание всех ночных действий"""
+        summary = []
+        
+        if self.wolf_targets:
+            wolf_count = len(self.wolf_targets)
+            summary.append(f"🐺 {wolf_count} волк(ов) выбрали цели")
+        
+        if self.fox_targets:
+            fox_count = len(self.fox_targets)
+            summary.append(f"🦊 {fox_count} лиса(ы) готовятся к краже")
+        
+        if self.beaver_targets:
+            beaver_count = len(self.beaver_targets)
+            summary.append(f"🦦 {beaver_count} бобёр(ов) готовятся помочь")
+        
+        if self.mole_targets:
+            mole_count = len(self.mole_targets)
+            summary.append(f"🦫 {mole_count} крот(ов) роют норки")
+        
+        if not summary:
+            summary.append("🌙 Все спят спокойно")
+        
+        return " | ".join(summary)
