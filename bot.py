@@ -1343,7 +1343,14 @@ class ForestWolvesBot:
                 player_tag = self.format_player_tag(p.username, p.user_id)
                 status_text += f"• {player_tag}\n"
 
-        await update.message.reply_text(status_text)
+        # Создаем кнопки для статуса
+        keyboard = []
+        if game.phase != GamePhase.WAITING:
+            keyboard.append([InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
+        
+        await update.message.reply_text(status_text, reply_markup=reply_markup)
 
     # ---------------- starting / ending game ----------------
     async def start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2294,6 +2301,10 @@ class ForestWolvesBot:
             logger.error(f"Ошибка отправки результатов голосования: {e}")
             # Fallback без темы
             await context.bot.send_message(chat_id=game.chat_id, text=result_text)
+
+        # Отправляем сообщение белочки изгнанному игроку
+        if exiled_player:
+            await self.send_squirrel_message(context, exiled_player)
 
         # Очищаем атрибуты голосования
         if hasattr(game, 'total_voters'):
@@ -3677,12 +3688,23 @@ class ForestWolvesBot:
         """Общая логика начала игры"""
         chat_id = game.chat_id
         
-        # Отправляем сообщение о начале игры
+        # Формируем теги участников
+        player_tags = []
+        for player in game.players.values():
+            if player.username:
+                player_tags.append(f"@{player.username}")
+            else:
+                player_tags.append(f"[{player.first_name or 'Игрок'}](tg://user?id={player.user_id})")
+        
+        # Отправляем сообщение о начале игры в сказочном стиле
         start_message = (
-            "🚀 *Игра началась!* 🚀\n\n"
-            "🌙 Наступает первая ночь...\n"
-            "🎭 Роли распределены и отправлены в личные сообщения\n\n"
-            "📱 Проверьте свои личные сообщения с ботом!"
+            "🌲 **Лес просыпается...** 🌲\n\n"
+            "🦌 Все лесные зверушки собрались на поляне для игры в Лес и Волки!\n"
+            "🍃 Шелест листьев, пение птиц, и тайные заговоры в тени деревьев...\n\n"
+            f"🐾 **Участники лесного совета:** {', '.join(player_tags)}\n\n"
+            "🌙 Наступает первая ночь в нашем волшебном лесу...\n"
+            "🎭 Роли уже распределены среди зверушек! Проверьте личные сообщения с ботом.\n"
+            "🌅 Скоро наступит рассвет, когда хищники выйдут на охоту..."
         )
         
         await context.bot.send_message(
