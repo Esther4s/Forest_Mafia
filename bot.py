@@ -2471,15 +2471,27 @@ class ForestWolvesBot:
             )
             
             # Отправляем сообщение с тегами
-            if hasattr(update, 'message') and update.message:
-                await update.message.reply_text(tag_message, parse_mode='Markdown')
-            else:
-                await context.bot.send_message(
-                    chat_id=game.chat_id,
-                    text=tag_message,
-                    parse_mode='Markdown',
-                    message_thread_id=game.thread_id
-                )
+            try:
+                if hasattr(update, 'message') and update.message:
+                    await update.message.reply_text(tag_message, parse_mode='Markdown')
+                else:
+                    await context.bot.send_message(
+                        chat_id=game.chat_id,
+                        text=tag_message,
+                        parse_mode='Markdown',
+                        message_thread_id=game.thread_id
+                    )
+            except Exception as send_error:
+                logger.error(f"Ошибка при отправке сообщения с тегами: {send_error}")
+                # Пробуем отправить без parse_mode
+                try:
+                    await context.bot.send_message(
+                        chat_id=game.chat_id,
+                        text=tag_message,
+                        message_thread_id=game.thread_id
+                    )
+                except Exception as fallback_error:
+                    logger.error(f"Ошибка при отправке сообщения с тегами (fallback): {fallback_error}")
             
             logger.info(f"Отправлено уведомление о начале игры с тегами участников для игры {game.chat_id}")
             
@@ -2809,7 +2821,7 @@ class ForestWolvesBot:
 
         if query.data == "day_end_discussion":
             # Проверяем права пользователя
-            has_permission, error_msg = await self.check_game_permissions(query, context, "day_end_discussion")
+            has_permission, error_msg = await self.check_game_permissions(update, context, "day_end_discussion")
             if not has_permission:
                 await query.answer(error_msg, show_alert=True)
                 return
@@ -2889,7 +2901,7 @@ class ForestWolvesBot:
 
         elif query.data == "day_choose_wolf":
             # Проверяем права пользователя
-            has_permission, error_msg = await self.check_game_permissions(query, context, "day_choose_wolf")
+            has_permission, error_msg = await self.check_game_permissions(update, context, "day_choose_wolf")
             if not has_permission:
                 await query.answer(error_msg, show_alert=True)
                 return
