@@ -677,8 +677,21 @@ class ForestWolvesBot:
         user_id = None
         chat_id = None
         try:
-            user_id = update.effective_user.id
-            chat_id = update.effective_chat.id
+            # Получаем user_id в зависимости от типа update
+            if update.effective_user:
+                user_id = update.effective_user.id
+            elif update.callback_query and update.callback_query.from_user:
+                user_id = update.callback_query.from_user.id
+            else:
+                return False, "❌ Не удалось определить пользователя!"
+            
+            # Получаем chat_id в зависимости от типа update
+            if update.effective_chat:
+                chat_id = update.effective_chat.id
+            elif update.callback_query and update.callback_query.message:
+                chat_id = update.callback_query.message.chat_id
+            else:
+                return False, "❌ Не удалось определить чат!"
             
             # Получаем информацию о пользователе в чате
             member = await context.bot.get_chat_member(chat_id, user_id)
@@ -711,8 +724,21 @@ class ForestWolvesBot:
         """
         user_id = None
         try:
-            user_id = update.effective_user.id
-            chat_id = update.effective_chat.id
+            # Получаем user_id в зависимости от типа update
+            if update.effective_user:
+                user_id = update.effective_user.id
+            elif update.callback_query and update.callback_query.from_user:
+                user_id = update.callback_query.from_user.id
+            else:
+                return False, "❌ Не удалось определить пользователя!"
+            
+            # Получаем chat_id в зависимости от типа update
+            if update.effective_chat:
+                chat_id = update.effective_chat.id
+            elif update.callback_query and update.callback_query.message:
+                chat_id = update.callback_query.message.chat_id
+            else:
+                return False, "❌ Не удалось определить чат!"
             
             # Проверяем базовые права
             has_permission, error_msg = await self.check_user_permissions(update, context, "member")
