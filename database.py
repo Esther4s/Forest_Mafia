@@ -144,11 +144,17 @@ class DatabaseManager:
             # Используем SQLite по умолчанию
             database_url = os.environ.get('DATABASE_URL', 'sqlite:///forest_mafia.db')
         
+        print(f"🔗 Подключение к базе данных: {database_url}")
         self.engine = create_engine(database_url, echo=False)
         self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         
         # Создаем таблицы
-        Base.metadata.create_all(bind=self.engine)
+        try:
+            Base.metadata.create_all(bind=self.engine)
+            print("✅ Таблицы базы данных созданы успешно")
+        except Exception as e:
+            print(f"❌ Ошибка при создании таблиц: {e}")
+            raise
     
     def get_session(self) -> Session:
         """Получить сессию базы данных"""

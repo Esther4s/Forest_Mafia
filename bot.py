@@ -1400,7 +1400,7 @@ class ForestWolvesBot:
             self.db.start_game(db_game_id)
             
             # Добавляем всех игроков в БД
-            for player in game.players:
+            for player in game.players.values():
                 self.db.add_player(
                     db_game_id, 
                     player.user_id, 
@@ -1411,7 +1411,7 @@ class ForestWolvesBot:
             
             # Назначаем роли в БД
             role_assignments = {}
-            for player in game.players:
+            for player in game.players.values():
                 role_assignments[player.user_id] = {
                     "role": player.role.value if player.role else None,
                     "team": player.team.value if player.team else None

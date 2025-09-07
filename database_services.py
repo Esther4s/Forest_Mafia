@@ -18,6 +18,7 @@ class GameService:
         """Создать новую игру"""
         session = get_db_session()
         try:
+            print(f"🎮 Создание игры для чата {chat_id}, тема {thread_id}")
             game = Game(
                 chat_id=chat_id,
                 thread_id=thread_id,
@@ -26,7 +27,12 @@ class GameService:
             session.add(game)
             session.commit()
             session.refresh(game)
+            print(f"✅ Игра создана с ID: {game.id}")
             return game
+        except Exception as e:
+            print(f"❌ Ошибка при создании игры: {e}")
+            session.rollback()
+            raise
         finally:
             session.close()
     
@@ -129,6 +135,7 @@ class PlayerService:
         """Добавить игрока в игру"""
         session = get_db_session()
         try:
+            print(f"👤 Добавление игрока {user_id} в игру {game_id}")
             # Проверяем, не участвует ли уже игрок в этой игре
             existing_player = session.query(Player).filter(
                 and_(
@@ -138,6 +145,7 @@ class PlayerService:
             ).first()
             
             if existing_player:
+                print(f"⚠️ Игрок {user_id} уже участвует в игре")
                 return existing_player
             
             player = Player(
@@ -150,7 +158,12 @@ class PlayerService:
             session.add(player)
             session.commit()
             session.refresh(player)
+            print(f"✅ Игрок {user_id} добавлен в игру с ID: {player.id}")
             return player
+        except Exception as e:
+            print(f"❌ Ошибка при добавлении игрока: {e}")
+            session.rollback()
+            raise
         finally:
             session.close()
     
