@@ -1156,6 +1156,16 @@ class ForestWolvesBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         await query.edit_message_text(stage_text, reply_markup=reply_markup, parse_mode='Markdown')
 
+    async def handle_check_stage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик кнопки 'Проверить этап' без проверки прав администратора"""
+        if not update or not update.callback_query:
+            return
+        query = update.callback_query
+        await query.answer()
+        
+        # Вызываем функцию проверки этапа без проверки прав
+        await self.check_stage_from_callback(query, context)
+
     # ---------------- join / leave / status ----------------
     async def join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Проверяем права пользователя
@@ -2450,13 +2460,14 @@ class ForestWolvesBot:
                 else:
                     player_tags.append(f"[{player.first_name or 'Игрок'}](tg://user?id={player.user_id})")
             
-            # Создаем сообщение с тегами
+            # Создаем сообщение с тегами в лесном стиле
             tag_message = (
-                "🎮 **Игра начинается!** 🎮\n\n"
-                "🌲 Все зверушки собрались в лесу для игры в Лес и Волки!\n\n"
-                f"👥 **Участники игры:** {', '.join(player_tags)}\n\n"
-                "🎭 Роли уже распределены! Проверьте личные сообщения с ботом.\n"
-                "🌙 Скоро наступит первая ночь..."
+                "🌲 **Лес просыпается...** 🌲\n\n"
+                "🦌 Все лесные зверушки собрались на поляне для игры в Лес и Волки!\n"
+                "🍃 Шелест листьев, пение птиц, и тайные заговоры в тени деревьев...\n\n"
+                f"🐾 **Участники лесного совета:** {', '.join(player_tags)}\n\n"
+                "🎭 Роли уже распределены среди зверушек! Проверьте личные сообщения с ботом.\n"
+                "🌙 Скоро наступит первая ночь в лесу, когда хищники выйдут на охоту..."
             )
             
             # Отправляем сообщение с тегами
@@ -2708,8 +2719,6 @@ class ForestWolvesBot:
             )
         elif query.data == "welcome_status":
             await self.status_from_callback(query, context)
-        elif query.data == "check_stage":
-            await self.check_stage_from_callback(query, context)
         elif query.data == "welcome_cancel_game":
             await self.cancel_game_from_welcome(query, context)
         elif query.data == "welcome_back":
@@ -3822,6 +3831,7 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^set_"))
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^timer_back"))
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^view_my_role$"))
+        application.add_handler(CallbackQueryHandler(self.handle_check_stage, pattern=r"^check_stage$"))
 
         # Установка команд после старта бота
         async def post_init(application):
