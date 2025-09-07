@@ -14,7 +14,7 @@ from telegram.ext import (
     ContextTypes
 )
 
-from game_logic import Game, GamePhase, Role, Team  # ваши реализации
+from game_logic import Game, GamePhase, Role, Team, Player  # ваши реализации
 from config import BOT_TOKEN  # ваши настройки
 from night_actions import NightActions
 from night_interface import NightInterface
