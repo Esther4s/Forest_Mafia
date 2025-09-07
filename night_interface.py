@@ -237,6 +237,91 @@ class NightInterface:
             )
         except Exception as e:
             print(f"Не удалось отправить результаты ночи: {e}")
+        
+        # Отправляем сообщения белочки умершим игрокам
+        await self._send_squirrel_messages(context, results)
+
+    async def _send_squirrel_messages(self, context: ContextTypes.DEFAULT_TYPE, results: Dict[str, List[str]]):
+        """Отправляет сообщения белочки умершим игрокам"""
+        try:
+            # Получаем русское название роли
+            from role_translator import get_role_name_russian
+            
+            # Собираем всех умерших игроков
+            dead_players = []
+            
+            # Проверяем результаты волков
+            if results.get("wolves"):
+                for action in results["wolves"]:
+                    # Извлекаем имя игрока из сообщения (например: "🐺 Волки съели Plo337 (Крот)!")
+                    if "съели" in action:
+                        # Находим имя между "съели" и "("
+                        start = action.find("съели") + 6
+                        end = action.find("(")
+                        if start > 5 and end > start:
+                            player_name = action[start:end].strip()
+                            # Находим игрока по имени
+                            for player in self.game.players.values():
+                                if (player.username == player_name or 
+                                    player.first_name == player_name or 
+                                    f"{player.first_name} {player.last_name}".strip() == player_name):
+                                    if not player.is_alive:
+                                        dead_players.append(player)
+                                    break
+            
+            # Проверяем результаты лисы (смерти от кражи)
+            if results.get("deaths"):
+                for death in results["deaths"]:
+                    # Извлекаем имя игрока из сообщения
+                    if "умер" in death or "погиб" in death:
+                        # Находим имя игрока в сообщении
+                        for player in self.game.players.values():
+                            if (player.username in death or 
+                                player.first_name in death or 
+                                f"{player.first_name} {player.last_name}".strip() in death):
+                                if not player.is_alive and player not in dead_players:
+                                    dead_players.append(player)
+                                break
+            
+            # Отправляем сообщения белочки каждому умершему игроку
+            for player in dead_players:
+                await self._send_squirrel_message_to_player(context, player)
+                
+        except Exception as e:
+            print(f"Ошибка при отправке сообщений белочки: {e}")
+
+    async def _send_squirrel_message_to_player(self, context: ContextTypes.DEFAULT_TYPE, player):
+        """Отправляет сообщение белочки конкретному игроку"""
+        try:
+            # Получаем русское название роли
+            from role_translator import get_role_name_russian
+            role_name = get_role_name_russian(player.role)
+            
+            # Формируем имя игрока
+            player_name = player.username or player.first_name or "Игрок"
+            
+            squirrel_message = (
+                f"🍂 Осенний лист упал 🍂\n\n"
+                f"🐿️ Маленькая белочка с печальными глазками подошла к тебе, {player_name}...\n\n"
+                f"💭 \"Лес больше не нуждается в твоих услугах, {player_name},\" - говорит она.\n"
+                f"🌅 \"Солнце заходит для тебя в этом мире.\"\n\n"
+                f"🎭 Твоя роль: {role_name}\n"
+                f"🚫 Твои действия в игре завершены.\n"
+                f"🔇 Молчание - твоя новая обязанность.\n\n"
+                f"🌌 Белочка бережно забирает твою душу, чтобы отнести её в звёздный лес...\n\n"
+                f"⭐️ До свидания, {player_name} ⭐️"
+            )
+            
+            # Отправляем сообщение в личку
+            await context.bot.send_message(
+                chat_id=player.user_id,
+                text=squirrel_message
+            )
+            
+            print(f"Отправлено сообщение белочки игроку {player_name} ({player.user_id})")
+            
+        except Exception as e:
+            print(f"Ошибка при отправке сообщения белочки игроку {player.user_id}: {e}")
 
     async def send_role_reminders(self, context: ContextTypes.DEFAULT_TYPE):
         """Отправляет напоминания о ролях игрокам с ночными действиями"""

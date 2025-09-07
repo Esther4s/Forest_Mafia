@@ -49,6 +49,10 @@ class DatabaseAdapter:
         """Получить всех игроков игры"""
         return self.player_service.get_game_players(game_id)
     
+    def update_game_phase(self, game_id: str, phase: str) -> bool:
+        """Обновить фазу игры"""
+        return self.game_service.update_game_status(game_id, "active", phase)
+    
     def start_game(self, game_id: str) -> bool:
         """Начать игру"""
         success = self.game_service.update_game_status(game_id, "active", "night")

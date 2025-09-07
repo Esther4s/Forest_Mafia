@@ -1816,6 +1816,10 @@ class ForestWolvesBot:
     async def start_night_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_night()
         
+        # Сохраняем смену фазы в базу данных
+        if hasattr(game, 'db_game_id') and game.db_game_id:
+            self.db.update_game_phase(game.db_game_id, "night")
+        
         # Открепляем сообщение о присоединении, так как игра началась
         if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
             try:
@@ -1933,9 +1937,9 @@ class ForestWolvesBot:
         await self.send_role_button_to_passive_players(context, game)
 
         # таймер ночи (запускаем как таск)
-        asyncio.create_task(self.night_phase_timer(update, context, game))
+        asyncio.create_task(self.night_phase_timer(context, game))
 
-    async def night_phase_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def night_phase_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Таймер для ночной фазы с проверкой досрочного завершения"""
         logger.info(f"Ночная фаза начата. Игроков: {len(game.get_alive_players())}")
         
@@ -1952,8 +1956,8 @@ class ForestWolvesBot:
                         text="⚡ Все игроки выполнили ночные действия! Ночь завершена досрочно.",
                         message_thread_id=game.thread_id
                     )
-                    await self.process_night_phase(update, context, game)
-                    await self.start_day_phase(update, context, game)
+                    await self.process_night_phase(context, game)
+                    await self.start_day_phase(context, game)
                     return
             
             # Если игра завершилась или фаза изменилась - выходим
@@ -1963,17 +1967,24 @@ class ForestWolvesBot:
         
         # Время вышло
         if game.phase == GamePhase.NIGHT:
-            await self.process_night_phase(update, context, game)
-            await self.start_day_phase(update, context, game)
+            await self.process_night_phase(context, game)
+            await self.start_day_phase(context, game)
 
-    async def start_day_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def start_day_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         # Проверяем условия автоматического завершения игры
         winner = game.check_game_end()
         if winner:
-            await self.end_game_winner(update, context, game, winner)
+            # Создаем фиктивный update для end_game_winner
+            from telegram import Update
+            fake_update = Update(update_id=0)
+            await self.end_game_winner(fake_update, context, game, winner)
             return
             
         game.start_day()
+        
+        # Сохраняем смену фазы в базу данных
+        if hasattr(game, 'db_game_id') and game.db_game_id:
+            self.db.update_game_phase(game.db_game_id, "day")
 
         # Открепляем сообщение ночи
         await self._unpin_previous_stage_message(context, game, "day")
@@ -1986,22 +1997,24 @@ class ForestWolvesBot:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        day_message = await update.message.reply_text(
-            "☀️ Наступило утро ☀️\n\n"
+        day_message = await context.bot.send_message(
+            chat_id=game.chat_id,
+            text="☀️ Наступило утро ☀️\n\n"
             "Начался очередной спокойный солнечный день в нашем дивном Лесу ☀️ Друзья зверята собрались вместе обсуждать новости последних дней 💬\n\n"
             "У вас есть 5 минут, чтобы обсудить ночные события и решить, кого изгнать.\n\n"
             "Используйте кнопки ниже для управления фазой:",
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
+            message_thread_id=game.thread_id
         )
         
         # Закрепляем сообщение дня
         await self._pin_stage_message(context, game, "day", day_message.message_id)
         
         # Создаем и сохраняем задачу таймера дневной фазы
-        day_timer_task = asyncio.create_task(self.day_phase_timer(update, context, game))
+        day_timer_task = asyncio.create_task(self.day_phase_timer(context, game))
         game.set_day_timer_task(day_timer_task)
 
-    async def day_phase_timer(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def day_phase_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Таймер дневной фазы с диагностикой"""
         try:
             logger.info(f"Запущен таймер дневной фазы для игры {game.chat_id}")
@@ -2010,7 +2023,7 @@ class ForestWolvesBot:
             # Проверяем, что игра все еще в дневной фазе
             if game.phase == GamePhase.DAY:
                 logger.info(f"Таймер дневной фазы завершен, переходим к голосованию для игры {game.chat_id}")
-                await self.start_voting_phase(update, context, game)
+                await self.start_voting_phase(context, game)
             else:
                 logger.info(f"Таймер дневной фазы завершен, но фаза изменилась на {game.phase} для игры {game.chat_id}")
                 
@@ -2023,12 +2036,19 @@ class ForestWolvesBot:
             # Очищаем ссылку на задачу
             game.day_timer_task = None
 
-    async def start_voting_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def start_voting_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_voting()
+        
+        # Сохраняем смену фазы в базу данных
+        if hasattr(game, 'db_game_id') and game.db_game_id:
+            self.db.update_game_phase(game.db_game_id, "voting")
 
         alive_players = game.get_alive_players()
         if len(alive_players) < 2:
-            await self._end_game_internal(update, context, game, "Недостаточно игроков для голосования")
+            # Создаем фиктивный update для _end_game_internal
+            from telegram import Update
+            fake_update = Update(update_id=0)
+            await self._end_game_internal(fake_update, context, game, "Недостаточно игроков для голосования")
             return
 
         # Открепляем сообщение дня
@@ -2042,11 +2062,11 @@ class ForestWolvesBot:
             "📱 Проверьте личные сообщения с ботом - там вас ждет важное решение."
         )
         
-        voting_message = None
-        if hasattr(update, 'message') and update.message:
-            voting_message = await update.message.reply_text(chat_message)
-        elif hasattr(update, 'callback_query') and update.callback_query:
-            voting_message = await context.bot.send_message(chat_id=game.chat_id, text=chat_message, message_thread_id=game.thread_id)
+        voting_message = await context.bot.send_message(
+            chat_id=game.chat_id, 
+            text=chat_message, 
+            message_thread_id=game.thread_id
+        )
         
         # Закрепляем сообщение голосования
         if voting_message:
@@ -2845,7 +2865,7 @@ class ForestWolvesBot:
                     )
                 })()
             })()
-            await self.start_voting_phase(mock_update, context, game)
+            await self.start_voting_phase(context, game)
 
         elif query.data == "day_timer_diagnostics":
             # Проверяем права пользователя
@@ -3287,7 +3307,40 @@ class ForestWolvesBot:
         if chat_id in self.night_interfaces:
             await self.night_interfaces[chat_id].send_role_reminders(context)
 
-    async def process_night_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def send_squirrel_message(self, context: ContextTypes.DEFAULT_TYPE, player: Player):
+        """Отправляет сообщение белочки умершему игроку"""
+        try:
+            # Получаем русское название роли
+            from role_translator import get_role_name_russian
+            role_name = get_role_name_russian(player.role)
+            
+            # Формируем имя игрока
+            player_name = player.username or player.first_name or "Игрок"
+            
+            squirrel_message = (
+                f"🍂 Осенний лист упал 🍂\n\n"
+                f"🐿️ Маленькая белочка с печальными глазками подошла к тебе, {player_name}...\n\n"
+                f"💭 \"Лес больше не нуждается в твоих услугах, {player_name},\" - говорит она.\n"
+                f"🌅 \"Солнце заходит для тебя в этом мире.\"\n\n"
+                f"🎭 Твоя роль: {role_name}\n"
+                f"🚫 Твои действия в игре завершены.\n"
+                f"🔇 Молчание - твоя новая обязанность.\n\n"
+                f"🌌 Белочка бережно забирает твою душу, чтобы отнести её в звёздный лес...\n\n"
+                f"⭐️ До свидания, {player_name} ⭐️"
+            )
+            
+            # Отправляем сообщение в личку
+            await context.bot.send_message(
+                chat_id=player.user_id,
+                text=squirrel_message
+            )
+            
+            logger.info(f"Отправлено сообщение белочки игроку {player_name} ({player.user_id})")
+            
+        except Exception as e:
+            logger.error(f"Ошибка при отправке сообщения белочки игроку {player.user_id}: {e}")
+
+    async def process_night_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         chat_id = game.chat_id
         if chat_id in self.night_actions:
             night_actions = self.night_actions[chat_id]
@@ -3299,7 +3352,10 @@ class ForestWolvesBot:
         # Проверяем условия автоматического завершения игры после ночных действий
         winner = game.check_game_end()
         if winner:
-            await self.end_game_winner(update, context, game, winner)
+            # Создаем фиктивный update для end_game_winner
+            from telegram import Update
+            fake_update = Update(update_id=0)
+            await self.end_game_winner(fake_update, context, game, winner)
             return
 
     async def handle_wolf_voting(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
