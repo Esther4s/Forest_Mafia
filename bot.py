@@ -12,6 +12,8 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
     ChatMemberHandler,
+    MessageHandler,
+    filters,
     ContextTypes
 )
 
@@ -732,7 +734,7 @@ class ForestWolvesBot:
                 create_user(user_id, username)
                 await update.message.reply_text(
                     f"👋 Добро пожаловать, {username}!\n\n"
-                    f"🌰 Ваш начальный баланс: 0 орешков\n\n"
+                    f"🌰 Ваш начальный баланс: 100 орешков\n\n"
                     f"💡 Используйте команду /join чтобы присоединиться к игре!"
                 )
                 
@@ -4267,6 +4269,9 @@ class ForestWolvesBot:
 
         # Обработчик присоединения бота к чату
         application.add_handler(ChatMemberHandler(self.handle_bot_join, ChatMemberHandler.MY_CHAT_MEMBER))
+        
+        # Обработчик личных сообщений (для регистрации пользователей)
+        application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.handle_private_message))
 
         # callbacks
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern=r"^vote_"))
@@ -4306,6 +4311,52 @@ class ForestWolvesBot:
             if self.db:
                 close_db()
                 logger.info("✅ Подключение к базе данных закрыто")
+
+    async def handle_private_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает личные сообщения боту"""
+        if not update.message:
+            return
+            
+        # Проверяем, что это личное сообщение (не группа)
+        if update.effective_chat.type != 'private':
+            return
+            
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        # Создаем пользователя в БД с начальным балансом 100 орешков
+        try:
+            if self.db:
+                # Проверяем, есть ли уже пользователь в БД
+                existing_user = get_user_by_telegram_id(user_id)
+                if not existing_user:
+                    # Создаем пользователя с балансом 100 орешков
+                    create_user(user_id, username)
+                    logger.info(f"✅ Новый пользователь {user_id} ({username}) создан в БД с балансом 100 орешков")
+                    
+                    # Отправляем приветственное сообщение
+                    welcome_text = (
+                        f"👋 Привет, {username}!\n\n"
+                        f"🌰 Добро пожаловать в Лесную Мафию!\n"
+                        f"💰 Ваш начальный баланс: 100 орешков\n\n"
+                        f"🎮 Для игры присоединяйтесь к группе и используйте команду /join\n"
+                        f"📊 Проверить баланс: /balance\n"
+                        f"📖 Правила игры: /rules\n"
+                        f"❓ Помощь: /help"
+                    )
+                    await update.message.reply_text(welcome_text)
+                else:
+                    # Пользователь уже существует, просто отвечаем
+                    await update.message.reply_text(
+                        f"👋 Привет, {username}!\n\n"
+                        f"🎮 Для игры присоединяйтесь к группе и используйте команду /join\n"
+                        f"📊 Проверить баланс: /balance\n"
+                        f"📖 Правила игры: /rules\n"
+                        f"❓ Помощь: /help"
+                    )
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки личного сообщения: {e}")
+            await update.message.reply_text("❌ Произошла ошибка. Попробуйте позже.")
 
     async def handle_bot_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает присоединение бота к чату"""

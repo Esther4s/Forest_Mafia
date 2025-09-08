@@ -352,8 +352,8 @@ def create_user(user_id: int, username: str = None) -> int:
         int: ID созданного пользователя
     """
     query = """
-        INSERT INTO users (user_id, username) 
-        VALUES (%s, %s) 
+        INSERT INTO users (user_id, username, balance) 
+        VALUES (%s, %s, 100) 
         ON CONFLICT (user_id) DO UPDATE SET 
             username = EXCLUDED.username,
             updated_at = CURRENT_TIMESTAMP
