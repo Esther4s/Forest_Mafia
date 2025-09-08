@@ -972,6 +972,172 @@ def finish_game_in_db(game_id: str, winner_team: str):
         logger.error(f"❌ Ошибка завершения игры: {e}")
         return False
 
+# ==================== ФУНКЦИИ ДЛЯ СТАТИСТИКИ ====================
+
+def get_team_stats() -> Dict[str, Any]:
+    """
+    Получает статистику команд (хищники vs мирные)
+    
+    Returns:
+        Dict с статистикой команд
+    """
+    try:
+        # Статистика побед команд
+        query = """
+        SELECT 
+            winner_team,
+            COUNT(*) as wins
+        FROM games 
+        WHERE status = 'finished' AND winner_team IS NOT NULL
+        GROUP BY winner_team
+        """
+        team_wins = fetch_query(query)
+        
+        # Общая статистика игр
+        total_games_query = "SELECT COUNT(*) as total FROM games WHERE status = 'finished'"
+        total_games = fetch_one(total_games_query)
+        
+        # Статистика игроков по командам
+        players_query = """
+        SELECT 
+            COUNT(*) as total_players,
+            SUM(games_played) as total_games,
+            SUM(games_won) as total_wins
+        FROM stats
+        """
+        players_stats = fetch_one(players_query)
+        
+        # Формируем результат
+        result = {
+            'total_games': total_games['total'] if total_games else 0,
+            'team_wins': {},
+            'players_stats': players_stats or {}
+        }
+        
+        for team_win in team_wins:
+            result['team_wins'][team_win['winner_team']] = team_win['wins']
+        
+        return result
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статистики команд: {e}")
+        return {'total_games': 0, 'team_wins': {}, 'players_stats': {}}
+
+def get_top_players(limit: int = 10, sort_by: str = 'games_won') -> List[Dict[str, Any]]:
+    """
+    Получает топ игроков
+    
+    Args:
+        limit: Количество игроков в топе
+        sort_by: Поле для сортировки (games_won, games_played, etc.)
+    
+    Returns:
+        List с данными топ игроков
+    """
+    try:
+        query = f"""
+        SELECT 
+            s.user_id,
+            u.username,
+            s.games_played,
+            s.games_won,
+            s.games_lost,
+            s.last_played,
+            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+        FROM stats s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        WHERE s.games_played > 0
+        ORDER BY {sort_by} DESC, win_rate DESC
+        LIMIT %s
+        """
+        return fetch_query(query, (limit,))
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения топ игроков: {e}")
+        return []
+
+def get_best_predator() -> Optional[Dict[str, Any]]:
+    """
+    Получает лучшего хищника (игрока с наибольшим количеством побед в роли хищника)
+    
+    Returns:
+        Dict с данными лучшего хищника или None
+    """
+    try:
+        # Получаем игроков, которые играли хищниками и выигрывали
+        query = """
+        SELECT 
+            s.user_id,
+            u.username,
+            s.games_won,
+            s.games_played,
+            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+        FROM stats s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        WHERE s.games_played > 0 AND s.games_won > 0
+        ORDER BY s.games_won DESC, win_rate DESC
+        LIMIT 1
+        """
+        return fetch_one(query)
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения лучшего хищника: {e}")
+        return None
+
+def get_best_herbivore() -> Optional[Dict[str, Any]]:
+    """
+    Получает лучшего травоядного (игрока с наибольшим количеством побед в роли травоядного)
+    
+    Returns:
+        Dict с данными лучшего травоядного или None
+    """
+    try:
+        # Для травоядных используем общую статистику, так как у нас нет разделения по ролям в таблице stats
+        # В будущем можно добавить отдельные поля для ролей
+        query = """
+        SELECT 
+            s.user_id,
+            u.username,
+            s.games_won,
+            s.games_played,
+            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+        FROM stats s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        WHERE s.games_played > 0 AND s.games_won > 0
+        ORDER BY s.games_won DESC, win_rate DESC
+        LIMIT 1
+        """
+        return fetch_one(query)
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения лучшего травоядного: {e}")
+        return None
+
+def get_player_detailed_stats(user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Получает детальную статистику игрока
+    
+    Args:
+        user_id: ID пользователя
+    
+    Returns:
+        Dict с детальной статистикой или None
+    """
+    try:
+        query = """
+        SELECT 
+            s.user_id,
+            u.username,
+            s.games_played,
+            s.games_won,
+            s.games_lost,
+            s.last_played,
+            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+        FROM stats s
+        LEFT JOIN users u ON s.user_id = u.user_id
+        WHERE s.user_id = %s
+        """
+        return fetch_one(query, (user_id,))
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения детальной статистики: {e}")
+        return None
+
 def create_tables():
     """
     Создает все необходимые таблицы в базе данных
