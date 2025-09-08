@@ -686,8 +686,65 @@ def create_tables():
     Создает все необходимые таблицы в базе данных
     """
     try:
-        # SQL для создания таблицы chat_settings
-        chat_settings_sql = """
+        # SQL для создания всех таблиц
+        tables_sql = """
+        -- Включаем расширения PostgreSQL
+        CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+        
+        -- Таблица пользователей
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL UNIQUE,
+            username VARCHAR(255),
+            balance INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица игр
+        CREATE TABLE IF NOT EXISTS games (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            game_type VARCHAR(50) DEFAULT 'forest_mafia',
+            status VARCHAR(50) DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        );
+        
+        -- Таблица статистики
+        CREATE TABLE IF NOT EXISTS stats (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL UNIQUE,
+            games_played INTEGER DEFAULT 0,
+            games_won INTEGER DEFAULT 0,
+            games_lost INTEGER DEFAULT 0,
+            last_played TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        );
+        
+        -- Таблица магазина
+        CREATE TABLE IF NOT EXISTS shop (
+            id SERIAL PRIMARY KEY,
+            item_name VARCHAR(255) NOT NULL,
+            price INTEGER NOT NULL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица покупок
+        CREATE TABLE IF NOT EXISTS purchases (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            item_id INTEGER NOT NULL,
+            purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            FOREIGN KEY (item_id) REFERENCES shop(id) ON DELETE CASCADE
+        );
+        
+        -- Таблица настроек чата
         CREATE TABLE IF NOT EXISTS chat_settings (
             id SERIAL PRIMARY KEY,
             chat_id BIGINT NOT NULL UNIQUE,
@@ -708,9 +765,16 @@ def create_tables():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
+        -- Создаем индексы
+        CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
+        CREATE INDEX IF NOT EXISTS idx_games_user_id ON games(user_id);
+        CREATE INDEX IF NOT EXISTS idx_stats_user_id ON stats(user_id);
+        CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON purchases(user_id);
+        CREATE INDEX IF NOT EXISTS idx_purchases_item_id ON purchases(item_id);
         CREATE INDEX IF NOT EXISTS idx_chat_settings_chat_id ON chat_settings(chat_id);
         
-        CREATE OR REPLACE FUNCTION update_chat_settings_updated_at()
+        -- Функция для обновления updated_at
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
         RETURNS TRIGGER AS $$
         BEGIN
             NEW.updated_at = CURRENT_TIMESTAMP;
@@ -718,15 +782,31 @@ def create_tables():
         END;
         $$ LANGUAGE plpgsql;
         
+        -- Триггеры для автоматического обновления updated_at
+        CREATE TRIGGER trigger_users_updated_at
+            BEFORE UPDATE ON users
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            
+        CREATE TRIGGER trigger_games_updated_at
+            BEFORE UPDATE ON games
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            
+        CREATE TRIGGER trigger_stats_updated_at
+            BEFORE UPDATE ON stats
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            
         CREATE TRIGGER trigger_chat_settings_updated_at
             BEFORE UPDATE ON chat_settings
             FOR EACH ROW
-            EXECUTE FUNCTION update_chat_settings_updated_at();
+            EXECUTE FUNCTION update_updated_at_column();
         """
         
         # Выполняем SQL
-        execute_query(chat_settings_sql)
-        logger.info("✅ Таблица chat_settings создана успешно")
+        execute_query(tables_sql)
+        logger.info("✅ Все таблицы созданы успешно")
         
     except Exception as e:
         logger.error(f"❌ Ошибка создания таблиц: {e}")
