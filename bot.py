@@ -25,7 +25,8 @@ from database_psycopg2 import (
     init_db, close_db,
     create_user, get_user_by_telegram_id, update_user_balance,
     execute_query, fetch_one,
-    get_chat_settings, update_chat_settings, reset_chat_settings
+    get_chat_settings, update_chat_settings, reset_chat_settings,
+    create_tables
 )
 
 logging.basicConfig(
@@ -51,6 +52,8 @@ class ForestWolvesBot:
         # Инициализация базы данных
         try:
             self.db = init_db()
+            # Создаем таблицы если их нет
+            create_tables()
             logger.info("✅ База данных инициализирована успешно")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации базы данных: {e}")

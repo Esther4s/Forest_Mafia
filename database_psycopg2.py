@@ -681,6 +681,57 @@ def get_all_chat_settings() -> List[Dict[str, Any]]:
     query = "SELECT * FROM chat_settings ORDER BY chat_id"
     return fetch_query(query)
 
+def create_tables():
+    """
+    Создает все необходимые таблицы в базе данных
+    """
+    try:
+        # SQL для создания таблицы chat_settings
+        chat_settings_sql = """
+        CREATE TABLE IF NOT EXISTS chat_settings (
+            id SERIAL PRIMARY KEY,
+            chat_id BIGINT NOT NULL UNIQUE,
+            test_mode BOOLEAN DEFAULT FALSE,
+            min_players INTEGER DEFAULT 4,
+            max_players INTEGER DEFAULT 12,
+            night_duration INTEGER DEFAULT 60,
+            day_duration INTEGER DEFAULT 300,
+            vote_duration INTEGER DEFAULT 120,
+            fox_death_threshold INTEGER DEFAULT 2,
+            beaver_protection BOOLEAN DEFAULT TRUE,
+            mole_reveal_threshold INTEGER DEFAULT 3,
+            herbivore_survival_threshold INTEGER DEFAULT 1,
+            max_rounds INTEGER DEFAULT 20,
+            max_time INTEGER DEFAULT 3600,
+            min_alive INTEGER DEFAULT 2,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        CREATE INDEX IF NOT EXISTS idx_chat_settings_chat_id ON chat_settings(chat_id);
+        
+        CREATE OR REPLACE FUNCTION update_chat_settings_updated_at()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            NEW.updated_at = CURRENT_TIMESTAMP;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        
+        CREATE TRIGGER trigger_chat_settings_updated_at
+            BEFORE UPDATE ON chat_settings
+            FOR EACH ROW
+            EXECUTE FUNCTION update_chat_settings_updated_at();
+        """
+        
+        # Выполняем SQL
+        execute_query(chat_settings_sql)
+        logger.info("✅ Таблица chat_settings создана успешно")
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка создания таблиц: {e}")
+        raise
+
 # Пример использования
 if __name__ == "__main__":
     try:
