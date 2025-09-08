@@ -3,6 +3,7 @@
 
 import asyncio
 import logging
+import random
 from typing import Dict, Optional
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -20,6 +21,12 @@ from night_actions import NightActions
 from night_interface import NightInterface
 from global_settings import GlobalSettings # Импортируем GlobalSettings
 from database_adapter import DatabaseAdapter
+from database_psycopg2 import (
+    init_db, close_db,
+    create_user, get_user_by_telegram_id, update_user_balance,
+    execute_query, fetch_one,
+    get_chat_settings, update_chat_settings, reset_chat_settings
+)
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -40,6 +47,29 @@ class ForestWolvesBot:
         self.night_interfaces: Dict[int, NightInterface] = {}
         # Global settings instance
         self.global_settings = GlobalSettings()
+        
+        # Инициализация базы данных
+        try:
+            self.db = init_db()
+            logger.info("✅ База данных инициализирована успешно")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации базы данных: {e}")
+            self.db = None
+        
+        # Система случайных сообщений
+        self.no_exile_messages = [
+            "🌳 Вечер опустился на лес. Животные спорили и шептались, но так и не решились изгнать кого-то. Подозрения остались висеть в воздухе, как туман над поляной.",
+            "🍂 Голоса разделились, и ни один зверь не оказался изгнан. Лес затаил дыхание — значит, завтра будет ещё тревожнее.",
+            "🌲 Животные переглядывались с недоверием, но так и не нашли виновного. Лес проводил день в тишине, словно пряча чью-то тайну.",
+            "🌙 Никого не изгнали. Лес уснул с нераскрытой загадкой, а тревога в сердцах животных лишь усилилась."
+        ]
+        
+        self.no_kill_messages = [
+            "🌌 Волки выли на луну, но так и не нашли добычи. Утром все проснулись целыми и невредимыми. Но сколько ещё продлится эта удача?",
+            "🌲 Ночь прошла тихо. Волчьи лапы бродили по лесу, но никто не был тронут. Животные встречали рассвет с облегчением — пока.",
+            "🍃 Волки кружили по поляне, но их пасти остались голодными. Утро настало без потерь, и лес зашептал: «Что это значит?..»",
+            "🌙 Звёзды наблюдали, как волки искали жертву, но этой ночью зубы остались пустыми. Животные обняли рассвет с радостью и страхом."
+        ]
         # Список разрешенных чатов и тем (chat_id, thread_id или None для всего чата)
         self.authorized_chats: set = set()  # Хранит кортежи (chat_id, thread_id)
         # Bot token
@@ -314,7 +344,6 @@ class ForestWolvesBot:
             [InlineKeyboardButton("🚀 Начать игру", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила", callback_data="welcome_rules")],
             [InlineKeyboardButton("📊 Статус", callback_data="welcome_status")],
-            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")],
             [InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -512,6 +541,162 @@ class ForestWolvesBot:
             
             await update.message.reply_text(stats_text)
 
+    async def balance_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает баланс пользователя"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            # Получаем пользователя из БД
+            user = get_user_by_telegram_id(user_id)
+            
+            if user:
+                balance = user['balance']
+                await update.message.reply_text(
+                    f"🌰 **Баланс игрока {username}:**\n\n"
+                    f"💳 Текущий баланс: {balance} орешков\n\n"
+                    f"💡 Используйте команду /игра для создания новой игры!"
+                )
+            else:
+                # Если пользователя нет в БД, создаем его
+                create_user(user_id, username)
+                await update.message.reply_text(
+                    f"👋 Добро пожаловать, {username}!\n\n"
+                    f"🌰 Ваш начальный баланс: 0 орешков\n\n"
+                    f"💡 Используйте команду /игра для создания новой игры!"
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения баланса: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при получении баланса. Попробуйте позже.")
+
+    async def game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Создает запись в таблице games для пользователя"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            # Убеждаемся, что пользователь существует в БД
+            user = get_user_by_telegram_id(user_id)
+            if not user:
+                create_user(user_id, username)
+                logger.info(f"✅ Пользователь {user_id} ({username}) создан в БД")
+            
+            # Создаем запись в таблице user_games
+            game_query = """
+                INSERT INTO user_games (user_id, game_type, status) 
+                VALUES (%s, %s, %s)
+                RETURNING id, created_at
+            """
+            
+            result = fetch_one(game_query, (user_id, 'forest_mafia', 'created'))
+            
+            if result:
+                game_id = result['id']
+                created_at = result['created_at']
+                
+                await update.message.reply_text(
+                    f"🎮 **Новая игра создана!**\n\n"
+                    f"🆔 ID игры: {game_id}\n"
+                    f"👤 Игрок: {username}\n"
+                    f"🎯 Тип игры: Forest Mafia\n"
+                    f"📅 Создана: {created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+                    f"💡 Используйте /start для начала регистрации в игру!"
+                )
+                
+                logger.info(f"✅ Игра {game_id} создана для пользователя {user_id}")
+            else:
+                await update.message.reply_text("❌ Не удалось создать игру. Попробуйте позже.")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка создания игры: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при создании игры. Попробуйте позже.")
+
+    async def update_player_stats_after_game(self, game: Game, winner: Optional[Team] = None):
+        """Обновляет статистику игроков после окончания игры"""
+        try:
+            if not self.db:
+                logger.warning("⚠️ База данных недоступна, статистика не обновлена")
+                return
+            
+            for player in game.players.values():
+                user_id = player.user_id
+                username = player.username or f"Player_{user_id}"
+                
+                # Создаем пользователя в БД, если его нет
+                create_user(user_id, username)
+                
+                # Получаем текущую статистику
+                stats = fetch_one("SELECT * FROM stats WHERE user_id = %s", (user_id,))
+                
+                if stats:
+                    # Обновляем существующую статистику
+                    new_games_played = stats['games_played'] + 1
+                    
+                    # Определяем, выиграл ли игрок
+                    player_won = False
+                    if winner:
+                        if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
+                            player_won = True
+                        elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
+                            player_won = True
+                    
+                    if player_won:
+                        new_games_won = stats['games_won'] + 1
+                        new_games_lost = stats['games_lost']
+                    else:
+                        new_games_won = stats['games_won']
+                        new_games_lost = stats['games_lost'] + 1
+                    
+                    # Обновляем статистику
+                    update_query = """
+                        UPDATE stats 
+                        SET games_played = %s, games_won = %s, games_lost = %s, 
+                            last_played = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = %s
+                    """
+                    execute_query(update_query, (new_games_played, new_games_won, new_games_lost, user_id))
+                    
+                else:
+                    # Создаем новую статистику
+                    player_won = False
+                    if winner:
+                        if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
+                            player_won = True
+                        elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
+                            player_won = True
+                    
+                    insert_query = """
+                        INSERT INTO stats (user_id, games_played, games_won, games_lost, last_played)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """
+                    execute_query(insert_query, (user_id, 1, 1 if player_won else 0, 0 if player_won else 1))
+                
+                logger.info(f"✅ Статистика обновлена для игрока {user_id}: игры={new_games_played}, победы={new_games_won if 'new_games_won' in locals() else (1 if player_won else 0)}")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления статистики: {e}")
+
     # ---------------- новые улучшенные методы ----------------
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает команду /start с различными параметрами"""
@@ -523,6 +708,20 @@ class ForestWolvesBot:
         if not has_permission:
             await self.send_permission_error(update, context, error_msg)
             return
+        
+        # Создаем или обновляем пользователя в базе данных
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            if self.db:
+                # Создаем пользователя в БД (если его нет)
+                create_user(user_id, username)
+                logger.info(f"✅ Пользователь {user_id} ({username}) создан/обновлен в БД")
+            else:
+                logger.warning("⚠️ База данных недоступна, пользователь не создан в БД")
+        except Exception as e:
+            logger.error(f"❌ Ошибка создания пользователя в БД: {e}")
         
         # Проверяем параметры команды
         if context.args and context.args[0] == "role":
@@ -577,8 +776,7 @@ class ForestWolvesBot:
         keyboard = [
             [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
         ]
         
         # Добавляем кнопку "Начать игру" если достаточно игроков
@@ -1047,124 +1245,6 @@ class ForestWolvesBot:
 
         await query.edit_message_text(status_text)
 
-    async def check_stage_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
-        """Проверяет текущий этап игры и отправляет соответствующее сообщение с кнопками"""
-        chat_id = query.message.chat.id
-        thread_id = getattr(query.message, 'message_thread_id', None)
-
-        if chat_id not in self.games:
-            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
-            return
-
-        game = self.games[chat_id]
-
-        # Отправляем сообщение в зависимости от этапа игры
-        if game.phase == GamePhase.WAITING:
-            # Этап регистрации
-            min_players = self.global_settings.get_min_players()
-            stage_text = (
-                "🎮 **Этап: Регистрация игроков**\n\n"
-                f"👥 Игроков: {len(game.players)}/12\n"
-                f"📋 Минимум: {min_players}\n\n"
-                "**Участники:**\n"
-            )
-            for player in game.players.values():
-                player_tag = self.format_player_tag(player.username, player.user_id)
-                stage_text += f"• {player_tag}\n"
-            
-            if game.can_start_game():
-                stage_text += "\n✅ **Можно начинать игру!**"
-            else:
-                stage_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
-            
-            # Кнопки для этапа регистрации
-            keyboard = [
-                [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
-                [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
-            ]
-            
-            if game.can_start_game():
-                keyboard.insert(0, [InlineKeyboardButton("🚀 Начать игру", callback_data="welcome_start_game")])
-            
-        elif game.phase == GamePhase.NIGHT:
-            # Ночной этап
-            stage_text = (
-                "🌙 **Этап: Ночь**\n\n"
-                f"🔄 Раунд: {game.current_round}\n"
-                f"👥 Живых: {len(game.get_alive_players())}\n\n"
-                "🌲 Все зверушки спят в лесу...\n"
-                "🐺 Хищники планируют свои действия\n"
-                "🦫 Травоядные отдыхают"
-            )
-            
-            # Кнопки для ночного этапа
-            keyboard = [
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
-            ]
-            
-        elif game.phase == GamePhase.DAY:
-            # Дневной этап
-            stage_text = (
-                "☀️ **Этап: День**\n\n"
-                f"🔄 Раунд: {game.current_round}\n"
-                f"👥 Живых: {len(game.get_alive_players())}\n\n"
-                "🌲 Все зверушки проснулись!\n"
-                "💬 Время для обсуждения и поиска хищников\n"
-                "🗳️ Скоро начнется голосование"
-            )
-            
-            # Кнопки для дневного этапа
-            keyboard = [
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
-            ]
-            
-        elif game.phase == GamePhase.VOTING:
-            # Этап голосования
-            stage_text = (
-                "🗳️ **Этап: Голосование**\n\n"
-                f"🔄 Раунд: {game.current_round}\n"
-                f"👥 Живых: {len(game.get_alive_players())}\n\n"
-                "🌲 Время решать судьбу подозрительных зверушек!\n"
-                "🗳️ Каждый голосует за изгнание"
-            )
-            
-            # Кнопки для этапа голосования
-            keyboard = [
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
-            ]
-            
-        else:
-            # Игра окончена
-            stage_text = (
-                "🏁 **Игра окончена!**\n\n"
-                f"🔄 Раунд: {game.current_round}\n"
-                f"👥 Живых: {len(game.get_alive_players())}\n\n"
-                "🌲 Игра завершена!"
-            )
-            
-            # Кнопки для завершенной игры
-            keyboard = [
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
-            ]
-
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await query.edit_message_text(stage_text, reply_markup=reply_markup, parse_mode='Markdown')
-
-    async def handle_check_stage(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик кнопки 'Проверить этап' без проверки прав администратора"""
-        if not update or not update.callback_query:
-            return
-        query = update.callback_query
-        await query.answer()
-        
-        # Вызываем функцию проверки этапа без проверки прав
-        await self.check_stage_from_callback(query, context)
 
     # ---------------- join / leave / status ----------------
     async def join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1345,8 +1425,10 @@ class ForestWolvesBot:
 
         # Создаем кнопки для статуса
         keyboard = []
+        
+        # Добавляем кнопку "Повторить текущий этап" если игра не в фазе ожидания
         if game.phase != GamePhase.WAITING:
-            keyboard.append([InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")])
+            keyboard.append([InlineKeyboardButton("🔄 Повторить текущий этап", callback_data="repeat_current_phase")])
         
         reply_markup = InlineKeyboardMarkup(keyboard) if keyboard else None
         
@@ -1618,8 +1700,7 @@ class ForestWolvesBot:
             keyboard = [
                 [InlineKeyboardButton("👥 Присоединиться к игре", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -1790,12 +1871,15 @@ class ForestWolvesBot:
             )
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение о завершении игры: {e}")
-            # Fallback - если update есть, попробуем через reply
-            if update and hasattr(update, 'message') and update.message:
-                try:
-                    await update.message.reply_text(message_text, parse_mode='Markdown')
-                except Exception as e2:
-                    logger.error(f"Fallback тоже не сработал: {e2}")
+            # Fallback - попробуем отправить без форматирования
+            try:
+                await context.bot.send_message(
+                    chat_id=game.chat_id,
+                    text=message_text.replace('*', '').replace('_', ''),
+                    message_thread_id=game.thread_id
+                )
+            except Exception as e2:
+                logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
         for pid in list(game.players.keys()):
@@ -1820,7 +1904,7 @@ class ForestWolvesBot:
             del self.player_games[user_id]
 
     # ---------------- night/day/vote flow ----------------
-    async def start_night_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def start_night_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         game.start_night()
         
         # Сохраняем смену фазы в базу данных
@@ -1854,43 +1938,26 @@ class ForestWolvesBot:
             "**И вот наступила ночь, зверушки мирно уснули сладким сном… 😴**"
         )
         
-        # Проверяем, является ли update фиктивным (для досрочного завершения голосования)
-        # или это callback query
-        if (hasattr(update, 'message') and hasattr(update.message, 'message_id') and update.message.message_id == 0) or hasattr(update, 'callback_query'):
-            # Используем context.bot.send_message для фиктивного update или callback query
-            await context.bot.send_message(
-                chat_id=game.chat_id,
-                text=forest_story,
-                parse_mode='Markdown',
-                message_thread_id=game.thread_id
-            )
-            
-            # Небольшая пауза для атмосферы
-            await asyncio.sleep(2)
-            
-            night_message = await context.bot.send_message(
-                chat_id=game.chat_id,
-                text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-                reply_markup=reply_markup,
-                message_thread_id=game.thread_id
-            )
-            
-            # Закрепляем сообщение ночи
-            await self._pin_stage_message(context, game, "night", night_message.message_id)
-        else:
-            # Обычный update - используем reply_text
-            await update.message.reply_text(forest_story, parse_mode='Markdown')
-            
-            # Небольшая пауза для атмосферы
-            await asyncio.sleep(2)
-            
-            night_message = await update.message.reply_text(
-                "🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-                reply_markup=reply_markup
-            )
-            
-            # Закрепляем сообщение ночи
-            await self._pin_stage_message(context, game, "night", night_message.message_id)
+        # Отправляем сообщение о начале ночи
+        await context.bot.send_message(
+            chat_id=game.chat_id,
+            text=forest_story,
+            parse_mode='Markdown',
+            message_thread_id=game.thread_id
+        )
+        
+        # Небольшая пауза для атмосферы
+        await asyncio.sleep(2)
+        
+        night_message = await context.bot.send_message(
+            chat_id=game.chat_id,
+            text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
+            reply_markup=reply_markup,
+            message_thread_id=game.thread_id
+        )
+        
+        # Закрепляем сообщение ночи
+        await self._pin_stage_message(context, game, "night", night_message.message_id)
 
         # ЛС с ролями
         for player in game.players.values():
@@ -1998,9 +2065,7 @@ class ForestWolvesBot:
 
         # Создаем кнопки для дневной фазы
         keyboard = [
-            [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")],
-            [InlineKeyboardButton("🐺 Выбрать волка", callback_data="day_choose_wolf")],
-            [InlineKeyboardButton("🔍 Диагностика таймера", callback_data="day_timer_diagnostics")]
+            [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2105,121 +2170,11 @@ class ForestWolvesBot:
         game.total_voters = len(alive_players)
         game.voting_type = "exile"  # Помечаем тип голосования
         
-        asyncio.create_task(self.voting_timer(context, game, update))
+        asyncio.create_task(self.voting_timer(context, game))
 
-    async def start_wolf_voting_phase(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Начинает специальное голосование за волка"""
-        game.start_voting()
 
-        alive_players = game.get_alive_players()
-        if len(alive_players) < 2:
-            if hasattr(update, 'message') and update.message:
-                await update.message.reply_text("❌ Недостаточно игроков для голосования!")
-            elif hasattr(update, 'callback_query') and update.callback_query:
-                await context.bot.send_message(chat_id=game.chat_id, text="❌ Недостаточно игроков для голосования!", message_thread_id=game.thread_id)
-            return
 
-        # Отправляем уведомление в общий чат
-        chat_message = (
-            "🐺 \"А кто же среди нас волк?\" - шепчут зверушки.\n\n"
-            "🦌 Зайцы оглядываются по сторонам, 🦊 лиса притворяется невинной...\n"
-            "🌲 Кого вы подозреваете в том, что он хищник?\n\n"
-            "⚠️ Это голосование НЕ изгонит игрока - просто попытка выявить волка!\n"
-            "📱 Проверьте личные сообщения с ботом для голосования."
-        )
-        
-        if hasattr(update, 'message') and update.message:
-            await update.message.reply_text(chat_message)
-        elif hasattr(update, 'callback_query') and update.callback_query:
-            await context.bot.send_message(chat_id=game.chat_id, text=chat_message, message_thread_id=game.thread_id)
-
-        # Отправляем меню голосования каждому живому игроку в личку
-        for voter in alive_players:
-            # Исключаем самого голосующего из списка целей
-            voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
-            keyboard = [[InlineKeyboardButton(f"🐺 {p.username}", callback_data=f"wolf_vote_{p.user_id}")] for p in voting_targets]
-            # Добавляем кнопку "Пропустить голосование"
-            keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="wolf_vote_skip")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-
-            try:
-                await context.bot.send_message(
-                    chat_id=voter.user_id,
-                    text=(
-                        "🐺 \"Кто же среди нас волк?\" - думаете вы.\n\n"
-                        "🦌 Кого из обитателей леса вы подозреваете в том, что он хищник?\n"
-                        "⚠️ Этот зверек НЕ будет изгнан - просто попытка выявить волка!\n\n"
-                        f"⏰ У вас есть 2 минуты на размышления (Ваша роль: {self.get_role_info(voter.role)['name']}):"
-                    ),
-                    reply_markup=reply_markup
-                )
-                logger.info(f"Меню голосования за волка отправлено игроку {voter.username} (роль: {self.get_role_name_russian(voter.role)})")
-            except Exception as e:
-                logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id} ({voter.username}): {e}")
-                # Если не удалось отправить в личку, попробуем уведомить в общем чате
-                try:
-                    await context.bot.send_message(
-                        chat_id=game.chat_id,
-                        text=f"❌ @{voter.username}, не удалось отправить меню голосования в личные сообщения. Откройте диалог с ботом и попробуйте снова.",
-                        message_thread_id=game.thread_id
-                    )
-                except Exception:
-                    pass
-
-        # Сохраняем информацию о количестве игроков для проверки досрочного завершения
-        game.total_voters = len(alive_players)
-        game.voting_type = "wolf"  # Помечаем тип голосования
-        
-        # Отправляем дублирующие кнопки голосования в группу для тех, кто не получил личное сообщение
-        await asyncio.sleep(2)  # Даём время на отправку личных сообщений
-        
-        group_keyboard = []
-        for p in alive_players:
-            group_keyboard.append([InlineKeyboardButton(f"🐺 Подозреваю {p.username}", callback_data=f"wolf_vote_{p.user_id}")])
-        # Добавляем кнопку "Пропустить голосование" в группе
-        group_keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="wolf_vote_skip")])
-        
-        group_reply_markup = InlineKeyboardMarkup(group_keyboard)
-        
-        await context.bot.send_message(
-            chat_id=game.chat_id,
-            text=(
-                "🐺 Резервное голосование в группе!\n\n"
-                "Если вы не получили личное сообщение для голосования, можете проголосовать здесь:\n"
-                "(Каждый игрок может проголосовать только один раз)"
-            ),
-            reply_markup=group_reply_markup,
-            message_thread_id=game.thread_id
-        )
-        
-        asyncio.create_task(self.wolf_voting_timer(context, game))
-
-    async def wolf_voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Таймер для голосования за волка с проверкой досрочного завершения"""
-        for _ in range(120):  # Проверяем каждую секунду в течение 2 минут
-            await asyncio.sleep(1)
-            
-            # Проверяем, все ли проголосовали
-            if game.phase == GamePhase.VOTING and hasattr(game, 'total_voters'):
-                if len(game.votes) >= game.total_voters:
-                    # Все проголосовали - завершаем досрочно
-                    await context.bot.send_message(
-                        chat_id=game.chat_id, 
-                        text="⚡ Все игроки проголосовали! Голосование завершено досрочно.",
-                        message_thread_id=game.thread_id
-                    )
-                    await self.process_wolf_voting_results(context, game)
-                    return
-            
-            # Если игра завершилась или фаза изменилась - выходим
-            if game.phase != GamePhase.VOTING:
-                return
-        
-        # Время вышло
-        if game.phase == GamePhase.VOTING:
-            await self.process_wolf_voting_results(context, game)
-
-    async def voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game, update: Update):
+    async def voting_timer(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Таймер для голосования с проверкой досрочного завершения"""
         logger.info(f"Голосование начато. Игроков: {len(game.get_alive_players())}, total_voters: {getattr(game, 'total_voters', 'НЕ УСТАНОВЛЕНО')}")
         
@@ -2250,11 +2205,11 @@ class ForestWolvesBot:
         # Время вышло
         if game.phase == GamePhase.VOTING:
             logger.info("Время голосования истекло. Обрабатываем результаты.")
-            await self.process_voting_results(update, context, game)
+            await self.process_voting_results(context, game)
         else:
             logger.info(f"Голосование завершилось, но фаза уже {game.phase}")
 
-    async def process_voting_results(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def process_voting_results(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         logger.info(f"Обработка результатов голосования. Голосов: {len(game.votes)}")
         
         # Проверяем, не были ли результаты уже обработаны
@@ -2274,7 +2229,9 @@ class ForestWolvesBot:
             role_name = self.get_role_info(exiled_player.role)['name']
             result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
         else:
-            result_text = f"🌲 {voting_details['voting_summary']}"
+            # Если никто не изгнан, выбираем случайное сообщение
+            random_message = random.choice(self.no_exile_messages)
+            result_text = f"🌲 {voting_details['voting_summary']}\n\n{random_message}"
         
         # Добавляем детальную информацию о голосовании
         result_text += "\n\n📊 **Результаты голосования:**\n"
@@ -2320,82 +2277,16 @@ class ForestWolvesBot:
         winner = game.check_game_end()
         if winner:
             logger.info(f"Игра завершена! Победила команда: {winner}")
-            await self.end_game_winner(update, context, game, winner)
+            await self.end_game_winner(context, game, winner)
         else:
             logger.info("Игра продолжается. Начинаем новую ночь.")
-            await self.start_new_night(update, context, game)
+            await self.start_new_night(context, game)
 
-    async def process_wolf_voting_results(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Обрабатывает результаты голосования за волка"""
-        if not game.votes:
-            await context.bot.send_message(
-                chat_id=game.chat_id,
-                text="🤷‍♂️ Никто не проголосовал в голосовании 'Кто волк?'!",
-                message_thread_id=game.thread_id
-            )
-            game.start_day()  # Возвращаемся к дневной фазе
-            return
 
-        # Подсчет голосов
-        vote_counts = {}
-        for target_id in game.votes.values():
-            vote_counts[target_id] = vote_counts.get(target_id, 0) + 1
-
-        # Находим игрока с максимальным количеством голосов
-        max_votes = max(vote_counts.values())
-        max_vote_players = [pid for pid, votes in vote_counts.items() if votes == max_votes]
-
-        # Формируем результат
-        if len(max_vote_players) > 1:
-            # Ничья
-            suspects = [game.players[pid].username for pid in max_vote_players]
-            result_text = f"🤔 Ничья в голосовании 'Кто волк?'!\n\nПодозреваемые: {', '.join(suspects)}"
-        else:
-            # Есть лидер
-            suspect_id = max_vote_players[0]
-            suspect = game.players[suspect_id]
-            votes = vote_counts[suspect_id]
-            
-            # Проверяем, действительно ли это волк
-            is_actually_wolf = suspect.role == Role.WOLF
-            
-            if is_actually_wolf:
-                result_text = (f"🎯 Результат голосования 'Кто волк?':\n\n"
-                              f"🐺 {suspect.username} получил больше всего голосов ({votes}) и действительно оказался волком!\n"
-                              "👏 Жители угадали!")
-            else:
-                result_text = (f"🎯 Результат голосования 'Кто волк?':\n\n"
-                              f"🐰 {suspect.username} получил больше всего голосов ({votes}), но оказался {self.get_role_info(suspect.role)['name']}!\n"
-                              "😅 Жители ошиблись!")
-
-        await context.bot.send_message(chat_id=game.chat_id, text=result_text, message_thread_id=game.thread_id)
-        
-        # Очищаем голоса и возвращаемся к дневной фазе
-        game.votes.clear()
-        if hasattr(game, 'total_voters'):
-            delattr(game, 'total_voters')
-        if hasattr(game, 'voting_type'):
-            delattr(game, 'voting_type')
-        game.start_day()
-        
-        # Возвращаем кнопки дневной фазы
-        keyboard = [
-            [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")],
-            [InlineKeyboardButton("🐺 Выбрать волка", callback_data="day_choose_wolf")],
-            [InlineKeyboardButton("🔍 Диагностика таймера", callback_data="day_timer_diagnostics")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await context.bot.send_message(
-            chat_id=game.chat_id,
-            text="☀️ Продолжается дневное обсуждение.\nИспользуйте кнопки ниже для управления фазой:",
-            reply_markup=reply_markup
-        )
-
-    async def start_new_night(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game):
+    async def start_new_night(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         # Открепляем сообщение голосования перед началом новой ночи
         await self._unpin_previous_stage_message(context, game, "night")
-        await self.start_night_phase(update, context, game)
+        await self.start_night_phase(context, game)
 
     async def _unpin_all_bot_messages(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Открепляет все закрепленные сообщения бота в чате"""
@@ -2529,7 +2420,7 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"Ошибка при тегировании участников игры: {e}")
 
-    async def end_game_winner(self, update: Update, context: ContextTypes.DEFAULT_TYPE, game: Game, winner: Optional[Team] = None):
+    async def end_game_winner(self, context: ContextTypes.DEFAULT_TYPE, game: Game, winner: Optional[Team] = None):
         if getattr(game, "game_over_sent", False):
             return
         game.game_over_sent = True
@@ -2582,12 +2473,22 @@ class ForestWolvesBot:
             )
         except Exception as e:
             logger.error(f"Не удалось отправить сообщение о завершении игры: {e}")
-            # Fallback - если update есть, попробуем через reply
-            if update and hasattr(update, 'message') and update.message:
-                try:
-                    await update.message.reply_text(message_text, parse_mode='Markdown')
-                except Exception as e2:
-                    logger.error(f"Fallback тоже не сработал: {e2}")
+            # Fallback - попробуем отправить без форматирования
+            try:
+                await context.bot.send_message(
+                    chat_id=game.chat_id,
+                    text=message_text.replace('*', '').replace('_', ''),
+                    message_thread_id=game.thread_id
+                )
+            except Exception as e2:
+                logger.error(f"Fallback тоже не сработал: {e2}")
+
+        # Обновляем статистику игроков в базе данных
+        try:
+            if self.db and game.players:
+                await self.update_player_stats_after_game(game, winner)
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления статистики игроков: {e}")
 
         for pid in list(game.players.keys()):
             if pid in self.player_games:
@@ -2769,8 +2670,7 @@ class ForestWolvesBot:
             keyboard = [
                 [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-            [InlineKeyboardButton("🔍 Проверить этап", callback_data="check_stage")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -2930,29 +2830,89 @@ class ForestWolvesBot:
         elif query.data == "close_diagnostics":
             await query.edit_message_text("🔍 Диагностика закрыта.")
 
-        elif query.data == "day_choose_wolf":
-            # Проверяем права пользователя
-            has_permission, error_msg = await self.check_game_permissions(update, context, "day_choose_wolf")
+        elif query.data == "repeat_current_phase":
+            # Повторяем текущий этап - доступно всем участникам игры
+            # Проверяем права пользователя (только участники игры)
+            update_temp = Update(update_id=0, callback_query=query)
+            has_permission, error_msg = await self.check_user_permissions(
+                update_temp, context, "member"
+            )
             if not has_permission:
                 await query.answer(error_msg, show_alert=True)
                 return
             
-            if game.phase != GamePhase.DAY:
-                await query.edit_message_text("❌ Голосование за волка доступно только в дневной фазе!")
+            if game.phase == GamePhase.WAITING:
+                await query.answer("❌ Эта функция недоступна в фазе ожидания!", show_alert=True)
                 return
 
-            await query.edit_message_text("🐺 Администратор инициировал голосование 'Кто волк?'!")
-            # Создаем mock update для start_wolf_voting_phase
-            mock_update = type('MockUpdate', (), {
-                'message': type('MockMessage', (), {
-                    'reply_text': lambda self, text, **kwargs: context.bot.send_message(
-                        chat_id=game.chat_id, 
-                        text=text, 
-                        message_thread_id=game.thread_id
-                    )
-                })()
-            })()
-            await self.start_wolf_voting_phase(mock_update, context, game)
+            # Повторно отправляем сообщение в зависимости от текущей фазы
+            if game.phase == GamePhase.DAY:
+                # Дневная фаза
+                phase_message = (
+                    "☀️ Наступило утро ☀️\n\n"
+                    "🌲 Все зверушки проснулись и собрались на лесной поляне для обсуждения.\n"
+                    f"🔄 Раунд: {game.current_round}\n"
+                    f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
+                    "💬 Обсуждайте, кого подозреваете в хищничестве!\n"
+                    "🕐 У вас есть время для размышлений..."
+                )
+                
+                # Создаем кнопки для дневной фазы
+                keyboard = [
+                    [InlineKeyboardButton("🏁 Завершить обсуждение", callback_data="day_end_discussion")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+            elif game.phase == GamePhase.NIGHT:
+                # Ночная фаза
+                phase_message = (
+                    "🌙 Наступила ночь 🌙\n\n"
+                    "🌲 Все зверушки засыпают в своих укрытиях...\n"
+                    f"🔄 Раунд: {game.current_round}\n"
+                    f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
+                    "🐺 Хищники выходят на охоту...\n"
+                    "🦫 Травоядные спят беспокойно..."
+                )
+                reply_markup = None
+                
+            elif game.phase == GamePhase.VOTING:
+                # Фаза голосования
+                phase_message = (
+                    "🗳️ Время голосования! 🗳️\n\n"
+                    "🌲 Все зверушки собрались для принятия решения.\n"
+                    f"🔄 Раунд: {game.current_round}\n"
+                    f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
+                    "🗳️ Голосуйте за изгнание подозрительного зверька!\n"
+                    "⏰ У вас есть время на размышления..."
+                )
+                reply_markup = None
+                
+            else:
+                # Игра окончена
+                phase_message = (
+                    "🏁 Игра окончена! 🏁\n\n"
+                    f"🔄 Раунд: {game.current_round}\n"
+                    f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
+                    "🌲 Игра завершена!"
+                )
+                reply_markup = None
+            
+            await context.bot.send_message(
+                chat_id=game.chat_id,
+                text=phase_message,
+                reply_markup=reply_markup,
+                message_thread_id=game.thread_id
+            )
+            
+            phase_names = {
+                GamePhase.DAY: "дня",
+                GamePhase.NIGHT: "ночи", 
+                GamePhase.VOTING: "голосования",
+                GamePhase.GAME_OVER: "игры"
+            }
+            phase_name = phase_names.get(game.phase, "этапа")
+            await query.edit_message_text(f"🔄 Сообщение {phase_name} повторно отправлено!")
+
 
     # ---------------- settings UI (basic, non-persistent) ----------------
     async def settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2979,13 +2939,17 @@ class ForestWolvesBot:
             await update.message.reply_text("❌ Только администраторы могут изменять настройки!")
             return
 
-        test_mode_text = "🧪 Тестовый режим: ВКЛ" if self.global_settings.is_test_mode() else "🧪 Тестовый режим: ВЫКЛ"
+        # Получаем настройки чата из базы данных
+        chat_settings = get_chat_settings(chat_id)
+        
+        test_mode_text = "🧪 Тестовый режим: ВКЛ" if chat_settings['test_mode'] else "🧪 Тестовый режим: ВЫКЛ"
 
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
+            [InlineKeyboardButton("👥 Лимиты игроков", callback_data="settings_players")],
             [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
-            [InlineKeyboardButton("📈 Глобальные настройки", callback_data="settings_global")],
+            [InlineKeyboardButton("🔄 Сбросить настройки", callback_data="settings_reset_chat")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
         ]
 
@@ -2993,9 +2957,15 @@ class ForestWolvesBot:
         if chat_id in self.games:
             keyboard.insert(-1, [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")])
 
+        # Формируем текст с настройками чата
         settings_text = (
-            "⚙️ Настройки бота\n\n"
-            f"{self.global_settings.get_settings_summary()}\n\n"
+            "⚙️ Настройки чата\n\n"
+            f"🧪 Тестовый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
+            f"👥 Игроков: {chat_settings['min_players']}-{chat_settings['max_players']}\n"
+            f"⏱️ Таймеры: Ночь {chat_settings['night_duration']}с, День {chat_settings['day_duration']}с, Голосование {chat_settings['vote_duration']}с\n"
+            f"🎭 Роли: Лиса умрет через {chat_settings['fox_death_threshold']} ночей, Крот раскроется через {chat_settings['mole_reveal_threshold']} ночей\n"
+            f"🛡️ Защита бобра: {'ВКЛ' if chat_settings['beaver_protection'] else 'ВЫКЛ'}\n"
+            f"🏁 Лимиты: {chat_settings['max_rounds']} раундов, {chat_settings['max_time']//60} мин, минимум {chat_settings['min_alive']} живых\n\n"
             "Выберите, что хотите изменить:"
         )
 
@@ -3028,6 +2998,12 @@ class ForestWolvesBot:
             await self.toggle_test_mode(query, context, game)
         elif query.data == "settings_global":
             await self.show_global_settings(query, context)
+        elif query.data == "settings_players":
+            await self.show_player_settings(query, context)
+        elif query.data == "settings_reset_chat":
+            await self.reset_chat_settings(query, context)
+        elif query.data == "confirm_reset_chat":
+            await self.confirm_reset_chat_settings(query, context)
         elif query.data == "settings_reset":
             if game:
                 await self.reset_game_stats(query, context, game)
@@ -3037,15 +3013,86 @@ class ForestWolvesBot:
             await query.edit_message_text("⚙️ Настройки закрыты")
 
     async def show_timer_settings(self, query, context):
+        chat_id = query.message.chat.id
+        chat_settings = get_chat_settings(chat_id)
+        
         keyboard = [
             [InlineKeyboardButton("🌙 Изменить длительность ночи", callback_data="timer_night")],
             [InlineKeyboardButton("☀️ Изменить длительность дня", callback_data="timer_day")],
             [InlineKeyboardButton("🗳️ Изменить длительность голосования", callback_data="timer_vote")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
         ]
+        
+        night_min = chat_settings['night_duration'] // 60
+        night_sec = chat_settings['night_duration'] % 60
+        day_min = chat_settings['day_duration'] // 60
+        day_sec = chat_settings['day_duration'] % 60
+        vote_min = chat_settings['vote_duration'] // 60
+        vote_sec = chat_settings['vote_duration'] % 60
+        
+        night_text = f"{night_min}м {night_sec}с" if night_min > 0 else f"{night_sec}с"
+        day_text = f"{day_min}м {day_sec}с" if day_min > 0 else f"{day_sec}с"
+        vote_text = f"{vote_min}м {vote_sec}с" if vote_min > 0 else f"{vote_sec}с"
+        
         await query.edit_message_text(
-            "⏱️ Настройки таймеров\n\nТекущие значения:\n🌙 Ночь: 60 секунд\n☀️ День: 5 минут\n🗳️ Голосование: 2 минуты\n\nВыберите, что хотите изменить:",
+            f"⏱️ Настройки таймеров\n\nТекущие значения:\n🌙 Ночь: {night_text}\n☀️ День: {day_text}\n🗳️ Голосование: {vote_text}\n\nВыберите, что хотите изменить:",
             reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def show_player_settings(self, query, context):
+        """Показывает настройки лимитов игроков"""
+        chat_id = query.message.chat.id
+        chat_settings = get_chat_settings(chat_id)
+        
+        keyboard = [
+            [InlineKeyboardButton("👥 Минимум игроков", callback_data="players_min")],
+            [InlineKeyboardButton("👥 Максимум игроков", callback_data="players_max")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
+        ]
+        
+        await query.edit_message_text(
+            f"👥 Настройки лимитов игроков\n\nТекущие значения:\n👥 Минимум: {chat_settings['min_players']} игроков\n👥 Максимум: {chat_settings['max_players']} игроков\n\nВыберите, что хотите изменить:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def reset_chat_settings(self, query, context):
+        """Сбрасывает настройки чата к дефолтным"""
+        chat_id = query.message.chat.id
+        
+        # Подтверждение сброса
+        keyboard = [
+            [InlineKeyboardButton("✅ Да, сбросить", callback_data="confirm_reset_chat")],
+            [InlineKeyboardButton("❌ Отмена", callback_data="settings_back")]
+        ]
+        
+        await query.edit_message_text(
+            "🔄 Сброс настроек чата\n\n⚠️ Это действие сбросит ВСЕ настройки чата к дефолтным значениям:\n\n"
+            "• Тестовый режим: ВЫКЛ\n"
+            "• Игроков: 4-12\n"
+            "• Таймеры: Ночь 60с, День 300с, Голосование 120с\n"
+            "• Роли: Лиса умрет через 2 ночи, Крот раскроется через 3 ночи\n"
+            "• Защита бобра: ВКЛ\n"
+            "• Лимиты: 20 раундов, 60 мин, минимум 2 живых\n\n"
+            "Вы уверены, что хотите сбросить настройки?",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def confirm_reset_chat_settings(self, query, context):
+        """Подтверждает сброс настроек чата"""
+        chat_id = query.message.chat.id
+        
+        # Сбрасываем настройки в базе данных
+        success = reset_chat_settings(chat_id)
+        
+        if success:
+            await query.edit_message_text(
+                "✅ Настройки чата успешно сброшены к дефолтным значениям!\n\n"
+                "Все настройки восстановлены к стандартным значениям."
+            )
+        else:
+            await query.edit_message_text(
+                "❌ Ошибка при сбросе настроек чата!\n\n"
+                "Попробуйте еще раз или обратитесь к администратору."
         )
 
     async def show_role_settings(self, query, context):
@@ -3062,24 +3109,35 @@ class ForestWolvesBot:
         )
 
     async def toggle_test_mode(self, query, context, game: Optional[Game]):
+        chat_id = query.message.chat.id
+        
         # Проверяем, можно ли изменить тестовый режим
         if game and game.phase != GamePhase.WAITING:
             await query.edit_message_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
             return
 
-        # Переключаем тестовый режим
-        new_mode = self.global_settings.toggle_test_mode()
-        mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+        # Получаем текущие настройки чата
+        chat_settings = get_chat_settings(chat_id)
+        current_mode = chat_settings['test_mode']
+        new_mode = not current_mode
         
-        # Обновляем игру, если она есть
-        if game:
-            game.is_test_mode = new_mode
+        # Обновляем настройки в базе данных
+        success = update_chat_settings(chat_id, test_mode=new_mode)
         
-        await query.edit_message_text(
-            f"✅ Тестовый режим переключен: {mode_text}\n\n"
-            f"Минимум игроков: {self.global_settings.get_min_players()}\n\n"
-            "Настройка сохранена и будет применена для следующих игр!"
-        )
+        if success:
+            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+            
+            # Обновляем игру, если она есть
+            if game:
+                game.is_test_mode = new_mode
+            
+            await query.edit_message_text(
+                f"✅ Тестовый режим переключен: {mode_text}\n\n"
+                f"Минимум игроков: {chat_settings['min_players']}\n\n"
+                "Настройка сохранена в базе данных и будет применена для следующих игр!"
+            )
+        else:
+            await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
 
     async def show_global_settings(self, query, context):
         """Показывает глобальные настройки бота"""
@@ -3188,13 +3246,17 @@ class ForestWolvesBot:
         chat_id = query.message.chat.id
         user_id = query.from_user.id
 
-        test_mode_text = "🧪 Тестовый режим: ВКЛ" if self.global_settings.is_test_mode() else "🧪 Тестовый режим: ВЫКЛ"
+        # Получаем настройки чата из базы данных
+        chat_settings = get_chat_settings(chat_id)
+        
+        test_mode_text = "🧪 Тестовый режим: ВКЛ" if chat_settings['test_mode'] else "🧪 Тестовый режим: ВЫКЛ"
 
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
+            [InlineKeyboardButton("👥 Лимиты игроков", callback_data="settings_players")],
             [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
-            [InlineKeyboardButton("📈 Глобальные настройки", callback_data="settings_global")],
+            [InlineKeyboardButton("🔄 Сбросить настройки", callback_data="settings_reset_chat")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
         ]
 
@@ -3202,9 +3264,15 @@ class ForestWolvesBot:
         if chat_id in self.games:
             keyboard.insert(-1, [InlineKeyboardButton("📊 Сбросить статистику", callback_data="settings_reset")])
 
+        # Формируем текст с настройками чата
         settings_text = (
-            "⚙️ Настройки бота\n\n"
-            f"{self.global_settings.get_settings_summary()}\n\n"
+            "⚙️ Настройки чата\n\n"
+            f"🧪 Тестовый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
+            f"👥 Игроков: {chat_settings['min_players']}-{chat_settings['max_players']}\n"
+            f"⏱️ Таймеры: Ночь {chat_settings['night_duration']}с, День {chat_settings['day_duration']}с, Голосование {chat_settings['vote_duration']}с\n"
+            f"🎭 Роли: Лиса умрет через {chat_settings['fox_death_threshold']} ночей, Крот раскроется через {chat_settings['mole_reveal_threshold']} ночей\n"
+            f"🛡️ Защита бобра: {'ВКЛ' if chat_settings['beaver_protection'] else 'ВЫКЛ'}\n"
+            f"🏁 Лимиты: {chat_settings['max_rounds']} раундов, {chat_settings['max_time']//60} мин, минимум {chat_settings['min_alive']} живых\n\n"
             "Выберите, что хотите изменить:"
         )
 
@@ -3369,96 +3437,6 @@ class ForestWolvesBot:
             await self.end_game_winner(fake_update, context, game, winner)
             return
 
-    async def handle_wolf_voting(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает голосование за волка"""
-        if not update or not update.callback_query:
-            return
-        query = update.callback_query
-        await query.answer()
-
-        # Проверяем права пользователя
-        update = Update(update_id=0, callback_query=query)
-        has_permission, error_msg = await self.check_user_permissions(
-            update, context, "member"
-        )
-        if not has_permission:
-            await query.answer(error_msg, show_alert=True)
-            return
-
-        user_id = query.from_user.id
-        
-        # Находим игру по игроку
-        if user_id not in self.player_games:
-            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
-            return
-
-        chat_id = self.player_games[user_id]
-        if chat_id not in self.games:
-            await query.edit_message_text("❌ Игра не найдена!")
-            return
-
-        game = self.games[chat_id]
-        if game.phase != GamePhase.VOTING:
-            await query.answer("❌ Голосование уже завершено!", show_alert=True)
-            return
-
-        # Проверяем пропуск голосования
-        if query.data == "wolf_vote_skip":
-            # Добавляем голос "пропустить" в игру
-            success, already_voted = game.vote(user_id, None)  # None означает пропуск
-            if success:
-                await query.edit_message_text("⏭️ Вы пропустили голосование за волка!\n\n🕐 Ожидайте результатов голосования...")
-                
-                # Проверяем, все ли проголосовали (включая пропуски)
-                if hasattr(game, 'total_voters') and len(game.votes) >= game.total_voters:
-                    # Все проголосовали - завершаем досрочно в отдельной задаче
-                    asyncio.create_task(self.complete_wolf_voting_early(context, game))
-            else:
-                await query.edit_message_text("❌ Не удалось зарегистрировать пропуск голосования!")
-            return
-
-        data = query.data.split('_')
-        if len(data) != 3:
-            await query.edit_message_text("❌ Ошибка данных!")
-            return
-
-        target_id = int(data[2])
-        
-        # Дополнительная проверка на голосование за себя
-        if target_id == user_id:
-            await query.answer("❌ Вы не можете голосовать за себя!\n\n🔄 Выберите другого игрока для голосования.", show_alert=True)
-            return
-        
-        # Проверяем, что голосующий жив и в игре
-        voter = game.players.get(user_id)
-        if not voter or not voter.is_alive:
-            await query.answer("❌ Вы не можете голосовать!", show_alert=True)
-            return
-
-        success, already_voted = game.vote(user_id, target_id)
-        if success:
-            target_player = game.players[target_id]
-            if already_voted:
-                await query.edit_message_text(f"🔄 Ваш голос изменен!\nТеперь вы голосуете за волка: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
-            else:
-                await query.edit_message_text(f"✅ Вы проголосовали за {target_player.username} как за волка!\n\n🕐 Ожидайте результатов голосования...")
-            
-            # Проверяем, все ли проголосовали
-            if hasattr(game, 'total_voters') and len(game.votes) >= game.total_voters:
-                # Все проголосовали - завершаем досрочно в отдельной задаче
-                asyncio.create_task(self.complete_wolf_voting_early(context, game))
-        else:
-            await query.edit_message_text("❌ Не удалось зарегистрировать голос!")
-
-    async def complete_wolf_voting_early(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Завершает голосование за волка досрочно"""
-        await asyncio.sleep(0.5)  # Небольшая задержка чтобы все голоса успели обработаться
-        if game.phase == GamePhase.VOTING and hasattr(game, 'voting_type') and game.voting_type == "wolf":
-            await context.bot.send_message(
-                chat_id=game.chat_id, 
-                text="⚡ Все игроки проголосовали! Голосование 'Кто волк?' завершено досрочно."
-            )
-            await self.process_wolf_voting_results(context, game)
 
     async def complete_exile_voting_early(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Завершает голосование за изгнание досрочно"""
@@ -3895,6 +3873,10 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("setup_channel", self.setup_channel)) # Обработчик команды setup_channel
         application.add_handler(CommandHandler("remove_channel", self.remove_channel)) # Обработчик команды remove_channel
         
+        # Новые команды для работы с базой данных
+        application.add_handler(CommandHandler("баланс", self.balance_command)) # Команда /баланс
+        application.add_handler(CommandHandler("игра", self.game_command)) # Команда /игра
+        
 
         # Обработчик присоединения бота к чату
         application.add_handler(ChatMemberHandler(self.handle_bot_join, ChatMemberHandler.MY_CHAT_MEMBER))
@@ -3905,7 +3887,6 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^settings_"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
         application.add_handler(CallbackQueryHandler(self.handle_day_actions, pattern=r"^day_"))
-        application.add_handler(CallbackQueryHandler(self.handle_wolf_voting, pattern=r"^wolf_vote_"))
         
         # Новые callback обработчики
         application.add_handler(CallbackQueryHandler(self.handle_join_game_callback, pattern=r"^join_game$"))
@@ -3921,7 +3902,6 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^set_"))
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^timer_back"))
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^view_my_role$"))
-        application.add_handler(CallbackQueryHandler(self.handle_check_stage, pattern=r"^check_stage$"))
 
         # Установка команд после старта бота
         async def post_init(application):
@@ -3930,7 +3910,15 @@ class ForestWolvesBot:
         application.post_init = post_init
 
         # Запуск бота (blocking call)
-        application.run_polling()
+        try:
+            application.run_polling()
+        except KeyboardInterrupt:
+            logger.info("⏹️ Остановка бота...")
+        finally:
+            # Закрываем подключение к базе данных
+            if self.db:
+                close_db()
+                logger.info("✅ Подключение к базе данных закрыто")
 
     async def handle_bot_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает присоединение бота к чату"""
