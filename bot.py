@@ -3168,8 +3168,9 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
+        update_temp = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
-            query, context, "member"
+            update_temp, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3383,8 +3384,9 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
+        update_temp = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
-            query, context, "member"
+            update_temp, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3412,8 +3414,9 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
+        update_temp = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
-            query, context, "member"
+            update_temp, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3461,8 +3464,9 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
+        update_temp = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
-            query, context, "member"
+            update_temp, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3565,8 +3569,9 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
+        update_temp = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
-            query, context, "member"
+            update_temp, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
