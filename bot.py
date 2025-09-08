@@ -1513,7 +1513,7 @@ class ForestWolvesBot:
             # Тегируем всех участников игры
             await self.tag_game_participants(update, context, game)
             
-            await self.start_night_phase(update, context, game)
+            await self.start_night_phase(context, game)
         else:
             await update.message.reply_text("❌ Не удалось начать игру!")
 
@@ -1881,8 +1881,8 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-            except Exception as e2:
-                logger.error(f"Fallback тоже не сработал: {e2}")
+                except Exception as e2:
+                    logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
         for pid in list(game.players.keys()):
@@ -1942,25 +1942,25 @@ class ForestWolvesBot:
         )
         
         # Отправляем сообщение о начале ночи
-        await context.bot.send_message(
-            chat_id=game.chat_id,
-            text=forest_story,
-            parse_mode='Markdown',
-            message_thread_id=game.thread_id
-        )
-        
-        # Небольшая пауза для атмосферы
-        await asyncio.sleep(2)
-        
-        night_message = await context.bot.send_message(
-            chat_id=game.chat_id,
-            text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-            reply_markup=reply_markup,
-            message_thread_id=game.thread_id
-        )
-        
-        # Закрепляем сообщение ночи
-        await self._pin_stage_message(context, game, "night", night_message.message_id)
+            await context.bot.send_message(
+                chat_id=game.chat_id,
+                text=forest_story,
+                parse_mode='Markdown',
+                message_thread_id=game.thread_id
+            )
+            
+            # Небольшая пауза для атмосферы
+            await asyncio.sleep(2)
+            
+            night_message = await context.bot.send_message(
+                chat_id=game.chat_id,
+                text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
+                reply_markup=reply_markup,
+                message_thread_id=game.thread_id
+            )
+            
+            # Закрепляем сообщение ночи
+            await self._pin_stage_message(context, game, "night", night_message.message_id)
 
         # ЛС с ролями
         for player in game.players.values():
@@ -2483,8 +2483,8 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-            except Exception as e2:
-                logger.error(f"Fallback тоже не сработал: {e2}")
+                except Exception as e2:
+                    logger.error(f"Fallback тоже не сработал: {e2}")
 
         # Обновляем статистику игроков в базе данных
         try:
@@ -2901,11 +2901,11 @@ class ForestWolvesBot:
                 reply_markup = None
             
             await context.bot.send_message(
-                chat_id=game.chat_id,
+                        chat_id=game.chat_id, 
                 text=phase_message,
                 reply_markup=reply_markup,
-                message_thread_id=game.thread_id
-            )
+                        message_thread_id=game.thread_id
+                    )
             
             phase_names = {
                 GamePhase.DAY: "дня",
@@ -3014,6 +3014,10 @@ class ForestWolvesBot:
                 await query.edit_message_text("❌ Нет активной игры для сброса статистики!")
         elif query.data == "settings_close":
             await query.edit_message_text("⚙️ Настройки закрыты")
+        elif query.data == "players_min":
+            await self.show_min_players_options(query, context)
+        elif query.data == "players_max":
+            await self.show_max_players_options(query, context)
 
     async def show_timer_settings(self, query, context):
         chat_id = query.message.chat.id
@@ -3055,6 +3059,37 @@ class ForestWolvesBot:
         
         await query.edit_message_text(
             f"👥 Настройки лимитов игроков\n\nТекущие значения:\n👥 Минимум: {chat_settings['min_players']} игроков\n👥 Максимум: {chat_settings['max_players']} игроков\n\nВыберите, что хотите изменить:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def show_min_players_options(self, query, context):
+        """Показывает опции для изменения минимального количества игроков"""
+        keyboard = [
+            [InlineKeyboardButton("3 игрока", callback_data="set_min_players_3")],
+            [InlineKeyboardButton("4 игрока", callback_data="set_min_players_4")],
+            [InlineKeyboardButton("5 игроков", callback_data="set_min_players_5")],
+            [InlineKeyboardButton("6 игроков", callback_data="set_min_players_6")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="settings_players")]
+        ]
+        
+        await query.edit_message_text(
+            "👥 Выберите минимальное количество игроков:",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def show_max_players_options(self, query, context):
+        """Показывает опции для изменения максимального количества игроков"""
+        keyboard = [
+            [InlineKeyboardButton("8 игроков", callback_data="set_max_players_8")],
+            [InlineKeyboardButton("10 игроков", callback_data="set_max_players_10")],
+            [InlineKeyboardButton("12 игроков", callback_data="set_max_players_12")],
+            [InlineKeyboardButton("15 игроков", callback_data="set_max_players_15")],
+            [InlineKeyboardButton("20 игроков", callback_data="set_max_players_20")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="settings_players")]
+        ]
+        
+        await query.edit_message_text(
+            "👥 Выберите максимальное количество игроков:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
@@ -3128,17 +3163,17 @@ class ForestWolvesBot:
         success = update_chat_settings(chat_id, test_mode=new_mode)
         
         if success:
-            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
-            
-            # Обновляем игру, если она есть
-            if game:
-                game.is_test_mode = new_mode
-            
-            await query.edit_message_text(
-                f"✅ Тестовый режим переключен: {mode_text}\n\n"
+        mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+        
+        # Обновляем игру, если она есть
+        if game:
+            game.is_test_mode = new_mode
+        
+        await query.edit_message_text(
+            f"✅ Тестовый режим переключен: {mode_text}\n\n"
                 f"Минимум игроков: {chat_settings['min_players']}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
-            )
+        )
         else:
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
 
@@ -3382,6 +3417,16 @@ class ForestWolvesBot:
             else:
                 time_text = f"{seconds} секунд"
             await query.edit_message_text(f"🗳️ Длительность голосования изменена на {time_text}!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
+        elif query.data.startswith("set_min_players_"):
+            players = int(query.data.split("_")[3])
+            # Сохраняем настройку в базу данных
+            update_chat_settings(chat_id, min_players=players)
+            await query.edit_message_text(f"👥 Минимальное количество игроков изменено на {players}!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
+        elif query.data.startswith("set_max_players_"):
+            players = int(query.data.split("_")[3])
+            # Сохраняем настройку в базу данных
+            update_chat_settings(chat_id, max_players=players)
+            await query.edit_message_text(f"👥 Максимальное количество игроков изменено на {players}!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
 
     # ---------------- night actions processing ----------------
     async def send_night_actions_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -3699,7 +3744,7 @@ class ForestWolvesBot:
         await self.send_roles_to_players(context, game)
         
         # Запускаем первую ночь
-        await self.start_night_phase(update_or_query, context, game)
+        await self.start_night_phase(context, game)
 
     async def send_roles_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Отправляет роли всем игрокам в личные сообщения"""
@@ -3914,7 +3959,7 @@ class ForestWolvesBot:
 
         # Запуск бота (blocking call)
         try:
-            application.run_polling()
+        application.run_polling()
         except KeyboardInterrupt:
             logger.info("⏹️ Остановка бота...")
         finally:
