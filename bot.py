@@ -699,7 +699,7 @@ class ForestWolvesBot:
         if not has_permission:
             await self.send_permission_error(update, context, error_msg)
             return
-        
+            
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name or "Unknown"
         
@@ -1634,11 +1634,11 @@ class ForestWolvesBot:
             thread_id=thread_id,
             status='waiting',
             settings={
-                "min_players": min_players,
-                "max_players": self.global_settings.get("max_players", 12),
-                "night_duration": self.global_settings.get("night_duration", 60),
-                "day_duration": self.global_settings.get("day_duration", 300),
-                "voting_duration": self.global_settings.get("voting_duration", 120)
+            "min_players": min_players,
+            "max_players": self.global_settings.get("max_players", 12),
+            "night_duration": self.global_settings.get("night_duration", 60),
+            "day_duration": self.global_settings.get("day_duration", 300),
+            "voting_duration": self.global_settings.get("voting_duration", 120)
             }
         )
         
@@ -2036,7 +2036,7 @@ class ForestWolvesBot:
                     message_thread_id=game.thread_id
                 )
             except Exception as e2:
-                    logger.error(f"Fallback тоже не сработал: {e2}")
+                logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
         for pid in list(game.players.keys()):
@@ -2643,7 +2643,7 @@ class ForestWolvesBot:
                     message_thread_id=game.thread_id
                 )
             except Exception as e2:
-                    logger.error(f"Fallback тоже не сработал: {e2}")
+                logger.error(f"Fallback тоже не сработал: {e2}")
 
         # Обновляем статистику игроков в базе данных
         try:
@@ -3045,9 +3045,33 @@ class ForestWolvesBot:
                     f"🔄 Раунд: {game.current_round}\n"
                     f"👥 Живых игроков: {len(game.get_alive_players())}\n\n"
                     "🗳️ Голосуйте за изгнание подозрительного зверька!\n"
-                    "⏰ У вас есть время на размышления..."
+                    "⏰ У вас есть время на размышления...\n\n"
+                    "📱 Проверьте личные сообщения с ботом - там вас ждет важное решение."
                 )
                 reply_markup = None
+                
+                # Отправляем кнопки голосования в личные сообщения
+                alive_players = game.get_alive_players()
+                for voter in alive_players:
+                    # Исключаем самого голосующего из списка целей
+                    voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
+                    keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
+                    # Добавляем кнопку "Пропустить голосование"
+                    keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
+                    reply_markup_voting = InlineKeyboardMarkup(keyboard)
+
+                    try:
+                        await context.bot.send_message(
+                            chat_id=voter.user_id,
+                            text=(
+                                "🌲 Время решать судьбу леса!\n\n"
+                                "🦌 Кого из обитателей леса вы считаете опасным для остальных зверушек?\n"
+                                "⏰ У вас есть время, чтобы сделать свой выбор:"
+                            ),
+                            reply_markup=reply_markup_voting
+                        )
+                    except Exception as e:
+                        logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
                 
             else:
                 # Игра окончена
@@ -3671,17 +3695,8 @@ class ForestWolvesBot:
                 connect_timeout=10
             )
             
-            # Создаем фиктивный update для process_voting_results
-            from telegram import Update, Message
-            fake_message = Message(
-                message_id=0,
-                date=None,
-                chat=None,
-                from_user=None,
-                text=""
-            )
-            fake_update = Update(update_id=0, message=fake_message)
-            await self.process_voting_results(fake_update, context, game)
+            # Вызываем process_voting_results напрямую
+            await self.process_voting_results(context, game)
         except Exception as e:
             logger.error(f"Ошибка в complete_exile_voting_early: {e}")
             # Сбрасываем флаг в случае ошибки
