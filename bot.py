@@ -150,10 +150,14 @@ class ForestWolvesBot:
                     game.players[player.user_id] = player
                     self.player_games[player.user_id] = chat_id
                 
+                # Создаем NightActions и NightInterface для загруженной игры
+                self.night_actions[chat_id] = NightActions(game)
+                self.night_interfaces[chat_id] = NightInterface(game, self.night_actions[chat_id])
+                
                 # Сохраняем игру в памяти
                 self.games[chat_id] = game
                 
-                logger.info(f"✅ Загружена активная игра {game_data['id']} для чата {chat_id}")
+                logger.info(f"✅ Загружена активная игра {game_data['id']} для чата {chat_id} с ночными действиями")
                 
         except Exception as e:
             logger.error(f"Ошибка при загрузке активных игр: {e}")
