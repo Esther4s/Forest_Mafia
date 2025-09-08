@@ -24,11 +24,12 @@ from database_adapter import DatabaseAdapter
 from database_psycopg2 import (
     init_db, close_db,
     create_user, get_user_by_telegram_id, update_user_balance,
-    execute_query, fetch_one,
+    execute_query, fetch_one, fetch_query,
     get_chat_settings, update_chat_settings, reset_chat_settings,
     create_tables,
     save_player_action, save_vote, update_player_stats,
-    get_bot_setting, set_bot_setting
+    get_bot_setting, set_bot_setting,
+    save_game_to_db, save_player_to_db, update_game_phase, finish_game_in_db
 )
 
 logging.basicConfig(
@@ -79,8 +80,15 @@ class ForestWolvesBot:
         self.authorized_chats: set = set()  # Хранит кортежи (chat_id, thread_id)
         # Bot token
         self.bot_token = BOT_TOKEN
-        # Database adapter
-        self.db = DatabaseAdapter()
+        # Инициализация базы данных
+        try:
+            self.db = init_db()
+            # Создаем таблицы если их нет
+            create_tables()
+            logger.info("✅ База данных инициализирована успешно")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации базы данных: {e}")
+            self.db = None
         
         # Загружаем активные игры из базы данных
         self.load_active_games()
@@ -88,8 +96,18 @@ class ForestWolvesBot:
     def load_active_games(self):
         """Загружает активные игры из базы данных при старте бота"""
         try:
-            # Получаем все активные игры из БД
-            active_games = self.db.get_all_active_games()
+            if not self.db:
+                logger.warning("⚠️ База данных недоступна, активные игры не загружены")
+                return
+            
+            # Получаем все активные игры из БД через psycopg2
+            query = """
+            SELECT id, chat_id, thread_id, status, phase, round_number, 
+                   created_at, started_at, finished_at, winner_team, settings
+            FROM games 
+            WHERE status IN ('waiting', 'active')
+            """
+            active_games = fetch_query(query)
             
             for game_data in active_games:
                 chat_id = game_data['chat_id']
@@ -100,12 +118,20 @@ class ForestWolvesBot:
                 game.chat_id = chat_id
                 game.thread_id = thread_id
                 game.db_game_id = game_data['id']
-                game.phase = GamePhase(game_data['phase'])
+                if game_data.get('phase'):
+                    game.phase = GamePhase(game_data['phase'])
                 game.current_round = game_data.get('round_number', 0)
                 game.status = game_data.get('status', 'active')
                 
                 # Загружаем игроков
-                players_data = self.db.get_game_players(game_data['id'])
+                players_query = """
+                SELECT id, user_id, username, first_name, last_name, 
+                       role, team, is_alive
+                FROM players 
+                WHERE game_id = %s
+                """
+                players_data = fetch_query(players_query, (game_data['id'],))
+                
                 for player_data in players_data:
                     player = Player(
                         user_id=player_data['user_id'],
@@ -125,7 +151,7 @@ class ForestWolvesBot:
                 # Сохраняем игру в памяти
                 self.games[chat_id] = game
                 
-                logger.info(f"Загружена активная игра {game_data['id']} для чата {chat_id}")
+                logger.info(f"✅ Загружена активная игра {game_data['id']} для чата {chat_id}")
                 
         except Exception as e:
             logger.error(f"Ошибка при загрузке активных игр: {e}")
@@ -283,6 +309,20 @@ class ForestWolvesBot:
             self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+            
+            # Создаем игру в базе данных
+            import uuid
+            db_game_id = str(uuid.uuid4())
+            self.games[chat_id].db_game_id = db_game_id
+            
+            # Сохраняем игру в БД
+            save_game_to_db(
+                game_id=db_game_id,
+                chat_id=chat_id,
+                thread_id=thread_id,
+                status='waiting',
+                settings={}
+            )
 
         game = self.games[chat_id]
 
@@ -291,6 +331,19 @@ class ForestWolvesBot:
 
         if game.add_player(user_id, username):
             self.player_games[user_id] = chat_id
+            
+            # Сохраняем игрока в базу данных
+            if hasattr(game, 'db_game_id') and game.db_game_id:
+                import uuid
+                player_id = str(uuid.uuid4())
+                save_player_to_db(
+                    player_id=player_id,
+                    game_id=game.db_game_id,
+                    user_id=user_id,
+                    username=username,
+                    is_alive=True
+                )
+            
             max_players = getattr(game, "MAX_PLAYERS", 12)
             
             # Создаем улучшенную клавиатуру с новыми функциями
@@ -1478,39 +1531,45 @@ class ForestWolvesBot:
             return
 
         # Создаем игру в базе данных
-        db_game_id = self.db.create_game(chat_id, thread_id, {
-            "min_players": min_players,
-            "max_players": self.global_settings.get("max_players", 12),
-            "night_duration": self.global_settings.get("night_duration", 60),
-            "day_duration": self.global_settings.get("day_duration", 300),
-            "voting_duration": self.global_settings.get("voting_duration", 120)
-        })
+        import uuid
+        db_game_id = str(uuid.uuid4())
+        
+        # Сохраняем игру в БД
+        save_game_to_db(
+            game_id=db_game_id,
+            chat_id=chat_id,
+            thread_id=thread_id,
+            status='waiting',
+            settings={
+                "min_players": min_players,
+                "max_players": self.global_settings.get("max_players", 12),
+                "night_duration": self.global_settings.get("night_duration", 60),
+                "day_duration": self.global_settings.get("day_duration", 300),
+                "voting_duration": self.global_settings.get("voting_duration", 120)
+            }
+        )
         
         # Сохраняем ID игры в БД в объекте игры
         game.db_game_id = db_game_id
 
         if game.start_game():
-            # Записываем начало игры в БД
-            self.db.start_game(db_game_id)
+            # Обновляем статус игры в БД
+            update_game_phase(db_game_id, 'night', 1)
             
             # Добавляем всех игроков в БД
             for player in game.players.values():
-                self.db.add_player(
-                    db_game_id, 
-                    player.user_id, 
-                    player.username, 
-                    player.first_name, 
-                    player.last_name
+                player_id = str(uuid.uuid4())
+                save_player_to_db(
+                    player_id=player_id,
+                    game_id=db_game_id,
+                    user_id=player.user_id,
+                    username=player.username,
+                    first_name=player.first_name,
+                    last_name=player.last_name,
+                    role=player.role.value if player.role else None,
+                    team=player.team.value if player.team else None,
+                    is_alive=True
                 )
-            
-            # Назначаем роли в БД
-            role_assignments = {}
-            for player in game.players.values():
-                role_assignments[player.user_id] = {
-                    "role": player.role.value if player.role else None,
-                    "team": player.team.value if player.team else None
-                }
-            self.db.assign_roles(db_game_id, role_assignments)
             
             # Тегируем всех участников игры
             await self.tag_game_participants(update, context, game)
@@ -1914,7 +1973,7 @@ class ForestWolvesBot:
         
         # Сохраняем смену фазы в базу данных
         if hasattr(game, 'db_game_id') and game.db_game_id:
-            self.db.update_game_phase(game.db_game_id, "night")
+            update_game_phase(game.db_game_id, "night", game.current_round)
         
         # Открепляем сообщение о присоединении, так как игра началась
         if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
@@ -2063,7 +2122,7 @@ class ForestWolvesBot:
         
         # Сохраняем смену фазы в базу данных
         if hasattr(game, 'db_game_id') and game.db_game_id:
-            self.db.update_game_phase(game.db_game_id, "day")
+            update_game_phase(game.db_game_id, "day", game.current_round)
 
         # Открепляем сообщение ночи
         await self._unpin_previous_stage_message(context, game, "day")
@@ -2118,7 +2177,7 @@ class ForestWolvesBot:
         
         # Сохраняем смену фазы в базу данных
         if hasattr(game, 'db_game_id') and game.db_game_id:
-            self.db.update_game_phase(game.db_game_id, "voting")
+            update_game_phase(game.db_game_id, "voting", game.current_round)
 
         alive_players = game.get_alive_players()
         if len(alive_players) < 2:
@@ -2431,6 +2490,11 @@ class ForestWolvesBot:
         game.game_over_sent = True
 
         game.phase = GamePhase.GAME_OVER
+        
+        # Сохраняем завершение игры в базу данных
+        if hasattr(game, 'db_game_id') and game.db_game_id:
+            winner_team = winner.value if winner else None
+            finish_game_in_db(game.db_game_id, winner_team)
         
         # Отменяем таймер дневной фазы при завершении игры
         game.cancel_day_timer()

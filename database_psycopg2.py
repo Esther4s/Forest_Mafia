@@ -839,6 +839,139 @@ def set_bot_setting(setting_name: str, setting_value: str, description: str = No
         logger.error(f"❌ Ошибка установки настройки бота: {e}")
         return False
 
+# ==================== ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ ИГР ====================
+
+def save_game_to_db(game_id: str, chat_id: int, thread_id: int = None, 
+                   status: str = 'waiting', phase: str = None, 
+                   round_number: int = 0, settings: dict = None):
+    """
+    Сохраняет игру в базу данных
+    
+    Args:
+        game_id: ID игры
+        chat_id: ID чата
+        thread_id: ID темы (опционально)
+        status: Статус игры
+        phase: Фаза игры
+        round_number: Номер раунда
+        settings: Настройки игры
+    
+    Returns:
+        bool: True если успешно сохранено
+    """
+    try:
+        query = """
+        INSERT INTO games (id, chat_id, thread_id, status, phase, round_number, settings)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) 
+        DO UPDATE SET 
+            chat_id = EXCLUDED.chat_id,
+            thread_id = EXCLUDED.thread_id,
+            status = EXCLUDED.status,
+            phase = EXCLUDED.phase,
+            round_number = EXCLUDED.round_number,
+            settings = EXCLUDED.settings
+        """
+        params = (game_id, chat_id, thread_id, status, phase, round_number, 
+                 json.dumps(settings) if settings else '{}')
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения игры: {e}")
+        return False
+
+def save_player_to_db(player_id: str, game_id: str, user_id: int, 
+                     username: str = None, first_name: str = None, 
+                     last_name: str = None, role: str = None, 
+                     team: str = None, is_alive: bool = True):
+    """
+    Сохраняет игрока в базу данных
+    
+    Args:
+        player_id: ID игрока
+        game_id: ID игры
+        user_id: ID пользователя Telegram
+        username: Имя пользователя
+        first_name: Имя
+        last_name: Фамилия
+        role: Роль в игре
+        team: Команда
+        is_alive: Жив ли игрок
+    
+    Returns:
+        bool: True если успешно сохранено
+    """
+    try:
+        query = """
+        INSERT INTO players (id, game_id, user_id, username, first_name, last_name, role, team, is_alive)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ON CONFLICT (id) 
+        DO UPDATE SET 
+            username = EXCLUDED.username,
+            first_name = EXCLUDED.first_name,
+            last_name = EXCLUDED.last_name,
+            role = EXCLUDED.role,
+            team = EXCLUDED.team,
+            is_alive = EXCLUDED.is_alive
+        """
+        params = (player_id, game_id, user_id, username, first_name, 
+                 last_name, role, team, is_alive)
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения игрока: {e}")
+        return False
+
+def update_game_phase(game_id: str, phase: str, round_number: int = None):
+    """
+    Обновляет фазу игры в базе данных
+    
+    Args:
+        game_id: ID игры
+        phase: Новая фаза
+        round_number: Номер раунда (опционально)
+    
+    Returns:
+        bool: True если успешно обновлено
+    """
+    try:
+        if round_number is not None:
+            query = "UPDATE games SET phase = %s, round_number = %s WHERE id = %s"
+            params = (phase, round_number, game_id)
+        else:
+            query = "UPDATE games SET phase = %s WHERE id = %s"
+            params = (phase, game_id)
+        
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления фазы игры: {e}")
+        return False
+
+def finish_game_in_db(game_id: str, winner_team: str):
+    """
+    Завершает игру в базе данных
+    
+    Args:
+        game_id: ID игры
+        winner_team: Команда-победитель
+    
+    Returns:
+        bool: True если успешно завершено
+    """
+    try:
+        query = """
+        UPDATE games 
+        SET status = 'finished', winner_team = %s, finished_at = CURRENT_TIMESTAMP 
+        WHERE id = %s
+        """
+        params = (winner_team, game_id)
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка завершения игры: {e}")
+        return False
+
 def create_tables():
     """
     Создает все необходимые таблицы в базе данных
