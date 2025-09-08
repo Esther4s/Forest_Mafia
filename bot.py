@@ -556,7 +556,16 @@ class ForestWolvesBot:
         
         # Если есть аргументы, показываем топ игроков
         if context.args and context.args[0] == "top":
-            top_players = self.db.get_top_players(10, "games_won")
+            # Получаем топ игроков из базы данных
+            top_query = """
+                SELECT user_id, username, games_played, games_won, games_lost,
+                       times_wolf, times_fox, times_hare, times_mole, times_beaver
+                FROM player_stats 
+                WHERE games_played > 0
+                ORDER BY games_won DESC, games_played DESC
+                LIMIT 10
+            """
+            top_players = fetch_query(top_query)
             
             if not top_players:
                 await update.message.reply_text("📊 Статистика пока пуста. Сыграйте несколько игр!")
@@ -565,24 +574,85 @@ class ForestWolvesBot:
             stats_text = "🏆 *Топ игроков по победам:*\n\n"
             for i, player in enumerate(top_players, 1):
                 username = player["username"] or f"Игрок {player['user_id']}"
-                win_rate = (player["games_won"] / max(player["total_games"], 1)) * 100
+                win_rate = (player["games_won"] / max(player["games_played"], 1)) * 100
                 stats_text += f"{i}. {username}\n"
-                stats_text += f"   🎮 Игр: {player['total_games']} | 🏆 Побед: {player['games_won']} ({win_rate:.1f}%)\n"
+                stats_text += f"   🎮 Игр: {player['games_played']} | 🏆 Побед: {player['games_won']} ({win_rate:.1f}%)\n"
                 stats_text += f"   🐺 Волк: {player['times_wolf']} | 🦊 Лиса: {player['times_fox']} | 🐰 Заяц: {player['times_hare']}\n\n"
             
             await update.message.reply_text(stats_text)
+        elif context.args and context.args[0] == "teams":
+            # Показываем статистику по командам
+            teams_query = """
+                SELECT 
+                    SUM(CASE WHEN times_wolf > 0 OR times_fox > 0 THEN games_won ELSE 0 END) as predators_wins,
+                    SUM(CASE WHEN times_hare > 0 OR times_mole > 0 OR times_beaver > 0 THEN games_won ELSE 0 END) as herbivores_wins,
+                    SUM(CASE WHEN times_wolf > 0 OR times_fox > 0 THEN games_played ELSE 0 END) as predators_games,
+                    SUM(CASE WHEN times_hare > 0 OR times_mole > 0 OR times_beaver > 0 THEN games_played ELSE 0 END) as herbivores_games
+                FROM player_stats
+            """
+            teams_stats = fetch_one(teams_query)
+            
+            if not teams_stats or (teams_stats["predators_games"] == 0 and teams_stats["herbivores_games"] == 0):
+                await update.message.reply_text("📊 Статистика по командам пока пуста. Сыграйте несколько игр!")
+                return
+            
+            # Получаем лучших игроков каждой команды
+            best_predator_query = """
+                SELECT username, games_won, times_wolf, times_fox
+                FROM player_stats 
+                WHERE (times_wolf > 0 OR times_fox > 0) AND games_won > 0
+                ORDER BY games_won DESC, times_wolf DESC, times_fox DESC
+                LIMIT 1
+            """
+            best_predator = fetch_one(best_predator_query)
+            
+            best_herbivore_query = """
+                SELECT username, games_won, times_hare, times_mole, times_beaver
+                FROM player_stats 
+                WHERE (times_hare > 0 OR times_mole > 0 OR times_beaver > 0) AND games_won > 0
+                ORDER BY games_won DESC, times_hare DESC, times_mole DESC, times_beaver DESC
+                LIMIT 1
+            """
+            best_herbivore = fetch_one(best_herbivore_query)
+            
+            teams_text = "🏆 *Статистика по командам:*\n\n"
+            
+            # Статистика хищников
+            predators_win_rate = (teams_stats["predators_wins"] / max(teams_stats["predators_games"], 1)) * 100
+            teams_text += f"🐺 *Хищники (Волки + Лисы):*\n"
+            teams_text += f"   🎮 Игр: {teams_stats['predators_games']}\n"
+            teams_text += f"   🏆 Побед: {teams_stats['predators_wins']} ({predators_win_rate:.1f}%)\n"
+            if best_predator:
+                teams_text += f"   👑 Лучший хищник: {best_predator['username']} ({best_predator['games_won']} побед)\n"
+            teams_text += "\n"
+            
+            # Статистика травоядных
+            herbivores_win_rate = (teams_stats["herbivores_wins"] / max(teams_stats["herbivores_games"], 1)) * 100
+            teams_text += f"🐰 *Травоядные (Зайцы + Кроты + Бобры):*\n"
+            teams_text += f"   🎮 Игр: {teams_stats['herbivores_games']}\n"
+            teams_text += f"   🏆 Побед: {teams_stats['herbivores_wins']} ({herbivores_win_rate:.1f}%)\n"
+            if best_herbivore:
+                teams_text += f"   👑 Лучший травоядный: {best_herbivore['username']} ({best_herbivore['games_won']} побед)\n"
+            
+            await update.message.reply_text(teams_text)
         else:
             # Показываем статистику текущего игрока
-            stats = self.db.get_player_stats(user_id)
+            stats_query = """
+                SELECT user_id, username, games_played, games_won, games_lost,
+                       times_wolf, times_fox, times_hare, times_mole, times_beaver
+                FROM player_stats 
+                WHERE user_id = %s
+            """
+            stats = fetch_one(stats_query, (user_id,))
             
-            if stats["total_games"] == 0:
+            if not stats or stats["games_played"] == 0:
                 await update.message.reply_text("📊 У вас пока нет игр. Присоединяйтесь к игре командой /join!")
                 return
             
-            win_rate = (stats["games_won"] / stats["total_games"]) * 100
+            win_rate = (stats["games_won"] / stats["games_played"]) * 100
             
             stats_text = f"📊 *Ваша статистика:*\n\n"
-            stats_text += f"🎮 Всего игр: {stats['total_games']}\n"
+            stats_text += f"🎮 Всего игр: {stats['games_played']}\n"
             stats_text += f"🏆 Побед: {stats['games_won']} ({win_rate:.1f}%)\n"
             stats_text += f"💀 Поражений: {stats['games_lost']}\n\n"
             stats_text += f"🎭 *Роли:*\n"
@@ -704,32 +774,32 @@ class ForestWolvesBot:
                 # Создаем пользователя в БД, если его нет
                 create_user(user_id, username)
                 
-                # Получаем текущую статистику
-                stats = fetch_one("SELECT * FROM stats WHERE user_id = %s", (user_id,))
+                # Определяем, выиграл ли игрок
+                player_won = False
+                if winner:
+                    if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
+                        player_won = True
+                    elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
+                        player_won = True
+                
+                # Получаем текущую статистику из player_stats
+                stats_query = "SELECT * FROM player_stats WHERE user_id = %s"
+                stats = fetch_one(stats_query, (user_id,))
                 
                 if stats:
                     # Обновляем существующую статистику
                     new_games_played = stats['games_played'] + 1
+                    new_games_won = stats['games_won'] + (1 if player_won else 0)
+                    new_games_lost = stats['games_lost'] + (0 if player_won else 1)
                     
-                    # Определяем, выиграл ли игрок
-                    player_won = False
-                    if winner:
-                        if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
-                            player_won = True
-                        elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
-                            player_won = True
-                    
-                    if player_won:
-                        new_games_won = stats['games_won'] + 1
-                        new_games_lost = stats['games_lost']
-                    else:
-                        new_games_won = stats['games_won']
-                        new_games_lost = stats['games_lost'] + 1
+                    # Обновляем статистику по ролям
+                    role_field = f"times_{player.role.value.lower()}" if player.role else "times_hare"
                     
                     # Обновляем статистику
-                    update_query = """
-                        UPDATE stats 
+                    update_query = f"""
+                        UPDATE player_stats 
                         SET games_played = %s, games_won = %s, games_lost = %s, 
+                            {role_field} = {role_field} + 1,
                             last_played = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
                         WHERE user_id = %s
                     """
@@ -737,20 +807,18 @@ class ForestWolvesBot:
                     
                 else:
                     # Создаем новую статистику
-                    player_won = False
-                    if winner:
-                        if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
-                            player_won = True
-                        elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
-                            player_won = True
+                    role_field = f"times_{player.role.value.lower()}" if player.role else "times_hare"
                     
-                    insert_query = """
-                        INSERT INTO stats (user_id, games_played, games_won, games_lost, last_played)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    insert_query = f"""
+                        INSERT INTO player_stats (user_id, username, games_played, games_won, games_lost, 
+                                                {role_field}, last_played)
+                        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
                     """
-                    execute_query(insert_query, (user_id, 1, 1 if player_won else 0, 0 if player_won else 1))
+                    games_won = 1 if player_won else 0
+                    games_lost = 0 if player_won else 1
+                    execute_query(insert_query, (user_id, username, 1, games_won, games_lost, 1))
                 
-                logger.info(f"✅ Статистика обновлена для игрока {user_id}: игры={new_games_played}, победы={new_games_won if 'new_games_won' in locals() else (1 if player_won else 0)}")
+                logger.info(f"✅ Статистика обновлена для игрока {username} (ID: {user_id}) - {'Победа' if player_won else 'Поражение'}")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка обновления статистики: {e}")
