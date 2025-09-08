@@ -686,13 +686,26 @@ def create_tables():
     Создает все необходимые таблицы в базе данных
     """
     try:
+        # Сначала удаляем все таблицы если они существуют
+        drop_sql = """
+        DROP TABLE IF EXISTS purchases CASCADE;
+        DROP TABLE IF EXISTS games CASCADE;
+        DROP TABLE IF EXISTS stats CASCADE;
+        DROP TABLE IF EXISTS shop CASCADE;
+        DROP TABLE IF EXISTS users CASCADE;
+        DROP TABLE IF EXISTS chat_settings CASCADE;
+        """
+        
+        logger.info("🗑️ Удаляем существующие таблицы...")
+        execute_query(drop_sql)
+        
         # SQL для создания всех таблиц
         tables_sql = """
         -- Включаем расширения PostgreSQL
         CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
         
         -- Таблица пользователей
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE users (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL UNIQUE,
             username VARCHAR(255),
@@ -702,7 +715,7 @@ def create_tables():
         );
         
         -- Таблица игр
-        CREATE TABLE IF NOT EXISTS games (
+        CREATE TABLE games (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
             game_type VARCHAR(50) DEFAULT 'forest_mafia',
@@ -712,7 +725,7 @@ def create_tables():
         );
         
         -- Таблица статистики
-        CREATE TABLE IF NOT EXISTS stats (
+        CREATE TABLE stats (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL UNIQUE,
             games_played INTEGER DEFAULT 0,
@@ -724,7 +737,7 @@ def create_tables():
         );
         
         -- Таблица магазина
-        CREATE TABLE IF NOT EXISTS shop (
+        CREATE TABLE shop (
             id SERIAL PRIMARY KEY,
             item_name VARCHAR(255) NOT NULL,
             price INTEGER NOT NULL,
@@ -733,7 +746,7 @@ def create_tables():
         );
         
         -- Таблица покупок
-        CREATE TABLE IF NOT EXISTS purchases (
+        CREATE TABLE purchases (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
             item_id INTEGER NOT NULL,
@@ -741,7 +754,7 @@ def create_tables():
         );
         
         -- Таблица настроек чата
-        CREATE TABLE IF NOT EXISTS chat_settings (
+        CREATE TABLE chat_settings (
             id SERIAL PRIMARY KEY,
             chat_id BIGINT NOT NULL UNIQUE,
             test_mode BOOLEAN DEFAULT FALSE,
@@ -762,12 +775,12 @@ def create_tables():
         );
         
         -- Создаем индексы
-        CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
-        CREATE INDEX IF NOT EXISTS idx_games_user_id ON games(user_id);
-        CREATE INDEX IF NOT EXISTS idx_stats_user_id ON stats(user_id);
-        CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON purchases(user_id);
-        CREATE INDEX IF NOT EXISTS idx_purchases_item_id ON purchases(item_id);
-        CREATE INDEX IF NOT EXISTS idx_chat_settings_chat_id ON chat_settings(chat_id);
+        CREATE INDEX idx_users_user_id ON users(user_id);
+        CREATE INDEX idx_games_user_id ON games(user_id);
+        CREATE INDEX idx_stats_user_id ON stats(user_id);
+        CREATE INDEX idx_purchases_user_id ON purchases(user_id);
+        CREATE INDEX idx_purchases_item_id ON purchases(item_id);
+        CREATE INDEX idx_chat_settings_chat_id ON chat_settings(chat_id);
         
         -- Функция для обновления updated_at
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -801,6 +814,7 @@ def create_tables():
         """
         
         # Выполняем SQL
+        logger.info("🔧 Создаем таблицы заново...")
         execute_query(tables_sql)
         logger.info("✅ Все таблицы созданы успешно")
         
