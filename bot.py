@@ -2517,6 +2517,10 @@ class ForestWolvesBot:
             delattr(game, 'exile_voting_completed')
 
         # Проверяем условия окончания игры
+        alive_players = game.get_alive_players()
+        wolves = game.get_players_by_role(Role.WOLF)
+        logger.info(f"Проверка окончания игры: живых игроков={len(alive_players)}, волков={len(wolves)}")
+        
         winner = game.check_game_end()
         if winner:
             logger.info(f"Игра завершена! Победила команда: {winner}")
@@ -2700,6 +2704,13 @@ class ForestWolvesBot:
                     "details": "Недостаточно игроков для продолжения."
                 }
             
+            # Начисляем орешки за участие в игре
+            nuts_info = ""
+            try:
+                nuts_info = await self.award_nuts_for_game(game, winner)
+            except Exception as e:
+                logger.error(f"❌ Ошибка начисления орешков: {e}")
+            
             # Получаем детальное сообщение о завершении игры
             message_text = game_end_logic.get_game_over_message(result, nuts_info)
             
@@ -2738,12 +2749,6 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка обновления статистики игроков: {e}")
         
-        # Начисляем орешки за участие в игре
-        nuts_info = ""
-        try:
-            nuts_info = await self.award_nuts_for_game(game, winner)
-        except Exception as e:
-            logger.error(f"❌ Ошибка начисления орешков: {e}")
 
         for pid in list(game.players.keys()):
             if pid in self.player_games:
