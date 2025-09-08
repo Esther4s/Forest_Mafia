@@ -375,6 +375,20 @@ def get_user_by_telegram_id(user_id: int) -> Optional[Dict[str, Any]]:
     query = "SELECT * FROM users WHERE user_id = %s"
     return fetch_one(query, (user_id,))
 
+def get_user_balance(user_id: int) -> Optional[float]:
+    """
+    Получает баланс пользователя
+    
+    Args:
+        user_id: Telegram user ID
+    
+    Returns:
+        float или None: Баланс пользователя
+    """
+    query = "SELECT balance FROM users WHERE user_id = %s"
+    result = fetch_one(query, (user_id,))
+    return result['balance'] if result else None
+
 def update_user_balance(user_id: int, new_balance: float) -> bool:
     """
     Обновляет баланс пользователя

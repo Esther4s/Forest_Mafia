@@ -23,7 +23,7 @@ from global_settings import GlobalSettings # Импортируем GlobalSettin
 from database_adapter import DatabaseAdapter
 from database_psycopg2 import (
     init_db, close_db,
-    create_user, get_user_by_telegram_id, update_user_balance,
+    create_user, get_user_by_telegram_id, update_user_balance, get_user_balance,
     execute_query, fetch_one, fetch_query,
     get_chat_settings, update_chat_settings, reset_chat_settings,
     create_tables,
@@ -121,7 +121,7 @@ class ForestWolvesBot:
                 game.thread_id = thread_id
                 game.db_game_id = game_data['id']
                 if game_data.get('phase'):
-                    game.phase = GamePhase(game_data['phase'])
+                game.phase = GamePhase(game_data['phase'])
                 game.current_round = game_data.get('round_number', 0)
                 game.status = game_data.get('status', 'active')
                 
@@ -675,7 +675,7 @@ class ForestWolvesBot:
                 stats_text += f"🐺 **Лучший хищник:** {username}\n"
                 stats_text += f"   🏆 Побед: {best_predator['games_won']} ({win_rate}%)\n"
                 stats_text += f"   🎮 Игр: {best_predator['games_played']}\n\n"
-            else:
+        else:
                 stats_text += "🐺 **Лучший хищник:** пока нет данных\n\n"
             
             if best_herbivore:
@@ -699,7 +699,7 @@ class ForestWolvesBot:
         has_permission, error_msg = await self.check_user_permissions(update, context, "member")
         if not has_permission:
             await self.send_permission_error(update, context, error_msg)
-            return
+                return
             
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name or "Unknown"
@@ -709,27 +709,33 @@ class ForestWolvesBot:
                 await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
                 return
             
+            logger.info(f"💰 Запрос баланса для пользователя {username} (ID: {user_id})")
+            
             # Получаем пользователя из БД
             user = get_user_by_telegram_id(user_id)
             
             if user:
-                balance = user['balance']
+                balance = user.get('balance', 0)
+                logger.info(f"✅ Найден пользователь {username}, баланс: {balance}")
                 await update.message.reply_text(
                     f"🌰 **Баланс игрока {username}:**\n\n"
                     f"💳 Текущий баланс: {balance} орешков\n\n"
-                    f"💡 Используйте команду /game для создания новой игры!"
+                    f"💡 Используйте команду /join чтобы присоединиться к игре!"
                 )
             else:
                 # Если пользователя нет в БД, создаем его
+                logger.info(f"👤 Пользователь {username} не найден в БД, создаем...")
                 create_user(user_id, username)
                 await update.message.reply_text(
                     f"👋 Добро пожаловать, {username}!\n\n"
                     f"🌰 Ваш начальный баланс: 0 орешков\n\n"
-                    f"💡 Используйте команду /game для создания новой игры!"
+                    f"💡 Используйте команду /join чтобы присоединиться к игре!"
                 )
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения баланса: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при получении баланса. Попробуйте позже.")
 
     async def game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -851,14 +857,21 @@ class ForestWolvesBot:
 
     async def award_nuts_for_game(self, game: Game, winner: Optional[Team] = None):
         """Начисляет орешки игрокам за участие в игре"""
+        nuts_info = ""
         try:
             if not self.db:
                 logger.warning("⚠️ База данных недоступна, орешки не начислены")
-                return
+                return nuts_info
+            
+            logger.info(f"🎮 Начинаем начисление орешков за игру. Игроков: {len(game.players)}, Победитель: {winner}")
+            
+            nuts_awards = []  # Список для хранения информации о наградах
             
             for player in game.players.values():
                 user_id = player.user_id
                 username = player.username or f"Player_{user_id}"
+                
+                logger.info(f"👤 Обрабатываем игрока: {username} (ID: {user_id}), Жив: {player.is_alive}, Команда: {player.team}")
                 
                 # Создаем пользователя в БД, если его нет
                 create_user(user_id, username)
@@ -878,24 +891,40 @@ class ForestWolvesBot:
                         
                         if player_won:
                             nuts_amount = 100  # Победитель получает 100 орешков
+                            logger.info(f"🏆 Игрок {username} - победитель, получает 100 орешков")
                         else:
                             nuts_amount = 50   # Проигравший получает 50 орешков
+                            logger.info(f"😔 Игрок {username} - проигравший, получает 50 орешков")
                     else:
                         nuts_amount = 50  # Если нет победителя, все живые получают 50
+                        logger.info(f"🤷 Игрок {username} - живой, но нет победителя, получает 50 орешков")
                 else:
                     # Мертвый игрок получает 25 орешков
                     nuts_amount = 25
+                    logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
                 
                 # Начисляем орешки
                 if nuts_amount > 0:
+                    logger.info(f"💰 Начисляем {nuts_amount} орешков игроку {username} (ID: {user_id})")
                     success = add_nuts_to_user(user_id, nuts_amount)
                     if success:
                         logger.info(f"✅ Начислено {nuts_amount} орешков игроку {username} (ID: {user_id})")
+                        nuts_awards.append(f"🌰 {username}: +{nuts_amount} орешков")
                     else:
                         logger.error(f"❌ Не удалось начислить орешки игроку {username} (ID: {user_id})")
+                else:
+                    logger.warning(f"⚠️ Игрок {username} не получил орешки (amount=0)")
+            
+            # Формируем информацию об орешках для сообщения
+            if nuts_awards:
+                nuts_info = f"🌰 *Награды за игру:*\n" + "\n".join(nuts_awards)
                         
         except Exception as e:
             logger.error(f"❌ Ошибка начисления орешков: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        
+        return nuts_info
 
     # ---------------- новые улучшенные методы ----------------
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2084,8 +2113,8 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-            except Exception as e2:
-                logger.error(f"Fallback тоже не сработал: {e2}")
+                except Exception as e2:
+                    logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
         for pid in list(game.players.keys()):
@@ -2145,25 +2174,25 @@ class ForestWolvesBot:
         )
         
         # Отправляем сообщение о начале ночи
-        await context.bot.send_message(
-            chat_id=game.chat_id,
-            text=forest_story,
-            parse_mode='Markdown',
-            message_thread_id=game.thread_id
-        )
-        
-        # Небольшая пауза для атмосферы
-        await asyncio.sleep(2)
-        
-        night_message = await context.bot.send_message(
-            chat_id=game.chat_id,
-            text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-            reply_markup=reply_markup,
-            message_thread_id=game.thread_id
-        )
-        
-        # Закрепляем сообщение ночи
-        await self._pin_stage_message(context, game, "night", night_message.message_id)
+            await context.bot.send_message(
+                chat_id=game.chat_id,
+                text=forest_story,
+                parse_mode='Markdown',
+                message_thread_id=game.thread_id
+            )
+            
+            # Небольшая пауза для атмосферы
+            await asyncio.sleep(2)
+            
+            night_message = await context.bot.send_message(
+                chat_id=game.chat_id,
+                text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
+                reply_markup=reply_markup,
+                message_thread_id=game.thread_id
+            )
+            
+            # Закрепляем сообщение ночи
+            await self._pin_stage_message(context, game, "night", night_message.message_id)
 
         # ЛС с ролями
         for player in game.players.values():
@@ -2412,7 +2441,7 @@ class ForestWolvesBot:
         if game.phase == GamePhase.VOTING:
             # Проверяем, не были ли результаты уже обработаны досрочно
             if not (hasattr(game, 'voting_results_processed') and game.voting_results_processed):
-                logger.info("Время голосования истекло. Обрабатываем результаты.")
+            logger.info("Время голосования истекло. Обрабатываем результаты.")
                 await self.process_voting_results(context, game)
             else:
                 logger.info("Результаты голосования уже были обработаны досрочно.")
@@ -2668,7 +2697,7 @@ class ForestWolvesBot:
                 }
             
             # Получаем детальное сообщение о завершении игры
-            message_text = game_end_logic.get_game_over_message(result)
+            message_text = game_end_logic.get_game_over_message(result, nuts_info)
             
         except ImportError:
             # Fallback на старую логику
@@ -2695,8 +2724,8 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-            except Exception as e2:
-                logger.error(f"Fallback тоже не сработал: {e2}")
+                except Exception as e2:
+                    logger.error(f"Fallback тоже не сработал: {e2}")
 
         # Обновляем статистику игроков в базе данных
         try:
@@ -2706,8 +2735,9 @@ class ForestWolvesBot:
             logger.error(f"❌ Ошибка обновления статистики игроков: {e}")
         
         # Начисляем орешки за участие в игре
+        nuts_info = ""
         try:
-            await self.award_nuts_for_game(game, winner)
+            nuts_info = await self.award_nuts_for_game(game, winner)
         except Exception as e:
             logger.error(f"❌ Ошибка начисления орешков: {e}")
 
@@ -3406,18 +3436,18 @@ class ForestWolvesBot:
         success = update_chat_settings(chat_id, test_mode=new_mode)
         
         if success:
-            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
-            
-            # Обновляем игру, если она есть
-            if game:
-                game.is_test_mode = new_mode
-            
+        mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+        
+        # Обновляем игру, если она есть
+        if game:
+            game.is_test_mode = new_mode
+        
             await query.answer("✅ Настройка сохранена!", show_alert=True)
-            await query.edit_message_text(
-                f"✅ Тестовый режим переключен: {mode_text}\n\n"
+        await query.edit_message_text(
+            f"✅ Тестовый режим переключен: {mode_text}\n\n"
                 f"Минимум игроков: {chat_settings['min_players']}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
-            )
+        )
         else:
             await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
@@ -3566,14 +3596,21 @@ class ForestWolvesBot:
 
     async def show_night_duration_options(self, query, context):
         """Показывает опции для изменения длительности ночи"""
-        keyboard = [
-            [InlineKeyboardButton("30 секунд", callback_data="set_night_30")],
-            [InlineKeyboardButton("45 секунд", callback_data="set_night_45")],
-            [InlineKeyboardButton("60 секунд ✅", callback_data="set_night_60")],
-            [InlineKeyboardButton("90 секунд", callback_data="set_night_90")],
-            [InlineKeyboardButton("120 секунд", callback_data="set_night_120")],
-            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
-        ]
+        chat_id = query.message.chat.id
+        chat_settings = get_chat_settings(chat_id)
+        current_duration = chat_settings['night_duration']
+        
+        options = [30, 45, 60, 90, 120]
+        keyboard = []
+        
+        for duration in options:
+            button_text = f"{duration} секунд"
+            if duration == current_duration:
+                button_text += " ✅"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"set_night_{duration}")])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")])
+        
         await query.edit_message_text(
             "🌙 Настройка длительности ночи\n\nВыберите новую длительность ночной фазы:",
             reply_markup=InlineKeyboardMarkup(keyboard)
@@ -3581,14 +3618,22 @@ class ForestWolvesBot:
 
     async def show_day_duration_options(self, query, context):
         """Показывает опции для изменения длительности дня"""
-        keyboard = [
-            [InlineKeyboardButton("2 минуты", callback_data="set_day_120")],
-            [InlineKeyboardButton("3 минуты", callback_data="set_day_180")],
-            [InlineKeyboardButton("5 минут ✅", callback_data="set_day_300")],
-            [InlineKeyboardButton("7 минут", callback_data="set_day_420")],
-            [InlineKeyboardButton("10 минут", callback_data="set_day_600")],
-            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
-        ]
+        chat_id = query.message.chat.id
+        chat_settings = get_chat_settings(chat_id)
+        current_duration = chat_settings['day_duration']
+        
+        options = [120, 180, 300, 420, 600]  # 2, 3, 5, 7, 10 минут
+        keyboard = []
+        
+        for duration in options:
+            minutes = duration // 60
+            button_text = f"{minutes} минут"
+            if duration == current_duration:
+                button_text += " ✅"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"set_day_{duration}")])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")])
+        
         await query.edit_message_text(
             "☀️ Настройка длительности дня\n\nВыберите новую длительность дневной фазы:",
             reply_markup=InlineKeyboardMarkup(keyboard)
@@ -3596,14 +3641,28 @@ class ForestWolvesBot:
 
     async def show_vote_duration_options(self, query, context):
         """Показывает опции для изменения длительности голосования"""
-        keyboard = [
-            [InlineKeyboardButton("1 минута", callback_data="set_vote_60")],
-            [InlineKeyboardButton("1.5 минуты", callback_data="set_vote_90")],
-            [InlineKeyboardButton("2 минуты ✅", callback_data="set_vote_120")],
-            [InlineKeyboardButton("3 минуты", callback_data="set_vote_180")],
-            [InlineKeyboardButton("5 минут", callback_data="set_vote_300")],
-            [InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")]
-        ]
+        chat_id = query.message.chat.id
+        chat_settings = get_chat_settings(chat_id)
+        current_duration = chat_settings['vote_duration']
+        
+        options = [60, 90, 120, 180, 300]  # 1, 1.5, 2, 3, 5 минут
+        keyboard = []
+        
+        for duration in options:
+            if duration == 60:
+                button_text = "1 минута"
+            elif duration == 90:
+                button_text = "1.5 минуты"
+            else:
+                minutes = duration // 60
+                button_text = f"{minutes} минуты"
+            
+            if duration == current_duration:
+                button_text += " ✅"
+            keyboard.append([InlineKeyboardButton(button_text, callback_data=f"set_vote_{duration}")])
+        
+        keyboard.append([InlineKeyboardButton("⬅️ Назад к таймерам", callback_data="timer_back")])
+        
         await query.edit_message_text(
             "🗳️ Настройка длительности голосования\n\nВыберите новую длительность голосования:",
             reply_markup=InlineKeyboardMarkup(keyboard)
@@ -3648,17 +3707,18 @@ class ForestWolvesBot:
             success = update_chat_settings(chat_id, night_duration=seconds)
             if success:
                 await query.answer("✅ Настройка сохранена!", show_alert=True)
-                await query.edit_message_text(f"🌙 Длительность ночи изменена на {seconds} секунд!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
+                # Обновляем кнопки с галочкой
+                await self.show_night_duration_options(query, context)
             else:
                 await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_day_"):
             seconds = int(query.data.split("_")[2])
-            minutes = seconds // 60
             # Сохраняем настройку в базу данных
             success = update_chat_settings(chat_id, day_duration=seconds)
             if success:
                 await query.answer("✅ Настройка сохранена!", show_alert=True)
-                await query.edit_message_text(f"☀️ Длительность дня изменена на {minutes} минут!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
+                # Обновляем кнопки с галочкой
+                await self.show_day_duration_options(query, context)
             else:
                 await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_vote_"):
@@ -3667,16 +3727,9 @@ class ForestWolvesBot:
             success = update_chat_settings(chat_id, vote_duration=seconds)
             if success:
                 await query.answer("✅ Настройка сохранена!", show_alert=True)
-                if seconds >= 60:
-                    minutes = seconds // 60
-                    if seconds % 60 == 0:
-                        time_text = f"{minutes} минут"
-                    else:
-                        time_text = f"{minutes}.{(seconds % 60)//6} минуты"
+                # Обновляем кнопки с галочкой
+                await self.show_vote_duration_options(query, context)
                 else:
-                    time_text = f"{seconds} секунд"
-                await query.edit_message_text(f"🗳️ Длительность голосования изменена на {time_text}!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
-            else:
                 await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_min_players_"):
             players = int(query.data.split("_")[3])
@@ -4211,7 +4264,7 @@ class ForestWolvesBot:
 
         # Запуск бота (blocking call)
         try:
-            application.run_polling()
+        application.run_polling()
         except KeyboardInterrupt:
             logger.info("⏹️ Остановка бота...")
         finally:

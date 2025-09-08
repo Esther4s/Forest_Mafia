@@ -217,7 +217,7 @@ class GameEndLogic:
         
         return message
     
-    def get_game_over_message(self, result: Dict) -> str:
+    def get_game_over_message(self, result: Dict, nuts_info: str = "") -> str:
         """Формирует сообщение об окончании игры"""
         winner = result["winner"]
         reason = result["reason"]
@@ -281,6 +281,8 @@ class GameEndLogic:
 👥 *Все участники:*
 {players_list}
 {details}
+
+{nuts_info}
 
 ---
 🎮 *Хотите сыграть ещё?*
