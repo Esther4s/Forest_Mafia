@@ -26,7 +26,9 @@ from database_psycopg2 import (
     create_user, get_user_by_telegram_id, update_user_balance,
     execute_query, fetch_one,
     get_chat_settings, update_chat_settings, reset_chat_settings,
-    create_tables
+    create_tables,
+    save_player_action, save_vote, update_player_stats,
+    get_bot_setting, set_bot_setting
 )
 
 logging.basicConfig(

@@ -7,6 +7,7 @@
 """
 
 import os
+import json
 import psycopg2
 import psycopg2.extras
 from psycopg2 import pool
@@ -681,6 +682,163 @@ def get_all_chat_settings() -> List[Dict[str, Any]]:
     query = "SELECT * FROM chat_settings ORDER BY chat_id"
     return fetch_query(query)
 
+# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С НОВЫМИ ТАБЛИЦАМИ ====================
+
+def save_player_action(game_id: str, player_id: str, action_type: str, target_id: str = None, action_data: dict = None):
+    """
+    Сохраняет действие игрока в таблицу player_actions
+    
+    Args:
+        game_id: ID игры
+        player_id: ID игрока
+        action_type: Тип действия (vote, kill, protect, etc.)
+        target_id: ID цели действия (опционально)
+        action_data: Дополнительные данные действия (опционально)
+    
+    Returns:
+        bool: True если успешно сохранено
+    """
+    try:
+        query = """
+        INSERT INTO player_actions (game_id, player_id, action_type, target_id, action_data)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        params = (game_id, player_id, action_type, target_id, json.dumps(action_data) if action_data else '{}')
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения действия игрока: {e}")
+        return False
+
+def save_vote(game_id: str, voter_id: str, target_id: str, vote_type: str, round_number: int = 1):
+    """
+    Сохраняет голос в таблицу votes
+    
+    Args:
+        game_id: ID игры
+        voter_id: ID голосующего
+        target_id: ID цели голосования
+        vote_type: Тип голосования (exile, kill, etc.)
+        round_number: Номер раунда
+    
+    Returns:
+        bool: True если успешно сохранено
+    """
+    try:
+        query = """
+        INSERT INTO votes (game_id, voter_id, target_id, vote_type, round_number)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        params = (game_id, voter_id, target_id, vote_type, round_number)
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения голоса: {e}")
+        return False
+
+def update_player_stats(player_id: str, user_id: int, **kwargs):
+    """
+    Обновляет статистику игрока в таблице player_stats
+    
+    Args:
+        player_id: ID игрока
+        user_id: ID пользователя Telegram
+        **kwargs: Поля для обновления (games_played, games_won, games_lost, etc.)
+    
+    Returns:
+        bool: True если успешно обновлено
+    """
+    try:
+        # Проверяем существование записи
+        check_query = "SELECT id FROM player_stats WHERE player_id = %s"
+        existing = fetch_one(check_query, (player_id,))
+        
+        if not existing:
+            # Создаем новую запись
+            insert_query = """
+            INSERT INTO player_stats (player_id, user_id, games_played, games_won, games_lost, 
+                                    roles_played, total_kills, total_deaths, last_played)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            params = (
+                player_id, user_id,
+                kwargs.get('games_played', 0),
+                kwargs.get('games_won', 0),
+                kwargs.get('games_lost', 0),
+                json.dumps(kwargs.get('roles_played', {})),
+                kwargs.get('total_kills', 0),
+                kwargs.get('total_deaths', 0),
+                kwargs.get('last_played')
+            )
+            execute_query(insert_query, params)
+        else:
+            # Обновляем существующую запись
+            set_clauses = []
+            params = []
+            for key, value in kwargs.items():
+                if key == 'roles_played':
+                    set_clauses.append(f"{key} = %s")
+                    params.append(json.dumps(value))
+                else:
+                    set_clauses.append(f"{key} = %s")
+                    params.append(value)
+            
+            if set_clauses:
+                params.append(player_id)
+                update_query = f"UPDATE player_stats SET {', '.join(set_clauses)} WHERE player_id = %s"
+                execute_query(update_query, params)
+        
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления статистики игрока: {e}")
+        return False
+
+def get_bot_setting(setting_name: str, default_value: str = None):
+    """
+    Получает настройку бота из таблицы bot_settings
+    
+    Args:
+        setting_name: Название настройки
+        default_value: Значение по умолчанию
+    
+    Returns:
+        str: Значение настройки или default_value
+    """
+    try:
+        query = "SELECT setting_value FROM bot_settings WHERE setting_name = %s"
+        result = fetch_one(query, (setting_name,))
+        return result['setting_value'] if result else default_value
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения настройки бота: {e}")
+        return default_value
+
+def set_bot_setting(setting_name: str, setting_value: str, description: str = None):
+    """
+    Устанавливает настройку бота в таблице bot_settings
+    
+    Args:
+        setting_name: Название настройки
+        setting_value: Значение настройки
+        description: Описание настройки
+    
+    Returns:
+        bool: True если успешно установлено
+    """
+    try:
+        query = """
+        INSERT INTO bot_settings (setting_name, setting_value, description)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (setting_name) 
+        DO UPDATE SET setting_value = EXCLUDED.setting_value, 
+                      description = EXCLUDED.description
+        """
+        params = (setting_name, setting_value, description)
+        execute_query(query, params)
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка установки настройки бота: {e}")
+        return False
+
 def create_tables():
     """
     Создает все необходимые таблицы в базе данных
@@ -688,6 +846,9 @@ def create_tables():
     try:
         # Сначала удаляем все таблицы если они существуют
         drop_sql = """
+        DROP TABLE IF EXISTS votes CASCADE;
+        DROP TABLE IF EXISTS player_actions CASCADE;
+        DROP TABLE IF EXISTS player_stats CASCADE;
         DROP TABLE IF EXISTS purchases CASCADE;
         DROP TABLE IF EXISTS game_events CASCADE;
         DROP TABLE IF EXISTS players CASCADE;
@@ -696,6 +857,7 @@ def create_tables():
         DROP TABLE IF EXISTS shop CASCADE;
         DROP TABLE IF EXISTS users CASCADE;
         DROP TABLE IF EXISTS chat_settings CASCADE;
+        DROP TABLE IF EXISTS bot_settings CASCADE;
         """
         
         logger.info("🗑️ Удаляем существующие таблицы...")
@@ -806,6 +968,54 @@ def create_tables():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
+        -- Таблица настроек бота
+        CREATE TABLE bot_settings (
+            id SERIAL PRIMARY KEY,
+            setting_name VARCHAR(255) NOT NULL UNIQUE,
+            setting_value TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица действий игроков
+        CREATE TABLE player_actions (
+            id SERIAL PRIMARY KEY,
+            game_id VARCHAR NOT NULL,
+            player_id VARCHAR NOT NULL,
+            action_type VARCHAR NOT NULL,
+            target_id VARCHAR,
+            action_data JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица статистики игроков
+        CREATE TABLE player_stats (
+            id SERIAL PRIMARY KEY,
+            player_id VARCHAR NOT NULL,
+            user_id BIGINT NOT NULL,
+            games_played INTEGER DEFAULT 0,
+            games_won INTEGER DEFAULT 0,
+            games_lost INTEGER DEFAULT 0,
+            roles_played JSONB DEFAULT '{}'::jsonb,
+            total_kills INTEGER DEFAULT 0,
+            total_deaths INTEGER DEFAULT 0,
+            last_played TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица голосований
+        CREATE TABLE votes (
+            id SERIAL PRIMARY KEY,
+            game_id VARCHAR NOT NULL,
+            voter_id VARCHAR NOT NULL,
+            target_id VARCHAR,
+            vote_type VARCHAR NOT NULL,
+            round_number INTEGER DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
         -- Создаем индексы
         CREATE INDEX idx_users_user_id ON users(user_id);
         CREATE INDEX idx_games_chat_id ON games(chat_id);
@@ -817,6 +1027,13 @@ def create_tables():
         CREATE INDEX idx_purchases_user_id ON purchases(user_id);
         CREATE INDEX idx_purchases_item_id ON purchases(item_id);
         CREATE INDEX idx_chat_settings_chat_id ON chat_settings(chat_id);
+        CREATE INDEX idx_bot_settings_name ON bot_settings(setting_name);
+        CREATE INDEX idx_player_actions_game_id ON player_actions(game_id);
+        CREATE INDEX idx_player_actions_player_id ON player_actions(player_id);
+        CREATE INDEX idx_player_stats_player_id ON player_stats(player_id);
+        CREATE INDEX idx_player_stats_user_id ON player_stats(user_id);
+        CREATE INDEX idx_votes_game_id ON votes(game_id);
+        CREATE INDEX idx_votes_voter_id ON votes(voter_id);
         
         -- Функция для обновления updated_at
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -845,6 +1062,16 @@ def create_tables():
             
         CREATE TRIGGER trigger_chat_settings_updated_at
             BEFORE UPDATE ON chat_settings
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            
+        CREATE TRIGGER trigger_bot_settings_updated_at
+            BEFORE UPDATE ON bot_settings
+            FOR EACH ROW
+            EXECUTE FUNCTION update_updated_at_column();
+            
+        CREATE TRIGGER trigger_player_stats_updated_at
+            BEFORE UPDATE ON player_stats
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
         """
