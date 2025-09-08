@@ -1393,6 +1393,14 @@ class ForestWolvesBot:
         chat_id = query.message.chat.id
         user_id = query.from_user.id
         username = query.from_user.username or query.from_user.full_name or str(user_id)
+        
+        # Создаем пользователя в БД
+        try:
+            if self.db:
+                create_user(user_id, username)
+                logger.info(f"✅ Пользователь {user_id} ({username}) создан/обновлен в БД при join_from_callback")
+        except Exception as e:
+            logger.error(f"❌ Ошибка создания пользователя в БД: {e}")
 
         success, message, reply_markup = await self._join_game_common(chat_id, user_id, username, context, is_callback=True, update=query)
         
@@ -1494,6 +1502,14 @@ class ForestWolvesBot:
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
+        
+        # Создаем пользователя в БД
+        try:
+            if self.db:
+                create_user(user_id, username)
+                logger.info(f"✅ Пользователь {user_id} ({username}) создан/обновлен в БД при join")
+        except Exception as e:
+            logger.error(f"❌ Ошибка создания пользователя в БД: {e}")
 
         success, message, reply_markup = await self._join_game_common(
             chat_id, user_id, username, context, is_callback=False, update=update
@@ -1681,7 +1697,16 @@ class ForestWolvesBot:
             
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
         thread_id = self.get_thread_id(update)
+        
+        # Создаем пользователя в БД
+        try:
+            if self.db:
+                create_user(user_id, username)
+                logger.info(f"✅ Пользователь {user_id} ({username}) создан/обновлен в БД при start_game")
+        except Exception as e:
+            logger.error(f"❌ Ошибка создания пользователя в БД: {e}")
 
         # Проверяем, что это группа, а не личные сообщения
         if chat_id == user_id:
