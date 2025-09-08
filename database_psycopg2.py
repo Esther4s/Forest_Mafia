@@ -1138,6 +1138,24 @@ def get_player_detailed_stats(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"❌ Ошибка получения детальной статистики: {e}")
         return None
 
+def add_nuts_to_user(user_id: int, nuts_amount: int) -> bool:
+    """
+    Добавляет орешки пользователю
+    """
+    try:
+        query = """
+        UPDATE users 
+        SET balance = balance + %s, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = %s
+        """
+        result = execute_query(query, (nuts_amount, user_id))
+        if result:
+            logger.info(f"✅ Начислено {nuts_amount} орешков пользователю {user_id}")
+        return result
+    except Exception as e:
+        logger.error(f"❌ Ошибка начисления орешков пользователю {user_id}: {e}")
+        return False
+
 def create_tables():
     """
     Создает все необходимые таблицы в базе данных

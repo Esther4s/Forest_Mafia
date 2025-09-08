@@ -30,7 +30,8 @@ from database_psycopg2 import (
     save_player_action, save_vote, update_player_stats,
     get_bot_setting, set_bot_setting,
     save_game_to_db, save_player_to_db, update_game_phase, finish_game_in_db,
-    get_team_stats, get_top_players, get_best_predator, get_best_herbivore, get_player_detailed_stats
+    get_team_stats, get_top_players, get_best_predator, get_best_herbivore, get_player_detailed_stats,
+    add_nuts_to_user
 )
 
 logging.basicConfig(
@@ -847,6 +848,54 @@ class ForestWolvesBot:
                 
         except Exception as e:
             logger.error(f"❌ Ошибка обновления статистики: {e}")
+
+    async def award_nuts_for_game(self, game: Game, winner: Optional[Team] = None):
+        """Начисляет орешки игрокам за участие в игре"""
+        try:
+            if not self.db:
+                logger.warning("⚠️ База данных недоступна, орешки не начислены")
+                return
+            
+            for player in game.players.values():
+                user_id = player.user_id
+                username = player.username or f"Player_{user_id}"
+                
+                # Создаем пользователя в БД, если его нет
+                create_user(user_id, username)
+                
+                # Определяем количество орешков в зависимости от статуса игрока
+                nuts_amount = 0
+                
+                if player.is_alive:
+                    # Живой игрок
+                    if winner:
+                        # Определяем, выиграл ли игрок
+                        player_won = False
+                        if winner == Team.HERBIVORES and player.team == Team.HERBIVORES:
+                            player_won = True
+                        elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
+                            player_won = True
+                        
+                        if player_won:
+                            nuts_amount = 100  # Победитель получает 100 орешков
+                        else:
+                            nuts_amount = 50   # Проигравший получает 50 орешков
+                    else:
+                        nuts_amount = 50  # Если нет победителя, все живые получают 50
+                else:
+                    # Мертвый игрок получает 25 орешков
+                    nuts_amount = 25
+                
+                # Начисляем орешки
+                if nuts_amount > 0:
+                    success = add_nuts_to_user(user_id, nuts_amount)
+                    if success:
+                        logger.info(f"✅ Начислено {nuts_amount} орешков игроку {username} (ID: {user_id})")
+                    else:
+                        logger.error(f"❌ Не удалось начислить орешки игроку {username} (ID: {user_id})")
+                        
+        except Exception as e:
+            logger.error(f"❌ Ошибка начисления орешков: {e}")
 
     # ---------------- новые улучшенные методы ----------------
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -2655,6 +2704,12 @@ class ForestWolvesBot:
                 await self.update_player_stats_after_game(game, winner)
         except Exception as e:
             logger.error(f"❌ Ошибка обновления статистики игроков: {e}")
+        
+        # Начисляем орешки за участие в игре
+        try:
+            await self.award_nuts_for_game(game, winner)
+        except Exception as e:
+            logger.error(f"❌ Ошибка начисления орешков: {e}")
 
         for pid in list(game.players.keys()):
             if pid in self.player_games:
