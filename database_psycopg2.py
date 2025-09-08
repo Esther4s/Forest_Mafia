@@ -689,6 +689,8 @@ def create_tables():
         # Сначала удаляем все таблицы если они существуют
         drop_sql = """
         DROP TABLE IF EXISTS purchases CASCADE;
+        DROP TABLE IF EXISTS game_events CASCADE;
+        DROP TABLE IF EXISTS players CASCADE;
         DROP TABLE IF EXISTS games CASCADE;
         DROP TABLE IF EXISTS stats CASCADE;
         DROP TABLE IF EXISTS shop CASCADE;
@@ -716,12 +718,42 @@ def create_tables():
         
         -- Таблица игр
         CREATE TABLE games (
-            id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
-            game_type VARCHAR(50) DEFAULT 'forest_mafia',
-            status VARCHAR(50) DEFAULT 'active',
+            id VARCHAR PRIMARY KEY,
+            chat_id INTEGER NOT NULL,
+            thread_id INTEGER,
+            status VARCHAR DEFAULT 'waiting',
+            phase VARCHAR,
+            round_number INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMP,
+            finished_at TIMESTAMP,
+            winner_team VARCHAR,
+            settings JSONB DEFAULT '{}'::jsonb
+        );
+        
+        -- Таблица игроков
+        CREATE TABLE players (
+            id VARCHAR PRIMARY KEY,
+            game_id VARCHAR NOT NULL,
+            user_id INTEGER NOT NULL,
+            username VARCHAR,
+            first_name VARCHAR,
+            last_name VARCHAR,
+            role VARCHAR,
+            team VARCHAR,
+            is_alive BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Таблица событий игры
+        CREATE TABLE game_events (
+            id VARCHAR PRIMARY KEY,
+            game_id VARCHAR NOT NULL,
+            event_type VARCHAR NOT NULL,
+            description TEXT,
+            data JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         -- Таблица статистики
@@ -776,7 +808,11 @@ def create_tables():
         
         -- Создаем индексы
         CREATE INDEX idx_users_user_id ON users(user_id);
-        CREATE INDEX idx_games_user_id ON games(user_id);
+        CREATE INDEX idx_games_chat_id ON games(chat_id);
+        CREATE INDEX idx_games_status ON games(status);
+        CREATE INDEX idx_players_game_id ON players(game_id);
+        CREATE INDEX idx_players_user_id ON players(user_id);
+        CREATE INDEX idx_game_events_game_id ON game_events(game_id);
         CREATE INDEX idx_stats_user_id ON stats(user_id);
         CREATE INDEX idx_purchases_user_id ON purchases(user_id);
         CREATE INDEX idx_purchases_item_id ON purchases(item_id);
@@ -797,8 +833,8 @@ def create_tables():
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
-        CREATE TRIGGER trigger_games_updated_at
-            BEFORE UPDATE ON games
+        CREATE TRIGGER trigger_players_updated_at
+            BEFORE UPDATE ON players
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
