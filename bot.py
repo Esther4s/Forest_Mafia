@@ -2361,8 +2361,12 @@ class ForestWolvesBot:
         
         # Время вышло
         if game.phase == GamePhase.VOTING:
-            logger.info("Время голосования истекло. Обрабатываем результаты.")
-            await self.process_voting_results(context, game)
+            # Проверяем, не были ли результаты уже обработаны досрочно
+            if not (hasattr(game, 'voting_results_processed') and game.voting_results_processed):
+                logger.info("Время голосования истекло. Обрабатываем результаты.")
+                await self.process_voting_results(context, game)
+            else:
+                logger.info("Результаты голосования уже были обработаны досрочно.")
         else:
             logger.info(f"Голосование завершилось, но фаза уже {game.phase}")
 
@@ -3164,8 +3168,8 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
-        has_permission, error_msg = await self.check_game_permissions(
-            query, context, "settings"
+        has_permission, error_msg = await self.check_user_permissions(
+            query, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3379,8 +3383,8 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
-        has_permission, error_msg = await self.check_game_permissions(
-            query, context, "settings"
+        has_permission, error_msg = await self.check_user_permissions(
+            query, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3408,8 +3412,8 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
-        has_permission, error_msg = await self.check_game_permissions(
-            query, context, "settings"
+        has_permission, error_msg = await self.check_user_permissions(
+            query, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3457,8 +3461,8 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
-        has_permission, error_msg = await self.check_game_permissions(
-            query, context, "settings"
+        has_permission, error_msg = await self.check_user_permissions(
+            query, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)
@@ -3561,8 +3565,8 @@ class ForestWolvesBot:
         await query.answer()
         
         # Проверяем права пользователя
-        has_permission, error_msg = await self.check_game_permissions(
-            query, context, "settings"
+        has_permission, error_msg = await self.check_user_permissions(
+            query, context, "member"
         )
         if not has_permission:
             await query.answer(error_msg, show_alert=True)

@@ -1143,24 +1143,19 @@ def create_tables():
     Создает все необходимые таблицы в базе данных
     """
     try:
-        # Сначала удаляем все таблицы если они существуют
-        drop_sql = """
-        DROP TABLE IF EXISTS votes CASCADE;
-        DROP TABLE IF EXISTS player_actions CASCADE;
-        DROP TABLE IF EXISTS player_stats CASCADE;
-        DROP TABLE IF EXISTS purchases CASCADE;
-        DROP TABLE IF EXISTS game_events CASCADE;
-        DROP TABLE IF EXISTS players CASCADE;
-        DROP TABLE IF EXISTS games CASCADE;
-        DROP TABLE IF EXISTS stats CASCADE;
-        DROP TABLE IF EXISTS shop CASCADE;
-        DROP TABLE IF EXISTS users CASCADE;
-        DROP TABLE IF EXISTS chat_settings CASCADE;
-        DROP TABLE IF EXISTS bot_settings CASCADE;
+        # Проверяем, существуют ли таблицы
+        check_tables_query = """
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_schema = 'public' 
+        AND table_name IN ('users', 'games', 'players', 'stats', 'chat_settings')
         """
         
-        logger.info("🗑️ Удаляем существующие таблицы...")
-        execute_query(drop_sql)
+        existing_tables = fetch_query(check_tables_query)
+        
+        if existing_tables:
+            logger.info("✅ Таблицы уже существуют, пропускаем создание")
+            return
         
         # SQL для создания всех таблиц
         tables_sql = """
@@ -1168,7 +1163,7 @@ def create_tables():
         CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
         
         -- Таблица пользователей
-        CREATE TABLE users (
+        CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL UNIQUE,
             username VARCHAR(255),
@@ -1178,7 +1173,7 @@ def create_tables():
         );
         
         -- Таблица игр
-        CREATE TABLE games (
+        CREATE TABLE IF NOT EXISTS games (
             id VARCHAR PRIMARY KEY,
             chat_id INTEGER NOT NULL,
             thread_id INTEGER,
@@ -1193,7 +1188,7 @@ def create_tables():
         );
         
         -- Таблица игроков
-        CREATE TABLE players (
+        CREATE TABLE IF NOT EXISTS players (
             id VARCHAR PRIMARY KEY,
             game_id VARCHAR NOT NULL,
             user_id INTEGER NOT NULL,
@@ -1208,7 +1203,7 @@ def create_tables():
         );
         
         -- Таблица событий игры
-        CREATE TABLE game_events (
+        CREATE TABLE IF NOT EXISTS game_events (
             id VARCHAR PRIMARY KEY,
             game_id VARCHAR NOT NULL,
             event_type VARCHAR NOT NULL,
@@ -1218,7 +1213,7 @@ def create_tables():
         );
         
         -- Таблица статистики
-        CREATE TABLE stats (
+        CREATE TABLE IF NOT EXISTS stats (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL UNIQUE,
             games_played INTEGER DEFAULT 0,
@@ -1230,7 +1225,7 @@ def create_tables():
         );
         
         -- Таблица магазина
-        CREATE TABLE shop (
+        CREATE TABLE IF NOT EXISTS shop (
             id SERIAL PRIMARY KEY,
             item_name VARCHAR(255) NOT NULL,
             price INTEGER NOT NULL,
@@ -1239,7 +1234,7 @@ def create_tables():
         );
         
         -- Таблица покупок
-        CREATE TABLE purchases (
+        CREATE TABLE IF NOT EXISTS purchases (
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
             item_id INTEGER NOT NULL,
@@ -1247,7 +1242,7 @@ def create_tables():
         );
         
         -- Таблица настроек чата
-        CREATE TABLE chat_settings (
+        CREATE TABLE IF NOT EXISTS chat_settings (
             id SERIAL PRIMARY KEY,
             chat_id BIGINT NOT NULL UNIQUE,
             test_mode BOOLEAN DEFAULT FALSE,
@@ -1268,7 +1263,7 @@ def create_tables():
         );
         
         -- Таблица настроек бота
-        CREATE TABLE bot_settings (
+        CREATE TABLE IF NOT EXISTS bot_settings (
             id SERIAL PRIMARY KEY,
             setting_name VARCHAR(255) NOT NULL UNIQUE,
             setting_value TEXT,
@@ -1278,7 +1273,7 @@ def create_tables():
         );
         
         -- Таблица действий игроков
-        CREATE TABLE player_actions (
+        CREATE TABLE IF NOT EXISTS player_actions (
             id SERIAL PRIMARY KEY,
             game_id VARCHAR NOT NULL,
             player_id VARCHAR NOT NULL,
@@ -1289,7 +1284,7 @@ def create_tables():
         );
         
         -- Таблица статистики игроков
-        CREATE TABLE player_stats (
+        CREATE TABLE IF NOT EXISTS player_stats (
             id SERIAL PRIMARY KEY,
             player_id VARCHAR NOT NULL,
             user_id BIGINT NOT NULL,
@@ -1305,7 +1300,7 @@ def create_tables():
         );
         
         -- Таблица голосований
-        CREATE TABLE votes (
+        CREATE TABLE IF NOT EXISTS votes (
             id SERIAL PRIMARY KEY,
             game_id VARCHAR NOT NULL,
             voter_id VARCHAR NOT NULL,
@@ -1316,23 +1311,23 @@ def create_tables():
         );
         
         -- Создаем индексы
-        CREATE INDEX idx_users_user_id ON users(user_id);
-        CREATE INDEX idx_games_chat_id ON games(chat_id);
-        CREATE INDEX idx_games_status ON games(status);
-        CREATE INDEX idx_players_game_id ON players(game_id);
-        CREATE INDEX idx_players_user_id ON players(user_id);
-        CREATE INDEX idx_game_events_game_id ON game_events(game_id);
-        CREATE INDEX idx_stats_user_id ON stats(user_id);
-        CREATE INDEX idx_purchases_user_id ON purchases(user_id);
-        CREATE INDEX idx_purchases_item_id ON purchases(item_id);
-        CREATE INDEX idx_chat_settings_chat_id ON chat_settings(chat_id);
-        CREATE INDEX idx_bot_settings_name ON bot_settings(setting_name);
-        CREATE INDEX idx_player_actions_game_id ON player_actions(game_id);
-        CREATE INDEX idx_player_actions_player_id ON player_actions(player_id);
-        CREATE INDEX idx_player_stats_player_id ON player_stats(player_id);
-        CREATE INDEX idx_player_stats_user_id ON player_stats(user_id);
-        CREATE INDEX idx_votes_game_id ON votes(game_id);
-        CREATE INDEX idx_votes_voter_id ON votes(voter_id);
+        CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
+        CREATE INDEX IF NOT EXISTS idx_games_chat_id ON games(chat_id);
+        CREATE INDEX IF NOT EXISTS idx_games_status ON games(status);
+        CREATE INDEX IF NOT EXISTS idx_players_game_id ON players(game_id);
+        CREATE INDEX IF NOT EXISTS idx_players_user_id ON players(user_id);
+        CREATE INDEX IF NOT EXISTS idx_game_events_game_id ON game_events(game_id);
+        CREATE INDEX IF NOT EXISTS idx_stats_user_id ON stats(user_id);
+        CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON purchases(user_id);
+        CREATE INDEX IF NOT EXISTS idx_purchases_item_id ON purchases(item_id);
+        CREATE INDEX IF NOT EXISTS idx_chat_settings_chat_id ON chat_settings(chat_id);
+        CREATE INDEX IF NOT EXISTS idx_bot_settings_name ON bot_settings(setting_name);
+        CREATE INDEX IF NOT EXISTS idx_player_actions_game_id ON player_actions(game_id);
+        CREATE INDEX IF NOT EXISTS idx_player_actions_player_id ON player_actions(player_id);
+        CREATE INDEX IF NOT EXISTS idx_player_stats_player_id ON player_stats(player_id);
+        CREATE INDEX IF NOT EXISTS idx_player_stats_user_id ON player_stats(user_id);
+        CREATE INDEX IF NOT EXISTS idx_votes_game_id ON votes(game_id);
+        CREATE INDEX IF NOT EXISTS idx_votes_voter_id ON votes(voter_id);
         
         -- Функция для обновления updated_at
         CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -1344,31 +1339,37 @@ def create_tables():
         $$ LANGUAGE plpgsql;
         
         -- Триггеры для автоматического обновления updated_at
+        DROP TRIGGER IF EXISTS trigger_users_updated_at ON users;
         CREATE TRIGGER trigger_users_updated_at
             BEFORE UPDATE ON users
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
+        DROP TRIGGER IF EXISTS trigger_players_updated_at ON players;
         CREATE TRIGGER trigger_players_updated_at
             BEFORE UPDATE ON players
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
+        DROP TRIGGER IF EXISTS trigger_stats_updated_at ON stats;
         CREATE TRIGGER trigger_stats_updated_at
             BEFORE UPDATE ON stats
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
+        DROP TRIGGER IF EXISTS trigger_chat_settings_updated_at ON chat_settings;
         CREATE TRIGGER trigger_chat_settings_updated_at
             BEFORE UPDATE ON chat_settings
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
+        DROP TRIGGER IF EXISTS trigger_bot_settings_updated_at ON bot_settings;
         CREATE TRIGGER trigger_bot_settings_updated_at
             BEFORE UPDATE ON bot_settings
             FOR EACH ROW
             EXECUTE FUNCTION update_updated_at_column();
             
+        DROP TRIGGER IF EXISTS trigger_player_stats_updated_at ON player_stats;
         CREATE TRIGGER trigger_player_stats_updated_at
             BEFORE UPDATE ON player_stats
             FOR EACH ROW
@@ -1376,7 +1377,7 @@ def create_tables():
         """
         
         # Выполняем SQL
-        logger.info("🔧 Создаем таблицы заново...")
+        logger.info("🔧 Создаем таблицы...")
         execute_query(tables_sql)
         logger.info("✅ Все таблицы созданы успешно")
         
