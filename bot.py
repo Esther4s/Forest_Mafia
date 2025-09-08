@@ -1883,7 +1883,7 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-                except Exception as e2:
+            except Exception as e2:
                     logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
@@ -1944,25 +1944,25 @@ class ForestWolvesBot:
         )
         
         # Отправляем сообщение о начале ночи
-            await context.bot.send_message(
-                chat_id=game.chat_id,
-                text=forest_story,
-                parse_mode='Markdown',
-                message_thread_id=game.thread_id
-            )
-            
-            # Небольшая пауза для атмосферы
-            await asyncio.sleep(2)
-            
-            night_message = await context.bot.send_message(
-                chat_id=game.chat_id,
-                text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-                reply_markup=reply_markup,
-                message_thread_id=game.thread_id
-            )
-            
-            # Закрепляем сообщение ночи
-            await self._pin_stage_message(context, game, "night", night_message.message_id)
+        await context.bot.send_message(
+            chat_id=game.chat_id,
+            text=forest_story,
+            parse_mode='Markdown',
+            message_thread_id=game.thread_id
+        )
+        
+        # Небольшая пауза для атмосферы
+        await asyncio.sleep(2)
+        
+        night_message = await context.bot.send_message(
+            chat_id=game.chat_id,
+            text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
+            reply_markup=reply_markup,
+            message_thread_id=game.thread_id
+        )
+        
+        # Закрепляем сообщение ночи
+        await self._pin_stage_message(context, game, "night", night_message.message_id)
 
         # ЛС с ролями
         for player in game.players.values():
@@ -2485,7 +2485,7 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-                except Exception as e2:
+            except Exception as e2:
                     logger.error(f"Fallback тоже не сработал: {e2}")
 
         # Обновляем статистику игроков в базе данных
@@ -3165,17 +3165,17 @@ class ForestWolvesBot:
         success = update_chat_settings(chat_id, test_mode=new_mode)
         
         if success:
-        mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
-        
-        # Обновляем игру, если она есть
-        if game:
-            game.is_test_mode = new_mode
-        
-        await query.edit_message_text(
-            f"✅ Тестовый режим переключен: {mode_text}\n\n"
+            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+            
+            # Обновляем игру, если она есть
+            if game:
+                game.is_test_mode = new_mode
+            
+            await query.edit_message_text(
+                f"✅ Тестовый режим переключен: {mode_text}\n\n"
                 f"Минимум игроков: {chat_settings['min_players']}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
-        )
+            )
         else:
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
 
@@ -3961,7 +3961,7 @@ class ForestWolvesBot:
 
         # Запуск бота (blocking call)
         try:
-        application.run_polling()
+            application.run_polling()
         except KeyboardInterrupt:
             logger.info("⏹️ Остановка бота...")
         finally:
