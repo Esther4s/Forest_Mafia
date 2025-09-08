@@ -565,7 +565,7 @@ class ForestWolvesBot:
                 await update.message.reply_text(
                     f"🌰 **Баланс игрока {username}:**\n\n"
                     f"💳 Текущий баланс: {balance} орешков\n\n"
-                    f"💡 Используйте команду /игра для создания новой игры!"
+                    f"💡 Используйте команду /game для создания новой игры!"
                 )
             else:
                 # Если пользователя нет в БД, создаем его
@@ -573,7 +573,7 @@ class ForestWolvesBot:
                 await update.message.reply_text(
                     f"👋 Добро пожаловать, {username}!\n\n"
                     f"🌰 Ваш начальный баланс: 0 орешков\n\n"
-                    f"💡 Используйте команду /игра для создания новой игры!"
+                    f"💡 Используйте команду /game для создания новой игры!"
                 )
                 
         except Exception as e:
@@ -3874,8 +3874,8 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("remove_channel", self.remove_channel)) # Обработчик команды remove_channel
         
         # Новые команды для работы с базой данных
-        application.add_handler(CommandHandler("баланс", self.balance_command)) # Команда /баланс
-        application.add_handler(CommandHandler("игра", self.game_command)) # Команда /игра
+        application.add_handler(CommandHandler("balance", self.balance_command)) # Команда /balance
+        application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         
 
         # Обработчик присоединения бота к чату
