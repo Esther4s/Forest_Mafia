@@ -708,8 +708,7 @@ def create_tables():
             game_type VARCHAR(50) DEFAULT 'forest_mafia',
             status VARCHAR(50) DEFAULT 'active',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         -- Таблица статистики
@@ -721,8 +720,7 @@ def create_tables():
             games_lost INTEGER DEFAULT 0,
             last_played TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         -- Таблица магазина
@@ -739,9 +737,7 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL,
             item_id INTEGER NOT NULL,
-            purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
-            FOREIGN KEY (item_id) REFERENCES shop(id) ON DELETE CASCADE
+            purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         -- Таблица настроек чата
