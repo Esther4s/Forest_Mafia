@@ -1138,24 +1138,6 @@ def get_player_detailed_stats(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"❌ Ошибка получения детальной статистики: {e}")
         return None
 
-def add_nuts_to_user(user_id: int, nuts_amount: int) -> bool:
-    """
-    Добавляет орешки пользователю
-    """
-    try:
-        query = """
-        UPDATE users 
-        SET balance = balance + %s, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = %s
-        """
-        result = execute_query(query, (nuts_amount, user_id))
-        if result:
-            logger.info(f"✅ Начислено {nuts_amount} орешков пользователю {user_id}")
-        return result
-    except Exception as e:
-        logger.error(f"❌ Ошибка начисления орешков пользователю {user_id}: {e}")
-        return False
-
 def create_tables():
     """
     Создает все необходимые таблицы в базе данных
@@ -1402,6 +1384,41 @@ def create_tables():
     except Exception as e:
         logger.error(f"❌ Ошибка создания таблиц: {e}")
         raise
+
+def add_nuts_to_user(user_id: int, amount: int) -> bool:
+    """
+    Добавляет орешки пользователю
+    
+    Args:
+        user_id: ID пользователя Telegram
+        amount: Количество орешков для добавления
+        
+    Returns:
+        bool: True если успешно, False если ошибка
+    """
+    try:
+        # Создаем пользователя, если его нет
+        create_user(user_id, f"User_{user_id}")
+        
+        # Получаем текущий баланс
+        current_balance = get_user_balance(user_id)
+        if current_balance is None:
+            current_balance = 0
+        
+        # Обновляем баланс
+        new_balance = current_balance + amount
+        success = update_user_balance(user_id, new_balance)
+        
+        if success:
+            logger.info(f"✅ Добавлено {amount} орешков пользователю {user_id}. Новый баланс: {new_balance}")
+            return True
+        else:
+            logger.error(f"❌ Не удалось обновить баланс пользователя {user_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка добавления орешков пользователю {user_id}: {e}")
+        return False
 
 # Пример использования
 if __name__ == "__main__":

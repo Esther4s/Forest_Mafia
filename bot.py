@@ -3412,12 +3412,14 @@ class ForestWolvesBot:
             if game:
                 game.is_test_mode = new_mode
             
+            await query.answer("✅ Настройка сохранена!", show_alert=True)
             await query.edit_message_text(
                 f"✅ Тестовый режим переключен: {mode_text}\n\n"
                 f"Минимум игроков: {chat_settings['min_players']}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
             )
         else:
+            await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
 
     async def show_global_settings(self, query, context):
@@ -3642,28 +3644,40 @@ class ForestWolvesBot:
         # Обрабатываем установку конкретных значений
         if query.data.startswith("set_night_"):
             seconds = int(query.data.split("_")[2])
-            # Сохраняем настройку
-            self.global_settings.set("night_duration", seconds)
-            await query.edit_message_text(f"🌙 Длительность ночи изменена на {seconds} секунд!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
+            # Сохраняем настройку в базу данных
+            success = update_chat_settings(chat_id, night_duration=seconds)
+            if success:
+                await query.answer("✅ Настройка сохранена!", show_alert=True)
+                await query.edit_message_text(f"🌙 Длительность ночи изменена на {seconds} секунд!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
+            else:
+                await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_day_"):
             seconds = int(query.data.split("_")[2])
             minutes = seconds // 60
-            # Сохраняем настройку
-            self.global_settings.set("day_duration", seconds)
-            await query.edit_message_text(f"☀️ Длительность дня изменена на {minutes} минут!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
+            # Сохраняем настройку в базу данных
+            success = update_chat_settings(chat_id, day_duration=seconds)
+            if success:
+                await query.answer("✅ Настройка сохранена!", show_alert=True)
+                await query.edit_message_text(f"☀️ Длительность дня изменена на {minutes} минут!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
+            else:
+                await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_vote_"):
             seconds = int(query.data.split("_")[2])
-            # Сохраняем настройку
-            self.global_settings.set("voting_duration", seconds)
-            if seconds >= 60:
-                minutes = seconds // 60
-                if seconds % 60 == 0:
-                    time_text = f"{minutes} минут"
+            # Сохраняем настройку в базу данных
+            success = update_chat_settings(chat_id, vote_duration=seconds)
+            if success:
+                await query.answer("✅ Настройка сохранена!", show_alert=True)
+                if seconds >= 60:
+                    minutes = seconds // 60
+                    if seconds % 60 == 0:
+                        time_text = f"{minutes} минут"
+                    else:
+                        time_text = f"{minutes}.{(seconds % 60)//6} минуты"
                 else:
-                    time_text = f"{minutes}.{(seconds % 60)//6} минуты"
+                    time_text = f"{seconds} секунд"
+                await query.edit_message_text(f"🗳️ Длительность голосования изменена на {time_text}!\n\n✅ Новая настройка сохранена в базе данных и будет применена для следующих игр.")
             else:
-                time_text = f"{seconds} секунд"
-            await query.edit_message_text(f"🗳️ Длительность голосования изменена на {time_text}!\n\n✅ Новая настройка сохранена и будет применена для следующих игр.")
+                await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_min_players_"):
             players = int(query.data.split("_")[3])
             # Сохраняем настройку в базу данных
