@@ -121,7 +121,7 @@ class ForestWolvesBot:
                 game.thread_id = thread_id
                 game.db_game_id = game_data['id']
                 if game_data.get('phase'):
-                game.phase = GamePhase(game_data['phase'])
+                    game.phase = GamePhase(game_data['phase'])
                 game.current_round = game_data.get('round_number', 0)
                 game.status = game_data.get('status', 'active')
                 
@@ -675,7 +675,7 @@ class ForestWolvesBot:
                 stats_text += f"🐺 **Лучший хищник:** {username}\n"
                 stats_text += f"   🏆 Побед: {best_predator['games_won']} ({win_rate}%)\n"
                 stats_text += f"   🎮 Игр: {best_predator['games_played']}\n\n"
-        else:
+            else:
                 stats_text += "🐺 **Лучший хищник:** пока нет данных\n\n"
             
             if best_herbivore:
@@ -699,7 +699,7 @@ class ForestWolvesBot:
         has_permission, error_msg = await self.check_user_permissions(update, context, "member")
         if not has_permission:
             await self.send_permission_error(update, context, error_msg)
-                return
+            return
             
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name or "Unknown"
@@ -2113,7 +2113,7 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-                except Exception as e2:
+            except Exception as e2:
                     logger.error(f"Fallback тоже не сработал: {e2}")
 
         # очищаем маппинги
@@ -2174,25 +2174,25 @@ class ForestWolvesBot:
         )
         
         # Отправляем сообщение о начале ночи
-            await context.bot.send_message(
-                chat_id=game.chat_id,
-                text=forest_story,
-                parse_mode='Markdown',
-                message_thread_id=game.thread_id
-            )
-            
-            # Небольшая пауза для атмосферы
-            await asyncio.sleep(2)
-            
-            night_message = await context.bot.send_message(
-                chat_id=game.chat_id,
-                text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
-                reply_markup=reply_markup,
-                message_thread_id=game.thread_id
-            )
-            
-            # Закрепляем сообщение ночи
-            await self._pin_stage_message(context, game, "night", night_message.message_id)
+        await context.bot.send_message(
+            chat_id=game.chat_id,
+            text=forest_story,
+            parse_mode='Markdown',
+            message_thread_id=game.thread_id
+        )
+        
+        # Небольшая пауза для атмосферы
+        await asyncio.sleep(2)
+        
+        night_message = await context.bot.send_message(
+            chat_id=game.chat_id,
+            text="🌙 Наступает ночь 🌙 Зверята разбежались по норкам и сладко заснули 😴 А вот ночные звери выходят на охоту…\n\n🎭 Распределение ролей завершено!",
+            reply_markup=reply_markup,
+            message_thread_id=game.thread_id
+        )
+        
+        # Закрепляем сообщение ночи
+        await self._pin_stage_message(context, game, "night", night_message.message_id)
 
         # ЛС с ролями
         for player in game.players.values():
@@ -2441,7 +2441,7 @@ class ForestWolvesBot:
         if game.phase == GamePhase.VOTING:
             # Проверяем, не были ли результаты уже обработаны досрочно
             if not (hasattr(game, 'voting_results_processed') and game.voting_results_processed):
-            logger.info("Время голосования истекло. Обрабатываем результаты.")
+                logger.info("Время голосования истекло. Обрабатываем результаты.")
                 await self.process_voting_results(context, game)
             else:
                 logger.info("Результаты голосования уже были обработаны досрочно.")
@@ -2724,7 +2724,7 @@ class ForestWolvesBot:
                     text=message_text.replace('*', '').replace('_', ''),
                     message_thread_id=game.thread_id
                 )
-                except Exception as e2:
+            except Exception as e2:
                     logger.error(f"Fallback тоже не сработал: {e2}")
 
         # Обновляем статистику игроков в базе данных
@@ -3436,18 +3436,18 @@ class ForestWolvesBot:
         success = update_chat_settings(chat_id, test_mode=new_mode)
         
         if success:
-        mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
-        
-        # Обновляем игру, если она есть
-        if game:
-            game.is_test_mode = new_mode
-        
+            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+            
+            # Обновляем игру, если она есть
+            if game:
+                game.is_test_mode = new_mode
+            
             await query.answer("✅ Настройка сохранена!", show_alert=True)
-        await query.edit_message_text(
-            f"✅ Тестовый режим переключен: {mode_text}\n\n"
+            await query.edit_message_text(
+                f"✅ Тестовый режим переключен: {mode_text}\n\n"
                 f"Минимум игроков: {chat_settings['min_players']}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
-        )
+            )
         else:
             await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
@@ -3729,7 +3729,7 @@ class ForestWolvesBot:
                 await query.answer("✅ Настройка сохранена!", show_alert=True)
                 # Обновляем кнопки с галочкой
                 await self.show_vote_duration_options(query, context)
-                else:
+            else:
                 await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
         elif query.data.startswith("set_min_players_"):
             players = int(query.data.split("_")[3])
@@ -4264,7 +4264,7 @@ class ForestWolvesBot:
 
         # Запуск бота (blocking call)
         try:
-        application.run_polling()
+            application.run_polling()
         except KeyboardInterrupt:
             logger.info("⏹️ Остановка бота...")
         finally:
