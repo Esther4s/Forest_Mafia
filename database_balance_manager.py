@@ -69,8 +69,8 @@ class BalanceManager:
                 return True
             
             # Создаем пользователя
-            success = create_user(user_id, username)
-            if success:
+            user_id_result = create_user(user_id, username)
+            if user_id_result is not None:
                 self.logger.info(f"✅ Создан пользователь {user_id} с начальным балансом 100 орешков")
                 return True
             else:
@@ -103,6 +103,7 @@ class BalanceManager:
                 new_balance = 0.0
             
             # Обновляем баланс
+            self.logger.info(f"🔄 Обновляем баланс пользователя {user_id} на {new_balance}")
             success = update_user_balance(user_id, new_balance)
             
             if success:
@@ -134,9 +135,11 @@ class BalanceManager:
             
             # Получаем текущий баланс
             current_balance = self.get_user_balance(user_id)
+            self.logger.info(f"💰 Текущий баланс пользователя {user_id}: {current_balance}")
             
             # Вычисляем новый баланс
             new_balance = current_balance + amount
+            self.logger.info(f"💰 Новый баланс пользователя {user_id}: {new_balance}")
             
             # Обновляем баланс
             return self.update_user_balance(user_id, new_balance)
