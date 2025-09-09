@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python36
 # -*- coding: utf-8 -*-
 
 import asyncio
@@ -96,6 +96,15 @@ class ForestWolvesBot:
         
         # Загружаем активные игры из базы данных
         self.load_active_games()
+        
+        # Инициализируем автоматическое сохранение
+        try:
+            from auto_save_manager import AutoSaveManager
+            self.auto_save_manager = AutoSaveManager(self)
+            logger.info("✅ Автоматическое сохранение инициализировано")
+        except Exception as e:
+            logger.error(f"❌ Ошибка инициализации автоматического сохранения: {e}")
+            self.auto_save_manager = None
 
     def load_active_games(self):
         """Загружает активные игры из базы данных при старте бота"""
@@ -104,6 +113,25 @@ class ForestWolvesBot:
                 logger.warning("⚠️ База данных недоступна, активные игры не загружены")
                 return
             
+            # Сначала пытаемся загрузить из сохраненного состояния
+            if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+                try:
+                    import asyncio
+                    asyncio.create_task(self.auto_save_manager.load_saved_state())
+                    logger.info("✅ Загружено состояние из автоматического сохранения")
+                    return
+                except Exception as e:
+                    logger.warning(f"⚠️ Не удалось загрузить из автоматического сохранения: {e}")
+            
+            # Fallback: загружаем из основной БД
+            self._load_active_games_from_db()
+                
+        except Exception as e:
+            logger.error(f"Ошибка при загрузке активных игр: {e}")
+    
+    def _load_active_games_from_db(self):
+        """Загружает активные игры из основной БД"""
+        try:
             # Получаем все активные игры из БД через psycopg2
             query = """
             SELECT id, chat_id, thread_id, status, phase, round_number, 
@@ -162,7 +190,25 @@ class ForestWolvesBot:
                 logger.info(f"✅ Загружена активная игра {game_data['id']} для чата {chat_id} с ночными действиями")
                 
         except Exception as e:
-            logger.error(f"Ошибка при загрузке активных игр: {e}")
+            logger.error(f"Ошибка при загрузке активных игр из БД: {e}")
+    
+    def start_auto_save(self):
+        """Запускает автоматическое сохранение"""
+        if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            self.auto_save_manager.start_auto_save()
+            logger.info("✅ Автоматическое сохранение запущено")
+    
+    def stop_auto_save(self):
+        """Останавливает автоматическое сохранение"""
+        if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            self.auto_save_manager.stop_auto_save()
+            logger.info("✅ Автоматическое сохранение остановлено")
+    
+    def force_save_state(self):
+        """Принудительно сохраняет состояние"""
+        if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            self.auto_save_manager.force_save()
+            logger.info("✅ Состояние принудительно сохранено")
 
     # ---------------- helper functions ----------------
     async def can_bot_write_in_chat(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> bool:
@@ -1858,17 +1904,92 @@ class ForestWolvesBot:
         games_count = len(self.games)
         players_count = len(self.player_games)
 
-        # Очищаем все игровые сессии
+        # Очищаем все игровые сессии в памяти
         self.games.clear()
         self.player_games.clear()
         self.night_actions.clear()
         self.night_interfaces.clear()
+        
+        # Очищаем сохраненное состояние
+        if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            try:
+                from state_persistence import state_persistence
+                state_persistence.clear_all_state()
+                logger.info("✅ Сохраненное состояние очищено")
+            except Exception as e:
+                logger.error(f"❌ Ошибка очистки сохраненного состояния: {e}")
 
         await update.message.reply_text(
             "🧹 Все игровые сессии очищены!\n\n"
             f"📊 Было завершено игр: {games_count}\n"
-            f"👥 Было освобождено игроков: {players_count}"
+            f"👥 Было освобождено игроков: {players_count}\n"
+            f"💾 Сохраненное состояние также очищено"
         )
+    
+    async def save_state_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для принудительного сохранения состояния"""
+        # Проверяем права пользователя (только администраторы)
+        has_permission, error_msg = await self.check_user_permissions(update, context, "admin")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            # Принудительно сохраняем состояние
+            self.force_save_state()
+            
+            await update.message.reply_text(
+                "💾 **Состояние сохранено!**\n\n"
+                f"📊 Активных игр: {len(self.games)}\n"
+                f"👥 Игроков в играх: {len(self.player_games)}\n"
+                f"🔗 Авторизованных чатов: {len(self.authorized_chats)}\n\n"
+                "✅ Все данные сохранены в базу данных"
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка принудительного сохранения: {e}")
+            await update.message.reply_text(
+                "❌ **Ошибка сохранения!**\n\n"
+                f"Не удалось сохранить состояние: {str(e)}"
+            )
+    
+    async def auto_save_status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для проверки статуса автоматического сохранения"""
+        # Проверяем права пользователя (только администраторы)
+        has_permission, error_msg = await self.check_user_permissions(update, context, "admin")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+                status = self.auto_save_manager.get_save_status()
+                
+                status_text = (
+                    "💾 **Статус автоматического сохранения**\n\n"
+                    f"🔄 Работает: {'✅ Да' if status['is_running'] else '❌ Нет'}\n"
+                    f"⏱️ Интервал: {status['save_interval']} секунд\n"
+                    f"🕐 Последнее сохранение: {status['last_save_time']}\n"
+                    f"⏰ Прошло времени: {status['time_since_last_save']:.1f} секунд\n\n"
+                    f"📊 **Текущее состояние:**\n"
+                    f"🎮 Активных игр: {len(self.games)}\n"
+                    f"👥 Игроков в играх: {len(self.player_games)}\n"
+                    f"🔗 Авторизованных чатов: {len(self.authorized_chats)}"
+                )
+                
+                await update.message.reply_text(status_text, parse_mode='Markdown')
+            else:
+                await update.message.reply_text(
+                    "❌ **Автоматическое сохранение недоступно**\n\n"
+                    "Менеджер автоматического сохранения не инициализирован."
+                )
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения статуса сохранения: {e}")
+            await update.message.reply_text(
+                "❌ **Ошибка получения статуса!**\n\n"
+                f"Не удалось получить статус: {str(e)}"
+            )
 
     async def setup_channel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда для настройки канала/темы для игры"""
@@ -2168,6 +2289,14 @@ class ForestWolvesBot:
         
         for user_id in players_to_remove:
             del self.player_games[user_id]
+        
+        # Сохраняем состояние после завершения игры
+        if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            try:
+                self.auto_save_manager.force_save()
+                logger.info("✅ Состояние сохранено после завершения игры")
+            except Exception as e:
+                logger.error(f"❌ Ошибка сохранения состояния после завершения игры: {e}")
 
     # ---------------- night/day/vote flow ----------------
     async def start_night_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -4261,6 +4390,8 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("test_mode", self.handle_test_mode_command)) # Обработчик команды test_mode
         application.add_handler(CommandHandler("setup_channel", self.setup_channel)) # Обработчик команды setup_channel
         application.add_handler(CommandHandler("remove_channel", self.remove_channel)) # Обработчик команды remove_channel
+        application.add_handler(CommandHandler("save_state", self.save_state_command)) # Команда для принудительного сохранения
+        application.add_handler(CommandHandler("auto_save_status", self.auto_save_status_command)) # Статус автоматического сохранения
         
         # Новые команды для работы с базой данных
         application.add_handler(CommandHandler("balance", self.balance_command)) # Команда /balance

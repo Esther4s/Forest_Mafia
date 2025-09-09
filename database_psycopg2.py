@@ -1434,6 +1434,264 @@ def add_nuts_to_user(user_id: int, amount: int) -> bool:
         logger.error(f"❌ Ошибка добавления орешков пользователю {user_id}: {e}")
         return False
 
+# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С НАГРАДАМИ ====================
+
+def create_user_reward(user_id: int, reward_type: str, reason: str, amount: int, 
+                      description: str = None, metadata: dict = None) -> bool:
+    """
+    Создает запись о награде пользователя
+    
+    Args:
+        user_id: ID пользователя Telegram
+        reward_type: Тип награды
+        reason: Причина награды
+        amount: Количество орешков
+        description: Описание награды
+        metadata: Дополнительные данные
+        
+    Returns:
+        bool: True если награда создана успешно
+    """
+    try:
+        import json
+        
+        query = """
+            INSERT INTO user_rewards 
+            (user_id, reward_type, reason, amount, description, metadata, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        """
+        
+        metadata_json = json.dumps(metadata) if metadata else None
+        
+        affected = execute_query(query, (
+            user_id, reward_type, reason, amount, description, metadata_json
+        ))
+        
+        if affected > 0:
+            logger.info(f"✅ Награда создана для пользователя {user_id}: {amount} орешков за {reason}")
+            return True
+        else:
+            logger.error(f"❌ Не удалось создать награду для пользователя {user_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка создания награды для пользователя {user_id}: {e}")
+        return False
+
+def get_user_rewards(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    """
+    Получает награды пользователя
+    
+    Args:
+        user_id: ID пользователя Telegram
+        limit: Максимальное количество записей
+        offset: Смещение для пагинации
+        
+    Returns:
+        List[Dict]: Список наград
+    """
+    try:
+        query = """
+            SELECT * FROM user_rewards 
+            WHERE user_id = %s 
+            ORDER BY created_at DESC 
+            LIMIT %s OFFSET %s
+        """
+        
+        return fetch_query(query, (user_id, limit, offset))
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения наград пользователя {user_id}: {e}")
+        return []
+
+def get_user_rewards_stats(user_id: int) -> Dict[str, Any]:
+    """
+    Получает статистику наград пользователя
+    
+    Args:
+        user_id: ID пользователя Telegram
+        
+    Returns:
+        Dict: Статистика наград
+    """
+    try:
+        query = """
+            SELECT 
+                COUNT(*) as total_rewards,
+                SUM(amount) as total_amount,
+                AVG(amount) as average_amount,
+                MAX(amount) as max_reward,
+                MIN(amount) as min_reward,
+                COUNT(DISTINCT reward_type) as unique_reward_types,
+                COUNT(DISTINCT reason) as unique_reasons
+            FROM user_rewards 
+            WHERE user_id = %s
+        """
+        
+        result = fetch_one(query, (user_id,))
+        
+        if result:
+            return {
+                "total_rewards": result.get("total_rewards", 0),
+                "total_amount": float(result.get("total_amount", 0)),
+                "average_amount": float(result.get("average_amount", 0)),
+                "max_reward": result.get("max_reward", 0),
+                "min_reward": result.get("min_reward", 0),
+                "unique_reward_types": result.get("unique_reward_types", 0),
+                "unique_reasons": result.get("unique_reasons", 0)
+            }
+        else:
+            return {
+                "total_rewards": 0,
+                "total_amount": 0.0,
+                "average_amount": 0.0,
+                "max_reward": 0,
+                "min_reward": 0,
+                "unique_reward_types": 0,
+                "unique_reasons": 0
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статистики наград пользователя {user_id}: {e}")
+        return {
+            "total_rewards": 0,
+            "total_amount": 0.0,
+            "average_amount": 0.0,
+            "max_reward": 0,
+            "min_reward": 0,
+            "unique_reward_types": 0,
+            "unique_reasons": 0
+        }
+
+def get_rewards_by_type(reward_type: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Получает награды по типу
+    
+    Args:
+        reward_type: Тип награды
+        limit: Максимальное количество записей
+        
+    Returns:
+        List[Dict]: Список наград
+    """
+    try:
+        query = """
+            SELECT * FROM user_rewards 
+            WHERE reward_type = %s 
+            ORDER BY created_at DESC 
+            LIMIT %s
+        """
+        
+        return fetch_query(query, (reward_type, limit))
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения наград по типу {reward_type}: {e}")
+        return []
+
+def get_rewards_by_reason(reason: str, limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Получает награды по причине
+    
+    Args:
+        reason: Причина награды
+        limit: Максимальное количество записей
+        
+    Returns:
+        List[Dict]: Список наград
+    """
+    try:
+        query = """
+            SELECT * FROM user_rewards 
+            WHERE reason = %s 
+            ORDER BY created_at DESC 
+            LIMIT %s
+        """
+        
+        return fetch_query(query, (reason, limit))
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения наград по причине {reason}: {e}")
+        return []
+
+def delete_user_reward(reward_id: int) -> bool:
+    """
+    Удаляет награду по ID
+    
+    Args:
+        reward_id: ID награды
+        
+    Returns:
+        bool: True если награда удалена успешно
+    """
+    try:
+        query = "DELETE FROM user_rewards WHERE id = %s"
+        affected = execute_query(query, (reward_id,))
+        
+        if affected > 0:
+            logger.info(f"✅ Награда {reward_id} удалена")
+            return True
+        else:
+            logger.warning(f"⚠️ Награда {reward_id} не найдена")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления награды {reward_id}: {e}")
+        return False
+
+def update_user_reward(reward_id: int, amount: int = None, description: str = None, 
+                      metadata: dict = None) -> bool:
+    """
+    Обновляет награду
+    
+    Args:
+        reward_id: ID награды
+        amount: Новое количество орешков
+        description: Новое описание
+        metadata: Новые дополнительные данные
+        
+    Returns:
+        bool: True если награда обновлена успешно
+    """
+    try:
+        import json
+        
+        # Формируем запрос динамически
+        updates = []
+        params = []
+        
+        if amount is not None:
+            updates.append("amount = %s")
+            params.append(amount)
+        
+        if description is not None:
+            updates.append("description = %s")
+            params.append(description)
+        
+        if metadata is not None:
+            updates.append("metadata = %s")
+            params.append(json.dumps(metadata))
+        
+        if not updates:
+            logger.warning(f"⚠️ Нет данных для обновления награды {reward_id}")
+            return False
+        
+        updates.append("updated_at = CURRENT_TIMESTAMP")
+        params.append(reward_id)
+        
+        query = f"UPDATE user_rewards SET {', '.join(updates)} WHERE id = %s"
+        affected = execute_query(query, tuple(params))
+        
+        if affected > 0:
+            logger.info(f"✅ Награда {reward_id} обновлена")
+            return True
+        else:
+            logger.warning(f"⚠️ Награда {reward_id} не найдена")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления награды {reward_id}: {e}")
+        return False
+
 # Пример использования
 if __name__ == "__main__":
     try:

@@ -1,7 +1,15 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+Игровая логика для ForestMafia Bot
+Основные классы и логика игры "Лес и Волки"
+"""
+
 import random
 from enum import Enum
-from typing import Dict, List, Optional
-from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 class GamePhase(Enum):
@@ -24,52 +32,141 @@ class Role(Enum):
 
 @dataclass
 class Player:
+    """Игрок в игре ForestMafia"""
     user_id: int
     username: str
     role: Role
     team: Team
     is_alive: bool = True
-    supplies: int = 2  # Количество припасов (по умолчанию 2)
-    max_supplies: int = 2  # Максимальное количество припасов
-    is_fox_stolen: int = 0  # Количество краж Лисой
-    stolen_supplies: int = 0  # Количество украденных припасов (для восстановления)
-    is_beaver_protected: bool = False  # Защищен ли Бобром
-    consecutive_nights_survived: int = 0  # Сколько ночей подряд выжил
-    last_action_round: int = 0  # В каком раунде последний раз действовал
+    supplies: int = 2
+    max_supplies: int = 2
+    is_fox_stolen: int = 0
+    stolen_supplies: int = 0
+    is_beaver_protected: bool = False
+    consecutive_nights_survived: int = 0
+    last_action_round: int = 0
+    
+    def __post_init__(self):
+        """Валидация данных игрока после инициализации"""
+        if self.supplies < 0:
+            raise ValueError("Количество припасов не может быть отрицательным")
+        if self.max_supplies < 1:
+            raise ValueError("Максимальное количество припасов должно быть больше 0")
+    
+    @property
+    def is_supplies_critical(self) -> bool:
+        """Проверяет, критично ли мало припасов у игрока"""
+        return self.supplies <= 1
+    
+    @property
+    def can_be_stolen_from(self) -> bool:
+        """Может ли у игрока быть украдено (жив и есть припасы)"""
+        return self.is_alive and self.supplies > 0
+    
+    def consume_supplies(self, amount: int = 1) -> bool:
+        """Потребляет припасы, возвращает True если успешно"""
+        if self.supplies >= amount:
+            self.supplies -= amount
+            return True
+        return False
+    
+    def add_supplies(self, amount: int) -> int:
+        """Добавляет припасы, возвращает количество добавленных"""
+        if amount <= 0:
+            return 0
+        
+        old_supplies = self.supplies
+        self.supplies = min(self.supplies + amount, self.max_supplies)
+        return self.supplies - old_supplies
+    
+    def steal_supplies(self) -> bool:
+        """Крадет припас у игрока, возвращает True если успешно"""
+        if self.can_be_stolen_from:
+            self.supplies -= 1
+            self.stolen_supplies += 1
+            self.is_fox_stolen += 1
+            return True
+        return False
+    
+    def die(self, reason: str = "unknown"):
+        """Убивает игрока"""
+        self.is_alive = False
+        self.consecutive_nights_survived = 0
+        # Можно добавить логирование причины смерти
+    
+    def survive_night(self):
+        """Игрок выживает ночь"""
+        self.consecutive_nights_survived += 1
+
+
+@dataclass
+class GameStatistics:
+    """Статистика игры"""
+    predator_kills: int = 0
+    herbivore_survivals: int = 0
+    fox_thefts: int = 0
+    beaver_protections: int = 0
+    total_voters: int = 0
+    voting_type: str = ""
+    
+    def record_kill(self, team: Team):
+        """Записывает убийство"""
+        if team == Team.PREDATORS:
+            self.predator_kills += 1
+        else:
+            self.herbivore_survivals += 1
+    
+    def record_fox_theft(self):
+        """Записывает кражу лисы"""
+        self.fox_thefts += 1
+    
+    def record_beaver_protection(self):
+        """Записывает защиту бобра"""
+        self.beaver_protections += 1
+
 
 class Game:
-    def __init__(self, chat_id: int, thread_id: Optional[int] = None):
+    """Основной класс игры ForestMafia"""
+    
+    def __init__(self, chat_id: int, thread_id: Optional[int] = None, is_test_mode: bool = True):
         self.chat_id = chat_id
-        self.thread_id = thread_id  # ID темы для форумных групп
+        self.thread_id = thread_id
+        self.is_test_mode = is_test_mode
+        
+        # Игровое состояние
         self.players: Dict[int, Player] = {}
         self.phase = GamePhase.WAITING
         self.current_round = 0
+        
+        # Действия и голосования
         self.night_actions = {}
         self.votes = {}
-        self.game_start_time = None
-        self.phase_end_time = None
-        self.is_test_mode = True  # Enabled test mode by default
-        self.pinned_message_id = None  # ID закрепленного сообщения о присоединении
-        self.stage_pinned_messages = {}  # ID закрепленных сообщений для каждого этапа
-        self.total_voters = 0  # Общее количество голосующих
-        self.voting_type = ""  # Тип голосования (exile, wolf, etc.)
-        self.predator_kills = 0  # Количество убийств хищников
-        self.herbivore_survivals = 0  # Количество выживаний травоядных
-        self.fox_thefts = 0  # Общее количество краж лисы
-        self.beaver_protections = 0  # Количество защит бобра
-        self.game_over_sent = False  # сообщение об окончании уже отправлено?
-        self.day_timer_task = None  # Задача таймера дневной фазы
-        self.day_start_time = None  # Время начала дневной фазы
+        
+        # Временные метки
+        self.game_start_time: Optional[datetime] = None
+        self.phase_end_time: Optional[datetime] = None
+        self.day_start_time: Optional[datetime] = None
+        
+        # UI состояние
+        self.pinned_message_id: Optional[int] = None
+        self.stage_pinned_messages: Dict[str, int] = {}
+        self.day_timer_task = None
+        
+        # Статистика
+        self.game_stats = GameStatistics()
+        
+        # Состояние игры
+        self.game_over_sent = False
 
     def add_player(self, user_id: int, username: str) -> bool:
         """Добавляет игрока в игру"""
-        # Limit player count to 12 in normal mode, no limit in test mode for now
-        if not self.is_test_mode and len(self.players) >= 12:
+        if not self._can_add_player():
             return False
+        
         if user_id in self.players:
             return False
 
-        # Роль будет назначена при старте игры
+        # Создаем игрока с временной ролью (будет назначена при старте)
         self.players[user_id] = Player(
             user_id=user_id,
             username=username,
@@ -77,6 +174,11 @@ class Game:
             team=Team.HERBIVORES  # Временная команда
         )
         return True
+    
+    def _can_add_player(self) -> bool:
+        """Проверяет, можно ли добавить игрока"""
+        max_players = 12 if not self.is_test_mode else float('inf')
+        return len(self.players) < max_players
 
     def remove_player(self, user_id: int) -> bool:
         """Удаляет игрока из игры"""
@@ -96,101 +198,101 @@ class Game:
 
     def can_start_game(self) -> bool:
         """Проверяет, можно ли начать игру"""
-        # Allow starting with 3 players in test mode
-        if self.is_test_mode:
-            return len(self.players) >= 3
-        return len(self.players) >= 6
+        min_players = 3 if self.is_test_mode else 6
+        return len(self.players) >= min_players
 
     def assign_roles(self):
-        """Распределяет роли между игроками согласно новой логике"""
+        """Распределяет роли между игроками"""
         player_list = list(self.players.values())
         total_players = len(player_list)
         
-        # Вычисляем количество каждой роли согласно новой логике
-        roles = self._calculate_role_distribution(total_players)
+        # Вычисляем распределение ролей
+        role_counts = self._calculate_role_distribution(total_players)
         
-        # Создаем список всех ролей для распределения
+        # Создаем список ролей для распределения
+        all_roles = self._create_role_list(role_counts)
+        
+        # Перемешиваем и назначаем роли
+        random.shuffle(all_roles)
+        self._assign_roles_to_players(player_list, all_roles)
+    
+    def _create_role_list(self, role_counts: Dict[str, int]) -> List[Tuple[Role, Team]]:
+        """Создает список ролей для распределения"""
         all_roles = []
         
-        # Добавляем волков
-        for _ in range(roles['wolves']):
+        # Добавляем роли хищников
+        for _ in range(role_counts['wolves']):
             all_roles.append((Role.WOLF, Team.PREDATORS))
-        
-        # Добавляем лису
-        for _ in range(roles['fox']):
+        for _ in range(role_counts['fox']):
             all_roles.append((Role.FOX, Team.PREDATORS))
         
-        # Добавляем крота
-        for _ in range(roles['mole']):
+        # Добавляем роли травоядных
+        for _ in range(role_counts['mole']):
             all_roles.append((Role.MOLE, Team.HERBIVORES))
-        
-        # Добавляем бобров
-        for _ in range(roles['beaver']):
+        for _ in range(role_counts['beaver']):
             all_roles.append((Role.BEAVER, Team.HERBIVORES))
-        
-        # Добавляем зайцев
-        for _ in range(roles['hare']):
+        for _ in range(role_counts['hare']):
             all_roles.append((Role.HARE, Team.HERBIVORES))
         
-        # Перемешиваем роли для случайности
-        random.shuffle(all_roles)
-        
-        # Назначаем роли игрокам
-        for i, player in enumerate(player_list):
-            if i < len(all_roles):
-                role, team = all_roles[i]
+        return all_roles
+    
+    def _assign_roles_to_players(self, players: List[Player], roles: List[Tuple[Role, Team]]):
+        """Назначает роли игрокам"""
+        for i, player in enumerate(players):
+            if i < len(roles):
+                role, team = roles[i]
                 player.role = role
                 player.team = team
 
-    def _calculate_role_distribution(self, total_players: int) -> dict:
-        """Вычисляет распределение ролей согласно новой логике"""
+    def _calculate_role_distribution(self, total_players: int) -> Dict[str, int]:
+        """Вычисляет распределение ролей"""
         roles = {
-            'wolves': 0,
-            'fox': 0,
-            'mole': 0,
-            'beaver': 0,
-            'hare': 0
+            'wolves': self._calculate_wolves_count(total_players),
+            'fox': 1 if total_players >= 6 else 0,
+            'mole': 1 if total_players >= 4 else 0,
+            'beaver': self._calculate_beaver_count(total_players),
+            'hare': 0  # Будет вычислено в конце
         }
         
-        # 1. Волки
-        if 3 <= total_players <= 6:
-            roles['wolves'] = 1
-        elif 7 <= total_players <= 9:
-            roles['wolves'] = 2
-        elif 10 <= total_players <= 12:
-            roles['wolves'] = 3
-        
-        # 2. Крот (добавляется с 4 игроков, всегда 1)
-        if total_players >= 4:
-            roles['mole'] = 1
-        
-        # 3. Бобер (добавляется с 6 игроков, при 11-12 игроках становится 2)
-        if total_players >= 6:
-            if 11 <= total_players <= 12:
-                roles['beaver'] = 2
-            else:
-                roles['beaver'] = 1
-        
-        # 4. Лиса (добавляется с 6 игроков, всегда 1)
-        if total_players >= 6:
-            roles['fox'] = 1
-        
-        # 5. Зайцы (всегда остаются большинством, минимум 2)
-        used_roles = roles['wolves'] + roles['fox'] + roles['mole'] + roles['beaver']
+        # Зайцы - все оставшиеся игроки
+        used_roles = sum(roles.values())
         roles['hare'] = total_players - used_roles
         
-        # Проверяем, что зайцев минимум 2
+        # Обеспечиваем минимум 2 зайца
+        self._ensure_minimum_hares(roles)
+        
+        return roles
+    
+    def _calculate_wolves_count(self, total_players: int) -> int:
+        """Вычисляет количество волков"""
+        if 3 <= total_players <= 6:
+            return 1
+        elif 7 <= total_players <= 9:
+            return 2
+        elif 10 <= total_players <= 12:
+            return 3
+        return 0
+    
+    def _calculate_beaver_count(self, total_players: int) -> int:
+        """Вычисляет количество бобров"""
+        if total_players < 6:
+            return 0
+        elif 11 <= total_players <= 12:
+            return 2
+        else:
+            return 1
+    
+    def _ensure_minimum_hares(self, roles: Dict[str, int]):
+        """Обеспечивает минимум 2 зайца"""
         if roles['hare'] < 2:
-            # Если зайцев меньше 2, корректируем другие роли
             deficit = 2 - roles['hare']
+            # Уменьшаем бобров или кротов
             if roles['beaver'] > 0 and deficit > 0:
                 roles['beaver'] = max(0, roles['beaver'] - deficit)
                 roles['hare'] = 2
             elif roles['mole'] > 0 and deficit > 0:
                 roles['mole'] = max(0, roles['mole'] - deficit)
                 roles['hare'] = 2
-        
-        return roles
 
     def start_game(self):
         """Начинает игру"""
@@ -206,38 +308,45 @@ class Game:
 
     def get_alive_players(self) -> List[Player]:
         """Возвращает список живых игроков"""
-        return [p for p in self.players.values() if p.is_alive]
+        return [player for player in self.players.values() if player.is_alive]
 
     def get_players_by_role(self, role: Role) -> List[Player]:
-        """Возвращает список игроков с определенной ролью"""
-        return [p for p in self.players.values() if p.role == role and p.is_alive]
+        """Возвращает список живых игроков с определенной ролью"""
+        return [player for player in self.players.values() 
+                if player.role == role and player.is_alive]
 
     def get_players_by_team(self, team: Team) -> List[Player]:
-        """Возвращает список игроков определенной команды"""
-        return [p for p in self.players.values() if p.team == team and p.is_alive]
+        """Возвращает список живых игроков определенной команды"""
+        return [player for player in self.players.values() 
+                if player.team == team and player.is_alive]
+    
+    def get_dead_players(self) -> List[Player]:
+        """Возвращает список мертвых игроков"""
+        return [player for player in self.players.values() if not player.is_alive]
+    
+    def get_player_count_by_team(self, team: Team) -> int:
+        """Возвращает количество живых игроков в команде"""
+        return len(self.get_players_by_team(team))
 
     def check_game_end(self) -> Optional[Team]:
-        """
-        Правила:
-        - Волки выигрывают, если их >= остальных.
-        - Травоядные выигрывают, если волков нет.
-        """
-        alive = self.get_alive_players()
-        total_alive = len(alive)
-
-        if total_alive == 0:
-            return Team.HERBIVORES
-
-        wolves = [p for p in alive if p.role == Role.WOLF]
-        wolves_count = len(wolves)
-
-        if wolves_count > 0 and wolves_count >= (total_alive - wolves_count):
+        """Проверяет условия окончания игры"""
+        alive_players = self.get_alive_players()
+        
+        if not alive_players:
+            return Team.HERBIVORES  # По умолчанию побеждают травоядные
+        
+        predators_count = self.get_player_count_by_team(Team.PREDATORS)
+        herbivores_count = self.get_player_count_by_team(Team.HERBIVORES)
+        
+        # Хищники побеждают, если их больше или равно травоядным
+        if predators_count >= herbivores_count:
             return Team.PREDATORS
-
-        if wolves_count == 0:
+        
+        # Травоядные побеждают, если хищников нет
+        if predators_count == 0:
             return Team.HERBIVORES
-
-        return None
+        
+        return None  # Игра продолжается
     
     
     def check_auto_game_end(self) -> Optional[Team]:
@@ -263,7 +372,7 @@ class Game:
             game_duration = datetime.now() - self.game_start_time
             if game_duration.total_seconds() > 10800:  # 3 часа
                 # При таймауте определяем победителя по статистике
-                if self.predator_kills > self.herbivore_survivals:
+                if self.game_stats.predator_kills > self.game_stats.herbivore_survivals:
                     return Team.PREDATORS
                 else:
                     return Team.HERBIVORES
@@ -271,7 +380,7 @@ class Game:
         # 3. Слишком много раундов (более 25 для лесной мафии)
         if self.current_round > 25:
             # При превышении лимита раундов определяем победителя по статистике
-            if self.predator_kills > self.herbivore_survivals:
+            if self.game_stats.predator_kills > self.game_stats.herbivore_survivals:
                 return Team.PREDATORS
             else:
                 return Team.HERBIVORES
@@ -333,7 +442,7 @@ class Game:
         """Начинает дневную фазу"""
         self.phase = GamePhase.DAY
         self.phase_end_time = datetime.now() + timedelta(seconds=300)  # 5 минут на обсуждение
-        self.day_start_time = datetime.now()  # Записываем время начала дневной фазы
+        self.day_start_time = datetime.now()
 
     def start_voting(self):
         """Начинает фазу голосования"""
@@ -344,75 +453,99 @@ class Game:
             delattr(self, 'last_voting_results')
         self.phase_end_time = datetime.now() + timedelta(seconds=120)  # 2 минуты на голосование
 
-    def vote(self, voter_id: int, target_id: Optional[int]) -> tuple[bool, bool]:
+    def vote(self, voter_id: int, target_id: Optional[int]) -> Tuple[bool, bool]:
         """
         Регистрирует голос игрока
         Возвращает: (успех, уже_голосовал)
         target_id может быть None для пропуска голосования
         """
-        if self.phase != GamePhase.VOTING:
+        if not self._is_voting_valid(voter_id, target_id):
             return False, False
-
-        voter = self.players.get(voter_id)
-        if not voter or not voter.is_alive:
-            return False, False
-
-        # Если target_id не None, проверяем цель
-        if target_id is not None:
-            target = self.players.get(target_id)
-            if not target or not target.is_alive:
-                return False, False
-
-            # Защита от голосования за себя
-            if voter_id == target_id:
-                return False, False
 
         # Проверяем, голосовал ли игрок ранее
         already_voted = voter_id in self.votes
         
         self.votes[voter_id] = target_id
         return True, already_voted
+    
+    def _is_voting_valid(self, voter_id: int, target_id: Optional[int]) -> bool:
+        """Проверяет валидность голосования"""
+        if self.phase != GamePhase.VOTING:
+            return False
+
+        voter = self.players.get(voter_id)
+        if not voter or not voter.is_alive:
+            return False
+
+        # Если target_id не None, проверяем цель
+        if target_id is not None:
+            target = self.players.get(target_id)
+            if not target or not target.is_alive:
+                return False
+
+            # Защита от голосования за себя
+            if voter_id == target_id:
+                return False
+
+        return True
 
     def process_voting(self) -> Optional[Player]:
-        """Обрабатывает результаты голосования с учетом мнения большинства"""
-        # Сохраняем голоса для детального отображения (даже если их нет)
+        """Обрабатывает результаты голосования"""
+        # Сохраняем голоса для детального отображения
         self.last_voting_results = self.votes.copy()
         
         if not self.votes:
             return None
 
-        # Подсчитываем общее количество голосов
-        total_votes = len(self.votes)
+        vote_counts, skip_votes = self._count_votes()
         
-        # Подсчет голосов за конкретных игроков (исключаем голоса за None - пропуски)
+        # Если нет голосов за конкретных игроков
+        if not vote_counts:
+            return None
+
+        # Проверяем условия для изгнания
+        if not self._should_exile_player(vote_counts, skip_votes):
+            return None
+
+        # Находим игрока для изгнания
+        exiled_player = self._find_exiled_player(vote_counts)
+        if exiled_player:
+            exiled_player.die("voted_out")
+
+        return exiled_player
+    
+    def _count_votes(self) -> Tuple[Dict[int, int], int]:
+        """Подсчитывает голоса"""
         vote_counts = {}
         skip_votes = 0
         
         for target_id in self.votes.values():
-            if target_id is not None:  # Голос за конкретного игрока
+            if target_id is not None:
                 vote_counts[target_id] = vote_counts.get(target_id, 0) + 1
-            else:  # Голос за пропуск
+            else:
                 skip_votes += 1
-
-        # Если нет голосов за конкретных игроков (все проголосовали за пропуск)
-        if not vote_counts:
-            return None
-
-        # Находим игрока с максимальным количеством голосов
-        max_votes = max(vote_counts.values())
-        max_vote_players = [pid for pid, votes in vote_counts.items() if votes == max_votes]
-
-        # НОВАЯ ЛОГИКА: Проверяем, что голосов за изгнание больше, чем за пропуск
-        # И что голосов за изгнание больше половины от общего количества голосов
+        
+        return vote_counts, skip_votes
+    
+    def _should_exile_player(self, vote_counts: Dict[int, int], skip_votes: int) -> bool:
+        """Проверяет, должен ли быть изгнан игрок"""
+        total_votes = len(self.votes)
         votes_for_exile = sum(vote_counts.values())
         
-        # Если голосов за пропуск больше или равно голосам за изгнание - никто не изгоняется
+        # Голосов за пропуск больше или равно голосам за изгнание
         if skip_votes >= votes_for_exile:
-            return None
+            return False
             
-        # Если голосов за изгнание меньше половины от общего количества - никто не изгоняется
+        # Голосов за изгнание меньше половины от общего количества
         if votes_for_exile < total_votes / 2:
-            return None
+            return False
+
+        return True
+    
+    def _find_exiled_player(self, vote_counts: Dict[int, int]) -> Optional[Player]:
+        """Находит игрока для изгнания"""
+        max_votes = max(vote_counts.values())
+        max_vote_players = [pid for pid, votes in vote_counts.items() if votes == max_votes]
 
         # Если ничья между несколькими игроками - изгнания нет
         if len(max_vote_players) > 1:
@@ -420,10 +553,7 @@ class Game:
 
         # Изгоняем игрока с наибольшим количеством голосов
         exiled_id = max_vote_players[0]
-        exiled_player = self.players[exiled_id]
-        exiled_player.is_alive = False
-
-        return exiled_player
+        return self.players.get(exiled_id)
 
     def get_voting_details(self) -> Dict[str, any]:
         """Возвращает детальную информацию о голосовании"""
@@ -507,42 +637,45 @@ class Game:
         return datetime.now() >= self.phase_end_time
 
     def get_game_statistics(self) -> Dict[str, any]:
-        """Возвращает статистику игры для лесной мафии"""
+        """Возвращает статистику игры"""
         alive_players = self.get_alive_players()
-        predators = self.get_players_by_team(Team.PREDATORS)
-        herbivores = self.get_players_by_team(Team.HERBIVORES)
+        predators_count = self.get_player_count_by_team(Team.PREDATORS)
+        herbivores_count = self.get_player_count_by_team(Team.HERBIVORES)
         
         return {
             "current_round": self.current_round,
             "alive_players": len(alive_players),
-            "predators": len(predators),
-            "herbivores": len(herbivores),
-            "predator_kills": self.predator_kills,
-            "herbivore_survivals": self.herbivore_survivals,
-            "fox_thefts": self.fox_thefts,
-            "beaver_protections": self.beaver_protections,
-            "game_duration": (datetime.now() - self.game_start_time).total_seconds() if self.game_start_time else 0
+            "predators": predators_count,
+            "herbivores": herbivores_count,
+            "predator_kills": self.game_stats.predator_kills,
+            "herbivore_survivals": self.game_stats.herbivore_survivals,
+            "fox_thefts": self.game_stats.fox_thefts,
+            "beaver_protections": self.game_stats.beaver_protections,
+            "game_duration": self._get_game_duration()
         }
+    
+    def _get_game_duration(self) -> float:
+        """Возвращает длительность игры в секундах"""
+        if not self.game_start_time:
+            return 0
+        return (datetime.now() - self.game_start_time).total_seconds()
     
     def get_voting_targets(self, voter_id: int) -> List[Player]:
         """Возвращает список игроков для голосования (исключая самого голосующего)"""
         return [p for p in self.get_alive_players() if p.user_id != voter_id]
     
     def get_final_game_summary(self) -> Dict[str, any]:
-        """Возвращает финальную сводку игры с ролями всех участников"""
+        """Возвращает финальную сводку игры"""
         all_players = list(self.players.values())
         alive_players = self.get_alive_players()
-        dead_players = [p for p in all_players if not p.is_alive]
+        dead_players = self.get_dead_players()
         
         # Группируем игроков по командам
         predators = [p for p in all_players if p.team == Team.PREDATORS]
         herbivores = [p for p in all_players if p.team == Team.HERBIVORES]
         
-        # Группируем по ролям с русскими названиями
-        from role_translator import get_role_name_russian
-        role_groups = {}
-        for role in Role:
-            role_groups[get_role_name_russian(role)] = [p for p in all_players if p.role == role]
+        # Группируем по ролям
+        role_groups = self._group_players_by_role(all_players)
         
         return {
             "total_players": len(all_players),
@@ -557,8 +690,16 @@ class Game:
             "predators_list": predators,
             "herbivores_list": herbivores,
             "current_round": self.current_round,
-            "game_duration": (datetime.now() - self.game_start_time).total_seconds() if self.game_start_time else 0
+            "game_duration": self._get_game_duration()
         }
+    
+    def _group_players_by_role(self, players: List[Player]) -> Dict[str, List[Player]]:
+        """Группирует игроков по ролям с русскими названиями"""
+        from role_translator import get_role_name_russian
+        role_groups = {}
+        for role in Role:
+            role_groups[get_role_name_russian(role)] = [p for p in players if p.role == role]
+        return role_groups
     
     def set_stage_pinned_message(self, stage: str, message_id: int):
         """Сохраняет ID закрепленного сообщения для этапа"""
@@ -588,19 +729,24 @@ class Game:
                 self.day_timer_task.cancel()
             self.day_timer_task = None
     
-    def get_day_timer_status(self):
+    def get_day_timer_status(self) -> str:
         """Возвращает статус дневного таймера"""
         if not self.day_start_time:
             return "Таймер не запущен"
         
-        from datetime import datetime
-        elapsed = (datetime.now() - self.day_start_time).total_seconds()
+        elapsed = self._get_day_elapsed_time()
         remaining = max(0, 300 - elapsed)  # 300 секунд = 5 минут
         
-        if self.day_timer_task:
-            if self.day_timer_task.done():
-                return f"Таймер завершен (прошло {elapsed:.1f}с)"
-            else:
-                return f"Таймер активен (осталось {remaining:.1f}с)"
-        else:
+        if not self.day_timer_task:
             return f"Таймер не найден (прошло {elapsed:.1f}с)"
+        
+        if self.day_timer_task.done():
+            return f"Таймер завершен (прошло {elapsed:.1f}с)"
+        else:
+            return f"Таймер активен (осталось {remaining:.1f}с)"
+    
+    def _get_day_elapsed_time(self) -> float:
+        """Возвращает время, прошедшее с начала дневной фазы"""
+        if not self.day_start_time:
+            return 0
+        return (datetime.now() - self.day_start_time).total_seconds()
