@@ -39,9 +39,9 @@ class BalanceManager:
             user = get_user_by_telegram_id(user_id)
             
             if not user:
-                # Создаем пользователя с нулевым балансом
+                # Создаем пользователя с начальным балансом 100 орешков
                 self.create_user_if_not_exists(user_id, f"User_{user_id}")
-                return 0.0
+                return 100.0
             
             # Получаем баланс
             balance = get_user_balance(user_id)
@@ -71,7 +71,7 @@ class BalanceManager:
             # Создаем пользователя
             success = create_user(user_id, username)
             if success:
-                self.logger.info(f"✅ Создан пользователь {user_id} с балансом 0")
+                self.logger.info(f"✅ Создан пользователь {user_id} с начальным балансом 100 орешков")
                 return True
             else:
                 self.logger.error(f"❌ Не удалось создать пользователя {user_id}")

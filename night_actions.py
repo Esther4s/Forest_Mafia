@@ -185,9 +185,7 @@ class NightActions:
             target.is_alive = False
             
             # Обновляем статистику
-            if target.team == Team.HERBIVORES:
-                self.game.herbivore_survivals += 1
-            self.game.predator_kills += 1
+            self.game.game_stats.predator_kills += 1
             
             # Сбрасываем счетчик выживания для убитого игрока
             target.consecutive_nights_survived = 0
@@ -219,13 +217,13 @@ class NightActions:
                 results.append(message)
                 
                 if success:
-                    self.game.fox_thefts += 1
+                    self.game.game_stats.fox_thefts += 1
                 
                 if death:
                     # Обновляем статистику смертей
                     if target.team == Team.HERBIVORES:
-                        self.game.herbivore_survivals += 1
-                    self.game.predator_kills += 1
+                        self.game.game_stats.herbivore_survivals += 1
+                    self.game.game_stats.predator_kills += 1
         
         return results
     
@@ -244,7 +242,7 @@ class NightActions:
                 if target and target.is_alive:
                     # Бобёр защищает указанного игрока
                     Beaver.set_protection(target, True)
-                    self.game.beaver_protections += 1
+                    self.game.game_stats.beaver_protections += 1
                     
                     # Проверяем, может ли бобёр восстановить припасы
                     if Beaver.can_restore_supplies(target):

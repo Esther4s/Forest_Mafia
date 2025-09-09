@@ -33,7 +33,7 @@ from database_psycopg2 import (
     get_bot_setting, set_bot_setting,
     save_game_to_db, save_player_to_db, update_game_phase, finish_game_in_db,
     get_team_stats, get_top_players, get_best_predator, get_best_herbivore, get_player_detailed_stats,
-    add_nuts_to_user
+    add_nuts_to_user, get_shop_items
 )
 
 logging.basicConfig(
@@ -775,7 +775,7 @@ class ForestWolvesBot:
             logger.info(f"✅ Баланс пользователя {username}: {balance}")
             await update.message.reply_text(
                 f"🌰 **Баланс игрока {username}:**\n\n"
-                f"💳 Текущий баланс: {balance} орешков\n\n"
+                f"💳 Текущий баланс: {int(balance)} орешков\n\n"
                 f"💡 Используйте команду /join чтобы присоединиться к игре!"
             )
                 
@@ -784,6 +784,53 @@ class ForestWolvesBot:
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при получении баланса. Попробуйте позже.")
+
+    async def shop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает магазин товаров"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+            
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            logger.info(f"🛍️ Запрос магазина для пользователя {username} (ID: {user_id})")
+            
+            # Получаем товары из магазина
+            shop_items = get_shop_items()
+            
+            if not shop_items:
+                await update.message.reply_text("🛍️ **Магазин пуст**\n\nТовары появятся позже!")
+                return
+            
+            # Формируем сообщение с товарами
+            shop_text = "🛍️ **Магазин ForestMafia**\n\n"
+            shop_text += "💰 **Доступные товары:**\n\n"
+            
+            for item in shop_items:
+                shop_text += f"**{item['id']}.** {item['item_name']}\n"
+                shop_text += f"   💰 Цена: {int(item['price'])} орешков\n"
+                shop_text += f"   📝 {item['description']}\n\n"
+            
+            shop_text += "💡 **Как купить:**\n"
+            shop_text += "Используйте команду /buy <номер_товара>\n"
+            shop_text += "Например: /buy 1\n\n"
+            shop_text += "🌰 Проверить баланс: /balance"
+            
+            await update.message.reply_text(shop_text)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения магазина: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            await update.message.reply_text("❌ Произошла ошибка при получении магазина. Попробуйте позже.")
 
     async def game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Создает запись в таблице games для пользователя"""
@@ -2439,10 +2486,7 @@ class ForestWolvesBot:
         # Проверяем условия автоматического завершения игры
         winner = game.check_game_end()
         if winner:
-            # Создаем фиктивный update для end_game_winner
-            from telegram import Update
-            fake_update = Update(update_id=0)
-            await self.end_game_winner(fake_update, context, game, winner)
+            await self.end_game_winner(context, game, winner)
             return
             
         game.start_day()
@@ -3954,10 +3998,7 @@ class ForestWolvesBot:
         # Проверяем условия автоматического завершения игры после ночных действий
         winner = game.check_game_end()
         if winner:
-            # Создаем фиктивный update для end_game_winner
-            from telegram import Update
-            fake_update = Update(update_id=0)
-            await self.end_game_winner(fake_update, context, game, winner)
+            await self.end_game_winner(context, game, winner)
             return
 
 
@@ -4346,6 +4387,8 @@ class ForestWolvesBot:
             BotCommand("status", "📊 Статус игры"),
             BotCommand("help", "🆘 Подробная инструкция"),
             BotCommand("rules", "📖 Правила игры"),
+            BotCommand("balance", "💰 Показать баланс"),
+            BotCommand("shop", "🛍️ Магазин товаров"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -4391,6 +4434,7 @@ class ForestWolvesBot:
         
         # Новые команды для работы с базой данных
         application.add_handler(CommandHandler("balance", self.balance_command)) # Команда /balance
+        application.add_handler(CommandHandler("shop", self.shop_command)) # Команда /shop
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         
 
