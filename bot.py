@@ -763,26 +763,21 @@ class ForestWolvesBot:
             
             logger.info(f"💰 Запрос баланса для пользователя {username} (ID: {user_id})")
             
-            # Получаем пользователя из БД
-            user = get_user_by_telegram_id(user_id)
+            # Используем новую систему баланса
+            from database_balance_manager import balance_manager
             
-            if user:
-                balance = user.get('balance', 0)
-                logger.info(f"✅ Найден пользователь {username}, баланс: {balance}")
-                await update.message.reply_text(
-                    f"🌰 **Баланс игрока {username}:**\n\n"
-                    f"💳 Текущий баланс: {balance} орешков\n\n"
-                    f"💡 Используйте команду /join чтобы присоединиться к игре!"
-                )
-            else:
-                # Если пользователя нет в БД, создаем его
-                logger.info(f"👤 Пользователь {username} не найден в БД, создаем...")
-                create_user(user_id, username)
-                await update.message.reply_text(
-                    f"👋 Добро пожаловать, {username}!\n\n"
-                    f"🌰 Ваш начальный баланс: 100 орешков\n\n"
-                    f"💡 Используйте команду /join чтобы присоединиться к игре!"
-                )
+            # Создаем пользователя, если его нет
+            create_user(user_id, username)
+            
+            # Получаем актуальный баланс
+            balance = balance_manager.get_user_balance(user_id)
+            
+            logger.info(f"✅ Баланс пользователя {username}: {balance}")
+            await update.message.reply_text(
+                f"🌰 **Баланс игрока {username}:**\n\n"
+                f"💳 Текущий баланс: {balance} орешков\n\n"
+                f"💡 Используйте команду /join чтобы присоединиться к игре!"
+            )
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения баланса: {e}")
@@ -955,10 +950,11 @@ class ForestWolvesBot:
                     nuts_amount = 25
                     logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
                 
-                # Начисляем орешки
+                # Начисляем орешки через новую систему баланса
                 if nuts_amount > 0:
                     logger.info(f"💰 Начисляем {nuts_amount} орешков игроку {username} (ID: {user_id})")
-                    success = add_nuts_to_user(user_id, nuts_amount)
+                    from database_balance_manager import balance_manager
+                    success = balance_manager.add_to_balance(user_id, nuts_amount)
                     if success:
                         logger.info(f"✅ Начислено {nuts_amount} орешков игроку {username} (ID: {user_id})")
                         nuts_awards.append(f"🌰 {username}: +{nuts_amount} орешков")

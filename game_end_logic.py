@@ -104,7 +104,7 @@ class GameEndLogic:
                 minutes = int((game_duration.total_seconds() % 3600) // 60)
                 
                 # Определяем победителя по статистике
-                if self.game.predator_kills > self.game.herbivore_survivals:
+                if self.game.game_stats.predator_kills > self.game.game_stats.herbivore_survivals:
                     winner = Team.PREDATORS
                     reason = f"🌲 Автоматическое завершение: игра длится слишком долго ({hours}ч {minutes}м)"
                 else:
@@ -120,7 +120,7 @@ class GameEndLogic:
         
         # 3. Слишком много раундов
         if self.game.current_round > 25:
-            if self.game.predator_kills > self.game.herbivore_survivals:
+            if self.game.game_stats.predator_kills > self.game.game_stats.herbivore_survivals:
                 winner = Team.PREDATORS
             else:
                 winner = Team.HERBIVORES
@@ -177,10 +177,10 @@ class GameEndLogic:
             "predators": len(predators),
             "herbivores": len(herbivores),
             "role_distribution": role_stats,
-            "predator_kills": self.game.predator_kills,
-            "herbivore_survivals": self.game.herbivore_survivals,
-            "fox_thefts": self.game.fox_thefts,
-            "beaver_protections": self.game.beaver_protections,
+            "predator_kills": self.game.game_stats.predator_kills,
+            "herbivore_survivals": self.game.game_stats.herbivore_survivals,
+            "fox_thefts": self.game.game_stats.fox_thefts,
+            "beaver_protections": self.game.game_stats.beaver_protections,
             "survival_stats": survival_stats,
             "game_duration": (datetime.now() - self.game.game_start_time).total_seconds() if self.game.game_start_time else 0
         }
