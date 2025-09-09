@@ -225,7 +225,9 @@ def execute_query(query: str, params: Optional[Tuple] = None) -> int:
                     conn.commit()
                     
                     affected_rows = cursor.rowcount
-                    logger.debug(f"✅ Запрос выполнен успешно. Затронуто строк: {affected_rows}")
+                    logger.info(f"✅ Запрос выполнен успешно. Затронуто строк: {affected_rows}")
+                    logger.info(f"📊 SQL: {query}")
+                    logger.info(f"📊 Параметры: {params}")
                     return affected_rows
                     
         except psycopg2.OperationalError as e:
@@ -400,9 +402,37 @@ def update_user_balance(user_id: int, new_balance: float) -> bool:
     Returns:
         bool: True если обновление успешно
     """
-    query = "UPDATE users SET balance = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s"
-    affected = execute_query(query, (new_balance, user_id))
-    return affected > 0
+    try:
+        logger.info(f"🔄 update_user_balance: user_id={user_id}, new_balance={new_balance}")
+        
+        # Сначала проверим, существует ли пользователь
+        check_query = "SELECT user_id FROM users WHERE user_id = %s"
+        existing_user = fetch_one(check_query, (user_id,))
+        
+        if not existing_user:
+            logger.error(f"❌ Пользователь {user_id} не найден в базе данных")
+            return False
+        
+        logger.info(f"✅ Пользователь {user_id} найден в базе данных")
+        
+        # Обновляем баланс
+        query = "UPDATE users SET balance = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s"
+        affected = execute_query(query, (new_balance, user_id))
+        
+        logger.info(f"📊 execute_query вернул: {affected} затронутых строк")
+        
+        if affected > 0:
+            logger.info(f"✅ Баланс пользователя {user_id} обновлен на {new_balance}")
+            return True
+        else:
+            logger.error(f"❌ UPDATE не затронул ни одной строки для пользователя {user_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка в update_user_balance для пользователя {user_id}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return False
 
 def get_shop_items() -> List[Dict[str, Any]]:
     """
@@ -1189,8 +1219,8 @@ def create_tables():
         -- Таблица игр
         CREATE TABLE IF NOT EXISTS games (
             id VARCHAR PRIMARY KEY,
-            chat_id INTEGER NOT NULL,
-            thread_id INTEGER,
+            chat_id BIGINT NOT NULL,
+            thread_id BIGINT,
             status VARCHAR DEFAULT 'waiting',
             phase VARCHAR,
             round_number INTEGER DEFAULT 0,
@@ -1205,7 +1235,7 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS players (
             id VARCHAR PRIMARY KEY,
             game_id VARCHAR NOT NULL,
-            user_id INTEGER NOT NULL,
+            user_id BIGINT NOT NULL,
             username VARCHAR,
             first_name VARCHAR,
             last_name VARCHAR,
