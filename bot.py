@@ -1319,9 +1319,8 @@ class ForestWolvesBot:
             
             # Дополнительные проверки для игровых действий
             if action == "start_game":
-                # Только участники игры могут начинать игру
-                if user_id not in self.player_games or self.player_games[user_id] != chat_id:
-                    return False, "❌ Только участники игры могут её начинать!"
+                # Любой пользователь может начинать игру
+                pass
             elif action == "end_game":
                 # Только участники игры или администраторы могут завершать игру
                 if user_id not in self.player_games or self.player_games[user_id] != chat_id:

@@ -66,13 +66,25 @@ class BalanceManager:
             # Проверяем, существует ли пользователь
             existing_user = get_user_by_telegram_id(user_id)
             if existing_user:
+                self.logger.info(f"✅ Пользователь {user_id} уже существует")
                 return True
             
             # Создаем пользователя
             user_id_result = create_user(user_id, username)
             if user_id_result is not None:
                 self.logger.info(f"✅ Создан пользователь {user_id} с начальным балансом 100 орешков")
-                return True
+                
+                # Принудительно проверяем, что пользователь создался
+                import time
+                time.sleep(0.1)  # Небольшая задержка для завершения транзакции
+                
+                verify_user = get_user_by_telegram_id(user_id)
+                if verify_user:
+                    self.logger.info(f"✅ Пользователь {user_id} подтвержден в базе данных")
+                    return True
+                else:
+                    self.logger.error(f"❌ Пользователь {user_id} не найден после создания!")
+                    return False
             else:
                 self.logger.error(f"❌ Не удалось создать пользователя {user_id}")
                 return False

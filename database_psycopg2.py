@@ -353,16 +353,39 @@ def create_user(user_id: int, username: str = None) -> int:
     Returns:
         int: ID созданного пользователя
     """
-    query = """
-        INSERT INTO users (user_id, username, balance) 
-        VALUES (%s, %s, 100) 
-        ON CONFLICT (user_id) DO UPDATE SET 
-            username = EXCLUDED.username,
-            updated_at = CURRENT_TIMESTAMP
-        RETURNING id
-    """
-    result = fetch_one(query, (user_id, username))
-    return result['id'] if result else None
+    try:
+        logger.info(f"🔄 create_user: user_id={user_id}, username={username}")
+        
+        # Используем execute_query вместо fetch_one для INSERT
+        query = """
+            INSERT INTO users (user_id, username, balance) 
+            VALUES (%s, %s, 100) 
+            ON CONFLICT (user_id) DO UPDATE SET 
+                username = EXCLUDED.username,
+                updated_at = CURRENT_TIMESTAMP
+        """
+        affected = execute_query(query, (user_id, username))
+        
+        if affected > 0:
+            logger.info(f"✅ create_user: пользователь {user_id} создан/обновлен, затронуто строк: {affected}")
+            # Получаем ID созданного пользователя
+            get_id_query = "SELECT id FROM users WHERE user_id = %s::BIGINT"
+            result = fetch_one(get_id_query, (user_id,))
+            if result:
+                logger.info(f"✅ create_user: получен ID {result['id']} для пользователя {user_id}")
+                return result['id']
+            else:
+                logger.error(f"❌ create_user: не удалось получить ID для пользователя {user_id}")
+                return None
+        else:
+            logger.error(f"❌ create_user: не удалось создать пользователя {user_id}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ create_user: ошибка для пользователя {user_id}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return None
 
 def get_user_by_telegram_id(user_id: int) -> Optional[Dict[str, Any]]:
     """
@@ -374,8 +397,24 @@ def get_user_by_telegram_id(user_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Dict или None: Данные пользователя
     """
-    query = "SELECT * FROM users WHERE user_id = %s"
-    return fetch_one(query, (user_id,))
+    try:
+        logger.info(f"🔍 get_user_by_telegram_id: user_id={user_id}")
+        
+        query = "SELECT * FROM users WHERE user_id = %s::BIGINT"
+        result = fetch_one(query, (user_id,))
+        
+        if result:
+            logger.info(f"✅ get_user_by_telegram_id: пользователь {user_id} найден, id={result['id']}, balance={result['balance']}")
+        else:
+            logger.info(f"❌ get_user_by_telegram_id: пользователь {user_id} не найден")
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ get_user_by_telegram_id: ошибка для пользователя {user_id}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return None
 
 def get_user_balance(user_id: int) -> Optional[float]:
     """
@@ -406,7 +445,7 @@ def update_user_balance(user_id: int, new_balance: float) -> bool:
         logger.info(f"🔄 update_user_balance: user_id={user_id}, new_balance={new_balance}")
         
         # Сначала проверим, существует ли пользователь
-        check_query = "SELECT user_id FROM users WHERE user_id = %s"
+        check_query = "SELECT user_id FROM users WHERE user_id = %s::BIGINT"
         existing_user = fetch_one(check_query, (user_id,))
         
         if not existing_user:
@@ -416,7 +455,7 @@ def update_user_balance(user_id: int, new_balance: float) -> bool:
         logger.info(f"✅ Пользователь {user_id} найден в базе данных")
         
         # Обновляем баланс
-        query = "UPDATE users SET balance = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s"
+        query = "UPDATE users SET balance = %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s::BIGINT"
         affected = execute_query(query, (new_balance, user_id))
         
         logger.info(f"📊 execute_query вернул: {affected} затронутых строк")
