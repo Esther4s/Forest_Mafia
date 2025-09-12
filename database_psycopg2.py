@@ -2120,9 +2120,9 @@ def buy_item(user_id: int, item_name: str, price: int) -> dict:
                     
                     # Получаем баланс из результата (кортеж или словарь)
                     if isinstance(balance_result, dict):
-                        current_balance = balance_result['balance']
+                        current_balance = int(balance_result['balance'])
                     else:
-                        current_balance = balance_result[0]
+                        current_balance = int(balance_result[0])
                     
                     if current_balance < price:
                         cursor.execute("ROLLBACK")
@@ -2195,9 +2195,9 @@ def buy_item(user_id: int, item_name: str, price: int) -> dict:
                         balance_result = cursor.fetchone()
                         if balance_result:
                             if isinstance(balance_result, dict):
-                                current_balance = balance_result['balance']
+                                current_balance = int(balance_result['balance'])
                             else:
-                                current_balance = balance_result[0]
+                                current_balance = int(balance_result[0])
                         else:
                             current_balance = 0
                     except:

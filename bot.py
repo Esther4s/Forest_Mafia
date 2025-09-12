@@ -5190,7 +5190,8 @@ class ForestWolvesBot:
             
             # Используем новую атомарную систему покупок
             from database_psycopg2 import buy_item
-            item_price = int(item['price'])
+            # Конвертируем DECIMAL в int (цена может быть float из БД)
+            item_price = int(float(item['price']))
             result = buy_item(user_id, item['item_name'], item_price)
             
             if result['success']:
