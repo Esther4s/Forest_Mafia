@@ -5492,6 +5492,28 @@ class ForestWolvesBot:
                 await query.answer("❌ Это не ваше прощальное сообщение!", show_alert=True)
                 return
             
+            # Проверяем, можно ли отправить прощальное сообщение
+            can_send, error_message, game_data = await self.can_send_farewell_message(user_id)
+            
+            if not can_send:
+                # Показываем ошибку вместо меню
+                error_text = (
+                    f"❌ **Прощальное сообщение недоступно**\n\n"
+                    f"{error_message}\n\n"
+                    f"💡 Прощальное сообщение можно отправить только:\n"
+                    f"• После участия в игре\n"
+                    f"• В течение часа после окончания игры\n"
+                    f"• Если в чате не началась новая игра"
+                )
+                
+                keyboard = [
+                    [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(error_text, reply_markup=reply_markup)
+                return
+            
             # Создаем клавиатуру с вариантами прощальных сообщений
             keyboard = [
                 [InlineKeyboardButton("🌲 Лесное прощание", callback_data=f"farewell_forest_{user_id}")],
@@ -5509,7 +5531,8 @@ class ForestWolvesBot:
                 "🍂 **Прощальные слова** 🍂\n\n"
                 "🌲 Лес прощается с тобой...\n"
                 "💭 Выбери, как ты хочешь попрощаться с остальными обитателями леса:\n\n"
-                "🌿 Каждое прощание имеет свой особый лесной стиль!"
+                "🌿 Каждое прощание имеет свой особый лесной стиль!\n\n"
+                f"⏰ Время на прощание: в течение часа после окончания игры"
             )
             
             await query.edit_message_text(farewell_text, reply_markup=reply_markup)
@@ -5533,19 +5556,99 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка покидания леса: {e}")
 
+    async def can_send_farewell_message(self, user_id: int) -> tuple[bool, str, dict]:
+        """
+        Проверяет, можно ли отправить прощальное сообщение
+        
+        Returns:
+            tuple[bool, str, dict]: (можно_отправить, сообщение_об_ошибке, данные_игры)
+        """
+        try:
+            from datetime import datetime, timedelta
+            
+            # Находим последнюю игру для этого пользователя (активную или завершенную)
+            last_game = None
+            last_game_chat_id = None
+            
+            # Сначала проверяем активные игры
+            for chat_id, game in self.games.items():
+                if user_id in [player.user_id for player in game.players.values()]:
+                    last_game = game
+                    last_game_chat_id = chat_id
+                    break
+            
+            # Если нет активной игры, ищем в базе данных последнюю завершенную игру
+            if not last_game:
+                from database_psycopg2 import fetch_query
+                
+                # Ищем последнюю игру пользователя в базе данных
+                query = """
+                    SELECT chat_id, thread_id, game_data, created_at, updated_at
+                    FROM active_games_state 
+                    WHERE game_data->>'phase' = 'finished'
+                    AND game_data->'players' ? %s
+                    ORDER BY updated_at DESC 
+                    LIMIT 1
+                """
+                
+                result = fetch_query(query, (str(user_id),))
+                if result:
+                    game_data = result[0]
+                    last_game_chat_id = game_data['chat_id']
+                    last_game = {
+                        'chat_id': game_data['chat_id'],
+                        'thread_id': game_data['thread_id'],
+                        'updated_at': game_data['updated_at']
+                    }
+            
+            if not last_game:
+                return False, "❌ Игра не найдена! Прощальное сообщение можно отправить только после участия в игре.", {}
+            
+            # Проверяем, не началась ли уже новая игра в том же чате
+            if last_game_chat_id in self.games:
+                current_game = self.games[last_game_chat_id]
+                if current_game.phase != 'finished' and user_id not in [player.user_id for player in current_game.players.values()]:
+                    return False, "❌ В чате уже началась новая игра! Прощальное сообщение можно отправить только после окончания игры.", {}
+            
+            # Проверяем время (не позже чем через час после окончания)
+            if hasattr(last_game, 'updated_at'):
+                game_end_time = last_game.updated_at
+            else:
+                game_end_time = last_game.get('updated_at')
+            
+            if game_end_time:
+                if isinstance(game_end_time, str):
+                    from datetime import datetime
+                    game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                
+                current_time = datetime.now(game_end_time.tzinfo) if game_end_time.tzinfo else datetime.now()
+                time_diff = current_time - game_end_time
+                
+                if time_diff > timedelta(hours=1):
+                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение часа после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+            
+            return True, "", last_game
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка проверки возможности прощального сообщения: {e}")
+            return False, f"❌ Ошибка проверки: {str(e)}", {}
+
     async def send_farewell_to_chat(self, context: ContextTypes.DEFAULT_TYPE, user_id: int, farewell_type: str, username: str):
         """Отправляет прощальное сообщение в чат"""
         try:
-            # Находим активную игру для этого пользователя
-            active_game = None
-            for chat_id, game in self.games.items():
-                if user_id in [player.user_id for player in game.players.values()]:
-                    active_game = game
-                    break
+            # Проверяем, можно ли отправить прощальное сообщение
+            can_send, error_message, game_data = await self.can_send_farewell_message(user_id)
             
-            if not active_game:
-                logger.warning(f"Не найдена активная игра для пользователя {user_id}")
-                return
+            if not can_send:
+                logger.warning(f"Нельзя отправить прощальное сообщение для пользователя {user_id}: {error_message}")
+                return False, error_message
+            
+            # Используем данные игры
+            chat_id = game_data.get('chat_id')
+            thread_id = game_data.get('thread_id')
+            
+            if not chat_id:
+                return False, "❌ Не удалось определить чат для отправки прощального сообщения"
             
             # Получаем прощальное сообщение по типу
             farewell_messages = {
@@ -5561,15 +5664,17 @@ class ForestWolvesBot:
             
             # Отправляем в чат игры
             await context.bot.send_message(
-                chat_id=active_game.chat_id,
+                chat_id=chat_id,
                 text=message,
-                message_thread_id=active_game.thread_id
+                message_thread_id=thread_id
             )
             
-            logger.info(f"✅ Отправлено прощальное сообщение от {username} в чат {active_game.chat_id}")
+            logger.info(f"✅ Отправлено прощальное сообщение от {username} в чат {chat_id}")
+            return True, "✅ Прощальное сообщение отправлено!"
             
         except Exception as e:
             logger.error(f"❌ Ошибка отправки прощального сообщения в чат: {e}")
+            return False, f"❌ Ошибка отправки: {str(e)}"
 
     async def handle_farewell_type(self, query, context, farewell_type: str, user_id: int):
         """Обрабатывает выбор типа прощания"""
@@ -5582,17 +5687,27 @@ class ForestWolvesBot:
             username = query.from_user.username or query.from_user.first_name or "Игрок"
             
             # Отправляем прощальное сообщение в чат
-            await self.send_farewell_to_chat(context, user_id, farewell_type, username)
+            success, message = await self.send_farewell_to_chat(context, user_id, farewell_type, username)
             
-            # Показываем подтверждение
-            confirmation_text = (
-                f"✅ **Прощальное сообщение отправлено!**\n\n"
-                f"🌲 Твоё прощание в стиле {farewell_type} было отправлено в чат игры.\n\n"
-                f"🍂 Лес будет помнить твои слова...\n"
-                f"⭐️ До свидания, {username}!"
-            )
-            
-            await query.edit_message_text(confirmation_text)
+            if success:
+                # Показываем подтверждение
+                confirmation_text = (
+                    f"✅ **Прощальное сообщение отправлено!**\n\n"
+                    f"🌲 Твоё прощание в стиле {farewell_type} было отправлено в чат игры.\n\n"
+                    f"🍂 Лес будет помнить твои слова...\n"
+                    f"⭐️ До свидания, {username}!"
+                )
+                
+                await query.edit_message_text(confirmation_text)
+            else:
+                # Показываем ошибку
+                error_text = (
+                    f"❌ **Не удалось отправить прощальное сообщение**\n\n"
+                    f"{message}\n\n"
+                    f"💡 Попробуйте позже или обратитесь к администратору."
+                )
+                
+                await query.edit_message_text(error_text)
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки типа прощания: {e}")
