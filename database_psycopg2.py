@@ -1873,6 +1873,243 @@ def update_user_reward(reward_id: int, amount: int = None, description: str = No
         logger.error(f"❌ Ошибка обновления награды {reward_id}: {e}")
         return False
 
+# =====================================================
+# ФУНКЦИИ ДЛЯ РАБОТЫ С ИНВЕНТАРЕМ
+# =====================================================
+
+def add_item_to_inventory(user_id: int, item_name: str, count: int = 1, flags: Dict[str, Any] = None) -> bool:
+    """
+    Добавляет предмет в инвентарь игрока
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        count: Количество предметов
+        flags: Дополнительные флаги (JSON)
+    
+    Returns:
+        bool: True если успешно добавлено
+    """
+    try:
+        if flags is None:
+            flags = {}
+        
+        query = """
+        INSERT INTO inventory (user_id, item_name, count, flags)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (user_id, item_name)
+        DO UPDATE SET 
+            count = inventory.count + %s,
+            flags = %s,
+            updated_at = CURRENT_TIMESTAMP
+        """
+        
+        affected = execute_query(query, (user_id, item_name, count, json.dumps(flags), count, json.dumps(flags)))
+        
+        if affected > 0:
+            logger.info(f"✅ Предмет {item_name} добавлен в инвентарь пользователя {user_id}")
+            return True
+        else:
+            logger.warning(f"⚠️ Не удалось добавить предмет {item_name} в инвентарь")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка добавления предмета в инвентарь: {e}")
+        return False
+
+def remove_item_from_inventory(user_id: int, item_name: str, count: int = 1) -> bool:
+    """
+    Удаляет предмет из инвентаря игрока
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        count: Количество предметов для удаления
+    
+    Returns:
+        bool: True если успешно удалено
+    """
+    try:
+        # Сначала проверяем, сколько предметов у игрока
+        check_query = "SELECT count FROM inventory WHERE user_id = %s AND item_name = %s"
+        result = fetch_one(check_query, (user_id, item_name))
+        
+        if not result:
+            logger.warning(f"⚠️ Предмет {item_name} не найден в инвентаре пользователя {user_id}")
+            return False
+        
+        current_count = result[0]
+        
+        if current_count <= count:
+            # Удаляем предмет полностью
+            query = "DELETE FROM inventory WHERE user_id = %s AND item_name = %s"
+            execute_query(query, (user_id, item_name))
+            logger.info(f"✅ Предмет {item_name} полностью удален из инвентаря пользователя {user_id}")
+        else:
+            # Уменьшаем количество
+            query = "UPDATE inventory SET count = count - %s, updated_at = CURRENT_TIMESTAMP WHERE user_id = %s AND item_name = %s"
+            execute_query(query, (count, user_id, item_name))
+            logger.info(f"✅ Удалено {count} предметов {item_name} из инвентаря пользователя {user_id}")
+        
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления предмета из инвентаря: {e}")
+        return False
+
+def get_user_inventory(user_id: int) -> List[Dict[str, Any]]:
+    """
+    Получает инвентарь пользователя
+    
+    Args:
+        user_id: ID пользователя
+    
+    Returns:
+        List[Dict]: Список предметов в инвентаре
+    """
+    try:
+        query = """
+        SELECT item_name, count, flags, created_at, updated_at
+        FROM inventory 
+        WHERE user_id = %s AND count > 0
+        ORDER BY created_at DESC
+        """
+        
+        results = fetch_all(query, (user_id,))
+        
+        inventory = []
+        for row in results:
+            item = {
+                'item_name': row[0],
+                'count': row[1],
+                'flags': json.loads(row[2]) if row[2] else {},
+                'created_at': row[3],
+                'updated_at': row[4]
+            }
+            inventory.append(item)
+        
+        logger.info(f"✅ Получен инвентарь пользователя {user_id}: {len(inventory)} предметов")
+        return inventory
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения инвентаря пользователя {user_id}: {e}")
+        return []
+
+def has_item_in_inventory(user_id: int, item_name: str) -> bool:
+    """
+    Проверяет, есть ли предмет в инвентаре игрока
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+    
+    Returns:
+        bool: True если предмет есть в инвентаре
+    """
+    try:
+        query = "SELECT count FROM inventory WHERE user_id = %s AND item_name = %s AND count > 0"
+        result = fetch_one(query, (user_id, item_name))
+        
+        return result is not None and result[0] > 0
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка проверки предмета в инвентаре: {e}")
+        return False
+
+def get_item_count_in_inventory(user_id: int, item_name: str) -> int:
+    """
+    Получает количество предмета в инвентаре игрока
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+    
+    Returns:
+        int: Количество предметов (0 если нет)
+    """
+    try:
+        query = "SELECT count FROM inventory WHERE user_id = %s AND item_name = %s"
+        result = fetch_one(query, (user_id, item_name))
+        
+        return result[0] if result else 0
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения количества предмета в инвентаре: {e}")
+        return 0
+
+def update_item_flags(user_id: int, item_name: str, flags: Dict[str, Any]) -> bool:
+    """
+    Обновляет флаги предмета в инвентаре
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        flags: Новые флаги
+    
+    Returns:
+        bool: True если успешно обновлено
+    """
+    try:
+        query = """
+        UPDATE inventory 
+        SET flags = %s, updated_at = CURRENT_TIMESTAMP
+        WHERE user_id = %s AND item_name = %s
+        """
+        
+        affected = execute_query(query, (json.dumps(flags), user_id, item_name))
+        
+        if affected > 0:
+            logger.info(f"✅ Флаги предмета {item_name} обновлены для пользователя {user_id}")
+            return True
+        else:
+            logger.warning(f"⚠️ Предмет {item_name} не найден в инвентаре пользователя {user_id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления флагов предмета: {e}")
+        return False
+
+def buy_item(user_id: int, item_name: str, price: float) -> bool:
+    """
+    Покупает предмет в магазине
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        price: Цена предмета
+    
+    Returns:
+        bool: True если покупка успешна
+    """
+    try:
+        # Проверяем баланс пользователя
+        user_balance = get_user_balance(user_id)
+        if user_balance < price:
+            logger.warning(f"⚠️ Недостаточно средств для покупки {item_name}. Баланс: {user_balance}, цена: {price}")
+            return False
+        
+        # Списываем деньги
+        if not update_user_balance(user_id, -price):
+            logger.error(f"❌ Не удалось списать деньги за покупку {item_name}")
+            return False
+        
+        # Добавляем предмет в инвентарь
+        if not add_item_to_inventory(user_id, item_name, 1):
+            # Если не удалось добавить предмет, возвращаем деньги
+            update_user_balance(user_id, price)
+            logger.error(f"❌ Не удалось добавить предмет {item_name} в инвентарь, деньги возвращены")
+            return False
+        
+        # Записываем покупку
+        add_purchase(user_id, item_name, price)
+        
+        logger.info(f"✅ Пользователь {user_id} успешно купил {item_name} за {price} орешков")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка покупки предмета {item_name}: {e}")
+        return False
+
 # Пример использования
 if __name__ == "__main__":
     try:

@@ -33,6 +33,22 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Таблица инвентаря игроков
+CREATE TABLE IF NOT EXISTS inventory (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    count INTEGER DEFAULT 1,
+    flags JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    UNIQUE(user_id, item_name)
+);
+
+-- Индекс для быстрого поиска по user_id
+CREATE INDEX IF NOT EXISTS idx_inventory_user_id ON inventory(user_id);
+
 -- Таблица игр
 CREATE TABLE IF NOT EXISTS games (
     id VARCHAR PRIMARY KEY,
@@ -160,6 +176,23 @@ CREATE TABLE IF NOT EXISTS shop (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Вставляем предметы Лесного магазина
+INSERT INTO shop (item_name, price, description, category, is_active) VALUES
+('🎭 Активная роль', 1.00, 'Повышает шанс выпадения активной роли (волк, лиса, крот, бобёр) до 99%. Действует одну игру.', 'boosts', TRUE),
+('🌿 Лесная маскировка', 100.00, 'Один раз скрывает роль игрока от проверки крота. Тратится автоматически при проверке.', 'consumables', TRUE),
+('🛡️ Защита бобра', 150.00, 'Спасает игрока один раз от атаки волков. Активируется автоматически при атаке.', 'consumables', TRUE),
+('🌰 Золотой орешек', 200.00, 'Удваивает заработанные орешки за следующую игру. Действует одну игру.', 'boosts', TRUE),
+('🌙 Ночное зрение', 250.00, 'В ночной фазе игрок видит действия других (кто кого проверял/атаковал). Действует одну игру.', 'consumables', TRUE),
+('🔍 Острый нюх', 300.00, 'Показывает роли всех игроков в следующей игре. Действует одну игру.', 'boosts', TRUE),
+('🍄 Лесной эликсир', 400.00, 'Воскрешает игрока один раз, если его убили. Активируется автоматически при смерти.', 'consumables', TRUE),
+('🌲 Древо жизни', 500.00, 'Даёт дополнительную жизнь на всю игру (умереть можно только после двух атак). Действует всю игру.', 'permanent', TRUE)
+ON CONFLICT (item_name) DO UPDATE SET
+    price = EXCLUDED.price,
+    description = EXCLUDED.description,
+    category = EXCLUDED.category,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- Таблица покупок
 CREATE TABLE IF NOT EXISTS purchases (

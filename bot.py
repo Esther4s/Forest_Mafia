@@ -597,6 +597,83 @@ class ForestWolvesBot:
         )
         await update.message.reply_text(help_text)
 
+    async def inventory_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает инвентарь игрока"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+        
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            from database_psycopg2 import get_user_inventory, get_user_balance
+            from item_system import item_system
+            
+            # Получаем инвентарь пользователя
+            inventory = get_user_inventory(user_id)
+            user_balance = get_user_balance(user_id)
+            
+            if not inventory:
+                message = (
+                    f"🎒 **Инвентарь {username}**\n\n"
+                    f"💰 **Баланс:** {user_balance:.0f} орешков\n\n"
+                    f"📦 **Предметы:** Пусто\n\n"
+                    f"🛍️ Используйте /shop для покупки предметов!"
+                )
+            else:
+                message = f"🎒 **Инвентарь {username}**\n\n"
+                message += f"💰 **Баланс:** {user_balance:.0f} орешков\n\n"
+                message += "📦 **Предметы:**\n"
+                
+                for item in inventory:
+                    item_name = item['item_name']
+                    count = item['count']
+                    flags = item['flags']
+                    
+                    # Получаем информацию о предмете
+                    item_info = item_system.get_item_info(item_name)
+                    if item_info:
+                        description = item_info['description']
+                        item_type = item_info['type']
+                        
+                        # Добавляем статус активации
+                        status = ""
+                        if flags:
+                            if 'active_role_boost' in flags:
+                                status = " ✅ Активно"
+                            elif 'mask_active' in flags:
+                                status = " ✅ Активно"
+                            elif 'protection_active' in flags:
+                                status = " ✅ Активно"
+                            elif 'double_reward' in flags:
+                                status = " ✅ Активно"
+                            elif 'night_vision_active' in flags:
+                                status = " ✅ Активно"
+                            elif 'reveal_roles' in flags:
+                                status = " ✅ Активно"
+                            elif 'extra_life_active' in flags:
+                                status = " ✅ Активно"
+                        
+                        message += f"• {item_name} x{count}{status}\n"
+                        message += f"  _{description}_\n\n"
+                    else:
+                        message += f"• {item_name} x{count}\n\n"
+                
+                message += "💡 Используйте предметы в игре для активации их эффектов!"
+            
+            await update.message.reply_text(message, parse_mode='Markdown')
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения инвентаря для пользователя {user_id}: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при получении инвентаря!")
+
     async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показывает статистику игрока, топ игроков или общую статистику"""
         # Проверяем права пользователя
@@ -811,6 +888,7 @@ class ForestWolvesBot:
             user_balance = balance_manager.get_user_balance(user_id)
             
             # Получаем товары из магазина
+            from database_psycopg2 import get_shop_items
             shop_items = get_shop_items()
             
             if not shop_items:
@@ -827,7 +905,11 @@ class ForestWolvesBot:
                 callback_data = f"buy_item_{item['id']}"
                 keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
             
-            # Добавляем кнопку "Назад"
+            # Добавляем кнопки управления
+            keyboard.append([
+                InlineKeyboardButton("🎒 Инвентарь", callback_data="show_inventory"),
+                InlineKeyboardButton("💰 Баланс", callback_data="show_balance")
+            ])
             keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -4768,6 +4850,8 @@ class ForestWolvesBot:
         # зарегистрируем обработчики
         application.add_handler(CommandHandler("start", self.start_command))
         application.add_handler(CommandHandler("help", self.help_command))
+        application.add_handler(CommandHandler("инвентарь", self.inventory_command))
+        application.add_handler(CommandHandler("inventory", self.inventory_command))
         application.add_handler(CommandHandler("stats", self.stats_command))
         application.add_handler(CommandHandler("rules", self.rules))
         application.add_handler(CommandHandler("join", self.join))
@@ -5096,6 +5180,7 @@ class ForestWolvesBot:
             username = query.from_user.username or query.from_user.first_name or "Unknown"
             
             # Получаем информацию о товаре
+            from database_psycopg2 import get_shop_items
             shop_items = get_shop_items()
             item = None
             for shop_item in shop_items:
@@ -5107,30 +5192,19 @@ class ForestWolvesBot:
                 await query.answer("❌ Товар не найден!", show_alert=True)
                 return
             
-            # Получаем баланс пользователя
-            from database_balance_manager import balance_manager
-            user_balance = balance_manager.get_user_balance(user_id)
-            item_price = int(item['price'])
-            
-            if user_balance < item_price:
-                await query.answer(f"❌ Недостаточно орешков! Нужно: {item_price}, у вас: {user_balance}", show_alert=True)
-                return
-            
-            # Создаем покупку
-            from database_psycopg2 import create_purchase
-            success = create_purchase(user_id, item_id, 1)
+            # Используем новую систему покупок
+            from database_psycopg2 import buy_item
+            item_price = float(item['price'])
+            success = buy_item(user_id, item['item_name'], item_price)
             
             if success:
-                # Списываем орешки
-                balance_manager.subtract_from_balance(user_id, item_price)
-                
                 # Обновляем сообщение магазина
                 await self.shop_command(Update(update_id=0, message=query.message), context)
                 
-                await query.answer(f"✅ {item['item_name']} куплен за {item_price} орешков!", show_alert=True)
+                await query.answer(f"✅ {item['item_name']} куплен за {item_price:.0f} орешков!", show_alert=True)
                 logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {item['item_name']} за {item_price} орешков")
             else:
-                await query.answer("❌ Ошибка при покупке товара!", show_alert=True)
+                await query.answer("❌ Недостаточно орешков или ошибка при покупке!", show_alert=True)
                 
         except Exception as e:
             logger.error(f"❌ Ошибка при покупке товара: {e}")
