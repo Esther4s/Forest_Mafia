@@ -4850,7 +4850,6 @@ class ForestWolvesBot:
         # зарегистрируем обработчики
         application.add_handler(CommandHandler("start", self.start_command))
         application.add_handler(CommandHandler("help", self.help_command))
-        application.add_handler(CommandHandler("инвентарь", self.inventory_command))
         application.add_handler(CommandHandler("inventory", self.inventory_command))
         application.add_handler(CommandHandler("stats", self.stats_command))
         application.add_handler(CommandHandler("rules", self.rules))
