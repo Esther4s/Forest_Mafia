@@ -1382,7 +1382,7 @@ def create_tables():
             else:
                 logger.info("✅ Таблица inventory уже существует")
             
-            return
+            return True
         
         # SQL для создания всех таблиц
         tables_sql = """
@@ -1621,6 +1621,7 @@ def create_tables():
         logger.info("🔧 Создаем таблицы...")
         execute_query(tables_sql)
         logger.info("✅ Все таблицы созданы успешно")
+        return True
         
     except Exception as e:
         logger.error(f"❌ Ошибка создания таблиц: {e}")

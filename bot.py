@@ -4914,6 +4914,14 @@ class ForestWolvesBot:
             application.run_polling()
         except KeyboardInterrupt:
             logger.info("⏹️ Остановка бота...")
+        except Exception as e:
+            if "Conflict" in str(e):
+                logger.error("❌ Ошибка Conflict: Запущено несколько экземпляров бота!")
+                logger.error("❌ Убедитесь, что только один экземпляр бота работает одновременно")
+                logger.error(f"❌ Детали ошибки: {e}")
+            else:
+                logger.error(f"❌ Неожиданная ошибка: {e}")
+                raise
         finally:
             # Закрываем подключение к базе данных
             if self.db:
