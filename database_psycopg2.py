@@ -1372,7 +1372,7 @@ def create_tables():
             """
             inventory_exists = fetch_query(inventory_check_query)
             
-            if not inventory_exists or not inventory_exists[0][0]:
+            if not inventory_exists or not inventory_exists[0]['exists']:
                 logger.info("🔧 Создаем таблицу inventory...")
                 create_inventory_sql = """
                     CREATE TABLE IF NOT EXISTS inventory (
