@@ -5209,14 +5209,14 @@ class ForestWolvesBot:
             
             # Используем новую систему покупок
             from database_psycopg2 import buy_item
-            item_price = float(item['price'])
+            item_price = int(item['price'])
             success = buy_item(user_id, item['item_name'], item_price)
             
             if success:
                 # Обновляем сообщение магазина
                 await self.shop_command(Update(update_id=0, message=query.message), context)
                 
-                await query.answer(f"✅ {item['item_name']} куплен за {item_price:.0f} орешков!", show_alert=True)
+                await query.answer(f"✅ {item['item_name']} куплен за {item_price} орешков!", show_alert=True)
                 logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {item['item_name']} за {item_price} орешков")
             else:
                 await query.answer("❌ Недостаточно орешков или ошибка при покупке!", show_alert=True)

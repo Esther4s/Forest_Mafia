@@ -24,7 +24,7 @@ class BalanceManager:
     def __init__(self):
         self.logger = logger
     
-    def get_user_balance(self, user_id: int) -> float:
+    def get_user_balance(self, user_id: int) -> int:
         """
         Получает баланс пользователя с созданием записи если не существует
         
@@ -41,15 +41,15 @@ class BalanceManager:
             if not user:
                 # Создаем пользователя с начальным балансом 100 орешков
                 self.create_user_if_not_exists(user_id, f"User_{user_id}")
-                return 100.0
+                return 100
             
             # Получаем баланс
             balance = get_user_balance(user_id)
-            return float(balance) if balance is not None else 0.0
+            return int(balance) if balance is not None else 0
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка получения баланса пользователя {user_id}: {e}")
-            return 0.0
+            return 0
     
     def create_user_if_not_exists(self, user_id: int, username: str) -> bool:
         """
@@ -93,7 +93,7 @@ class BalanceManager:
             self.logger.error(f"❌ Ошибка создания пользователя {user_id}: {e}")
             return False
     
-    def update_user_balance(self, user_id: int, new_balance: float) -> bool:
+    def update_user_balance(self, user_id: int, new_balance: int) -> bool:
         """
         Обновляет баланс пользователя с проверками
         
@@ -129,7 +129,7 @@ class BalanceManager:
             self.logger.error(f"❌ Ошибка обновления баланса пользователя {user_id}: {e}")
             return False
     
-    def add_to_balance(self, user_id: int, amount: float) -> bool:
+    def add_to_balance(self, user_id: int, amount: int) -> bool:
         """
         Добавляет сумму к балансу пользователя
         
@@ -160,7 +160,7 @@ class BalanceManager:
             self.logger.error(f"❌ Ошибка добавления к балансу пользователя {user_id}: {e}")
             return False
     
-    def subtract_from_balance(self, user_id: int, amount: float) -> bool:
+    def subtract_from_balance(self, user_id: int, amount: int) -> bool:
         """
         Вычитает сумму из баланса пользователя
         
@@ -194,7 +194,7 @@ class BalanceManager:
             self.logger.error(f"❌ Ошибка вычитания из баланса пользователя {user_id}: {e}")
             return False
     
-    def transfer_balance(self, from_user_id: int, to_user_id: int, amount: float) -> bool:
+    def transfer_balance(self, from_user_id: int, to_user_id: int, amount: int) -> bool:
         """
         Переводит средства между пользователями
         

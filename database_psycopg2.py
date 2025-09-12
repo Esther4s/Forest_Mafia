@@ -416,7 +416,7 @@ def get_user_by_telegram_id(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return None
 
-def get_user_balance(user_id: int) -> Optional[float]:
+def get_user_balance(user_id: int) -> Optional[int]:
     """
     Получает баланс пользователя
     
@@ -430,7 +430,7 @@ def get_user_balance(user_id: int) -> Optional[float]:
     result = fetch_one(query, (user_id,))
     return result['balance'] if result else None
 
-def update_user_balance(user_id: int, new_balance: float) -> bool:
+def update_user_balance(user_id: int, new_balance: int) -> bool:
     """
     Обновляет баланс пользователя
     
@@ -2083,7 +2083,7 @@ def update_item_flags(user_id: int, item_name: str, flags: Dict[str, Any]) -> bo
         logger.error(f"❌ Ошибка обновления флагов предмета: {e}")
         return False
 
-def buy_item(user_id: int, item_name: str, price: float) -> bool:
+def buy_item(user_id: int, item_name: str, price: int) -> bool:
     """
     Покупает предмет в магазине
     
