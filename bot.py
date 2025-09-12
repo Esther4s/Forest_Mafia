@@ -4260,7 +4260,7 @@ class ForestWolvesBot:
             await self.night_interfaces[chat_id].send_role_reminders(context)
 
     async def send_squirrel_message(self, context: ContextTypes.DEFAULT_TYPE, player: Player):
-        """Отправляет сообщение белочки умершему игроку"""
+        """Отправляет сообщение белочки изгнанному игроку (только при голосовании)"""
         try:
             # Получаем русское название роли
             from role_translator import get_role_name_russian

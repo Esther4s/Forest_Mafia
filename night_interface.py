@@ -249,8 +249,8 @@ class NightInterface:
         except Exception as e:
             print(f"Не удалось отправить результаты ночи: {e}")
         
-        # Отправляем сообщения белочки умершим игрокам
-        await self._send_squirrel_messages(context, results)
+        # Сообщения белочки отправляются только при изгнании (голосовании)
+        # При смерти от волка отправляется специальное сообщение через send_wolf_victim_pm
 
     async def _send_squirrel_messages(self, context: ContextTypes.DEFAULT_TYPE, results: Dict[str, List[str]]):
         """Отправляет сообщения белочки умершим игрокам"""
