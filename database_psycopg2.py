@@ -32,7 +32,10 @@ class DatabaseConnection:
         """
         self.database_url = database_url or os.environ.get('DATABASE_URL')
         if not self.database_url:
-            raise ValueError("DATABASE_URL не установлен в переменных окружения!")
+            # Fallback для Railway
+            fallback_url = "postgresql://postgres:JOoSxKXEcnXImgvwCWsfcQQDlnWSDNyD@hopper.proxy.rlwy.net:23049/railway"
+            logger.warning("⚠️ DATABASE_URL не установлен, используем fallback URL")
+            self.database_url = fallback_url
         
         # Парсим URL для получения параметров подключения
         self.connection_params = self._parse_database_url()
@@ -187,6 +190,13 @@ def init_db(database_url: Optional[str] = None) -> DatabaseConnection:
     global db_connection
     
     try:
+        # Проверяем переменные окружения
+        env_url = os.environ.get('DATABASE_URL')
+        if env_url:
+            logger.info(f"✅ DATABASE_URL найден: {env_url[:30]}...")
+        else:
+            logger.warning("⚠️ DATABASE_URL не найден в переменных окружения")
+        
         db_connection = DatabaseConnection(database_url)
         
         # Тестируем подключение
@@ -198,6 +208,7 @@ def init_db(database_url: Optional[str] = None) -> DatabaseConnection:
             
     except Exception as e:
         logger.error(f"❌ Ошибка инициализации базы данных: {e}")
+        logger.error(f"❌ DATABASE_URL: {os.environ.get('DATABASE_URL', 'НЕ УСТАНОВЛЕН')}")
         raise
 
 def execute_query(query: str, params: Optional[Tuple] = None) -> int:

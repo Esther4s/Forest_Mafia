@@ -61,7 +61,9 @@ class ForestWolvesBot:
         try:
             self.db = init_db()
             # Создаем таблицы если их нет
-            create_tables()
+            tables_created = create_tables()
+            if not tables_created:
+                logger.warning("⚠️ Проблема с созданием таблиц, но база данных доступна")
             logger.info("✅ База данных инициализирована успешно")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации базы данных: {e}")
@@ -89,7 +91,9 @@ class ForestWolvesBot:
         try:
             self.db = init_db()
             # Создаем таблицы если их нет
-            create_tables()
+            tables_created = create_tables()
+            if not tables_created:
+                logger.warning("⚠️ Проблема с созданием таблиц, но база данных доступна")
             logger.info("✅ База данных инициализирована успешно")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации базы данных: {e}")
