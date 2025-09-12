@@ -1022,8 +1022,8 @@ class ForestWolvesBot:
                 else:
                     # Мертвый игрок получает 25 орешков (если награды умершим включены)
                     if dead_rewards_enabled:
-                    nuts_amount = 25
-                    logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
+                        nuts_amount = 25
+                        logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
                     else:
                         nuts_amount = 0
                         logger.info(f"💀 Игрок {username} - мертвый, но награды умершим отключены")
@@ -2803,14 +2803,14 @@ class ForestWolvesBot:
             if is_early_completion:
                 result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
             else:
-            result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
+                result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
         else:
             # Если никто не изгнан, выбираем случайное сообщение
             random_message = random.choice(self.no_exile_messages)
             if is_early_completion:
                 result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {voting_details['voting_summary']}\n\n{random_message}"
             else:
-            result_text = f"🌲 {voting_details['voting_summary']}\n\n{random_message}"
+                result_text = f"🌲 {voting_details['voting_summary']}\n\n{random_message}"
         
         # Добавляем детальную информацию о голосовании
         result_text += "\n\n📊 **Результаты голосования:**\n"
