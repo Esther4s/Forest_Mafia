@@ -4904,6 +4904,22 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^timer_back"))
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^view_my_role$"))
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^night_view_role_"))
+        
+        # shop and profile handlers
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^buy_item_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^back_to_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^close_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^farewell_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^leave_forest"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^join_chat"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^language_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_profile_pm"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_roles_pm"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^lang_"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_rules_pm"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^back_to_start"))
+        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^repeat_role_actions"))
 
         # Установка команд после старта бота
         async def post_init(application):
