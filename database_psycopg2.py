@@ -2118,7 +2118,11 @@ def buy_item(user_id: int, item_name: str, price: int) -> dict:
                             'balance': 0
                         }
                     
-                    current_balance = balance_result['balance']
+                    # Получаем баланс из результата (кортеж или словарь)
+                    if isinstance(balance_result, dict):
+                        current_balance = balance_result['balance']
+                    else:
+                        current_balance = balance_result[0]
                     
                     if current_balance < price:
                         cursor.execute("ROLLBACK")
@@ -2149,7 +2153,15 @@ def buy_item(user_id: int, item_name: str, price: int) -> dict:
                     """
                     cursor.execute(inventory_query, (user_id, item_name))
                     inventory_result = cursor.fetchone()
-                    item_count = inventory_result['count'] if inventory_result else 1
+                    
+                    # Получаем количество предметов из результата
+                    if inventory_result:
+                        if isinstance(inventory_result, dict):
+                            item_count = inventory_result['count']
+                        else:
+                            item_count = inventory_result[0]
+                    else:
+                        item_count = 1
                     
                     # 4. Записываем покупку
                     purchase_query = """
@@ -2175,6 +2187,22 @@ def buy_item(user_id: int, item_name: str, price: int) -> dict:
                     # Откатываем транзакцию при ошибке
                     cursor.execute("ROLLBACK")
                     logger.error(f"❌ Ошибка в транзакции покупки {item_name}: {e}")
+                    
+                    # Получаем текущий баланс для отчета об ошибке
+                    try:
+                        balance_query = "SELECT balance FROM users WHERE user_id = %s"
+                        cursor.execute(balance_query, (user_id,))
+                        balance_result = cursor.fetchone()
+                        if balance_result:
+                            if isinstance(balance_result, dict):
+                                current_balance = balance_result['balance']
+                            else:
+                                current_balance = balance_result[0]
+                        else:
+                            current_balance = 0
+                    except:
+                        current_balance = 0
+                    
                     return {
                         'success': False,
                         'error': f'Ошибка покупки: {str(e)}',
