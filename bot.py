@@ -5619,9 +5619,10 @@ class ForestWolvesBot:
             user_id = query.from_user.id
             username = query.from_user.username or query.from_user.first_name or "Unknown"
             
-            # Получаем покупки пользователя
-            from database_psycopg2 import get_user_purchases
-            purchases = get_user_purchases(user_id)
+            # Получаем подробную информацию об инвентаре
+            from database_psycopg2 import get_user_inventory_detailed
+            
+            inventory_data = get_user_inventory_detailed(user_id)
             
             keyboard = [
                 [InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")]
@@ -5632,24 +5633,18 @@ class ForestWolvesBot:
             inventory_text = f"🧺 **Корзинка** 🧺\n\n"
             inventory_text += f"👤 **{username}**\n\n"
             
-            if purchases:
+            if not inventory_data['success']:
+                inventory_text += f"❌ {inventory_data['error']}"
+            elif inventory_data['items']:
                 inventory_text += "🛍️ **Ваши товары:**\n\n"
                 
-                # Группируем товары по названию
-                item_counts = {}
-                for purchase in purchases:
-                    item_name = purchase.get('item_name', 'Неизвестный товар')
-                    quantity = purchase.get('quantity', 1)
-                    if item_name in item_counts:
-                        item_counts[item_name] += quantity
-                    else:
-                        item_counts[item_name] = quantity
-                
-                for item_name, count in item_counts.items():
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
                     inventory_text += f"• {item_name} x{count}\n"
                 
-                inventory_text += f"\n📦 Всего товаров: {len(item_counts)} видов\n"
-                inventory_text += f"🔢 Общее количество: {sum(item_counts.values())} штук"
+                inventory_text += f"\n📦 Всего товаров: {inventory_data['total_items']} видов\n"
+                inventory_text += f"🌰 Орешки: {inventory_data['balance']}"
             else:
                 inventory_text += "📦 Корзинка пуста\n\n"
                 inventory_text += "🛍️ Посетите магазин, чтобы купить товары!\n"
