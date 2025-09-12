@@ -1241,6 +1241,19 @@ class ForestWolvesBot:
             await update.message.reply_text("❌ Вы не найдены в игре!")
             return
         
+        # Сначала отправляем базовую информацию о роли
+        role_info = self.get_role_info(player.role)
+        team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
+        
+        role_message = (
+            f"🎭 Ваша роль в игре 'Лес и Волки':\n\n"
+            f"👤 {role_info['name']}\n"
+            f"🏴 Команда: {team_name}\n\n"
+            f"📖 Описание:\n{role_info['description']}"
+        )
+        
+        await update.message.reply_text(role_message)
+        
         # Формируем советы по игре для роли
         role_emojis = {
             Role.WOLF: "🐺",
@@ -4672,12 +4685,9 @@ class ForestWolvesBot:
         team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
         
         role_message = (
-            f"🎭 Ваша роль в игре 'Лес и Волки':\n\n"
-            f"👤 {role_info['name']}\n"
-            f"🏴 Команда: {team_name}\n\n"
-            f"📝 Описание:\n{role_info['description']}\n\n"
-            f"🌙 Раунд: {game.current_round}\n"
-            f"💚 Статус: {'Живой' if player.is_alive else 'Мертвый'}"
+            f"🌙 Напоминание о вашей роли:\n\n"
+            f"🎭{role_info['name']}\n"
+            f"📝 {role_info['description']}"
         )
         
         try:
@@ -4810,6 +4820,7 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^set_"))
         application.add_handler(CallbackQueryHandler(self.handle_timer_values, pattern=r"^timer_back"))
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^view_my_role$"))
+        application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^night_view_role_"))
 
         # Установка команд после старта бота
         async def post_init(application):
