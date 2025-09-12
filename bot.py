@@ -3737,9 +3737,7 @@ class ForestWolvesBot:
             await self.set_dead_rewards_setting(query, context, True)
         elif query.data == "set_dead_rewards_false":
             await self.set_dead_rewards_setting(query, context, False)
-        elif query.data.startswith("buy_item_"):
-            item_id = int(query.data.split("_")[2])
-            await self.handle_buy_item(query, context, item_id)
+        # buy_item_ обрабатывается отдельным handler'ом
         elif query.data == "back_to_main":
             await self.show_main_menu(query, context)
         elif query.data == "show_balance":
@@ -4892,7 +4890,7 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_view_my_role, pattern=r"^night_view_role_"))
         
         # shop and profile handlers
-        application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^buy_item_"))
+        application.add_handler(CallbackQueryHandler(self.handle_buy_item_callback, pattern=r"^buy_item_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^back_to_"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^close_"))
@@ -5181,6 +5179,20 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка установки настройки умерших: {e}")
             await query.answer("❌ Ошибка при сохранении настройки!", show_alert=True)
+
+    async def handle_buy_item_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает callback покупки товара"""
+        query = update.callback_query
+        if not query:
+            return
+        
+        try:
+            # Извлекаем ID товара из callback_data
+            item_id = int(query.data.split("_")[2])
+            await self.handle_buy_item(query, context, item_id)
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки callback покупки: {e}")
+            await query.answer("❌ Ошибка покупки!", show_alert=True)
 
     async def handle_buy_item(self, query, context, item_id: int):
         """Обрабатывает покупку товара"""
