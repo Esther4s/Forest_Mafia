@@ -1343,13 +1343,45 @@ def create_tables():
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name IN ('users', 'games', 'players', 'stats', 'chat_settings', 'inventory')
+        AND table_name IN ('users', 'games', 'players', 'stats', 'chat_settings')
         """
         
         existing_tables = fetch_query(check_tables_query)
         
         if existing_tables:
             logger.info("✅ Таблицы уже существуют, пропускаем создание")
+            
+            # Но проверяем и создаем таблицу inventory отдельно
+            inventory_check_query = """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'inventory'
+            );
+            """
+            inventory_exists = fetch_query(inventory_check_query)
+            
+            if not inventory_exists or not inventory_exists[0][0]:
+                logger.info("🔧 Создаем таблицу inventory...")
+                create_inventory_sql = """
+                    CREATE TABLE IF NOT EXISTS inventory (
+                        id SERIAL PRIMARY KEY,
+                        user_id BIGINT NOT NULL,
+                        item_name VARCHAR(255) NOT NULL,
+                        count INTEGER DEFAULT 1,
+                        flags JSONB DEFAULT '{}'::jsonb,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+                        UNIQUE(user_id, item_name)
+                    );
+                    CREATE INDEX IF NOT EXISTS idx_inventory_user_id ON inventory(user_id);
+                """
+                execute_query(create_inventory_sql)
+                logger.info("✅ Таблица inventory создана!")
+            else:
+                logger.info("✅ Таблица inventory уже существует")
+            
             return
         
         # SQL для создания всех таблиц

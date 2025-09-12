@@ -5208,25 +5208,17 @@ class ForestWolvesBot:
                 # Обновляем сообщение магазина
                 await self.shop_command(Update(update_id=0, message=query.message), context)
             else:
-                # Показываем детальную ошибку
-                error_message = f"❌ Ошибка покупки!\n\n"
-                error_message += f"🔍 Детали: {result['error']}\n"
+                # Показываем краткую ошибку (Telegram ограничение на длину)
+                error_message = f"❌ {result['error']}"
                 if 'balance' in result:
-                    error_message += f"🌰 Твой баланс: {result['balance']}\n"
-                error_message += f"💰 Цена товара: {item_price} орешков\n\n"
-                error_message += f"💡 Попробуйте позже или обратитесь к администратору"
+                    error_message += f"\n🌰 Баланс: {result['balance']}"
                 
                 await query.answer(error_message, show_alert=True)
                 logger.warning(f"❌ Покупка не удалась для пользователя {username} (ID: {user_id}): {result['error']}")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка при покупке товара: {e}")
-            error_message = (
-                f"❌ Критическая ошибка!\n\n"
-                f"🔍 Детали: {str(e)}\n"
-                f"💡 Обратитесь к администратору\n"
-                f"🆔 ID ошибки: {user_id}"
-            )
+            error_message = f"❌ Ошибка покупки!\n💡 Попробуйте позже"
             await query.answer(error_message, show_alert=True)
 
     async def show_main_menu(self, query, context):
