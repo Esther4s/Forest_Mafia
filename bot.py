@@ -613,62 +613,43 @@ class ForestWolvesBot:
         username = update.effective_user.username or update.effective_user.first_name or "Unknown"
         
         try:
-            from database_psycopg2 import get_user_inventory, get_user_balance
-            from item_system import item_system
+            # Получаем подробную информацию об инвентаре
+            from database_psycopg2 import get_user_inventory_detailed
             
-            # Получаем инвентарь пользователя
-            inventory = get_user_inventory(user_id)
-            user_balance = get_user_balance(user_id)
+            inventory_data = get_user_inventory_detailed(user_id)
             
-            if not inventory:
-                message = (
-                    f"🎒 **Инвентарь {username}**\n\n"
-                    f"💰 **Баланс:** {user_balance:.0f} орешков\n\n"
-                    f"📦 **Предметы:** Пусто\n\n"
-                    f"🛍️ Используйте /shop для покупки предметов!"
-                )
-            else:
-                message = f"🎒 **Инвентарь {username}**\n\n"
-                message += f"💰 **Баланс:** {user_balance:.0f} орешков\n\n"
+            if not inventory_data['success']:
+                await update.message.reply_text(f"❌ {inventory_data['error']}")
+                return
+            
+            # Формируем сообщение
+            message = f"🧺 **Инвентарь {username}**\n\n"
+            message += f"🌰 Орешки: {inventory_data['balance']}\n"
+            message += f"📊 Всего предметов: {inventory_data['total_items']}\n\n"
+            
+            if inventory_data['items']:
                 message += "📦 **Предметы:**\n"
-                
-                for item in inventory:
+                for item in inventory_data['items']:
                     item_name = item['item_name']
                     count = item['count']
-                    flags = item['flags']
-                    
-                    # Получаем информацию о предмете
-                    item_info = item_system.get_item_info(item_name)
-                    if item_info:
-                        description = item_info['description']
-                        item_type = item_info['type']
-                        
-                        # Добавляем статус активации
-                        status = ""
-                        if flags:
-                            if 'active_role_boost' in flags:
-                                status = " ✅ Активно"
-                            elif 'mask_active' in flags:
-                                status = " ✅ Активно"
-                            elif 'protection_active' in flags:
-                                status = " ✅ Активно"
-                            elif 'double_reward' in flags:
-                                status = " ✅ Активно"
-                            elif 'night_vision_active' in flags:
-                                status = " ✅ Активно"
-                            elif 'reveal_roles' in flags:
-                                status = " ✅ Активно"
-                            elif 'extra_life_active' in flags:
-                                status = " ✅ Активно"
-                        
-                        message += f"• {item_name} x{count}{status}\n"
-                        message += f"  _{description}_\n\n"
-                    else:
-                        message += f"• {item_name} x{count}\n\n"
-                
-                message += "💡 Используйте предметы в игре для активации их эффектов!"
+                    message += f"• {item_name} x{count}\n"
+            else:
+                message += "📦 **Инвентарь пуст**\n"
+                message += "🛍️ Посетите магазин, чтобы купить предметы!"
             
-            await update.message.reply_text(message, parse_mode='Markdown')
+            # Создаем клавиатуру
+            keyboard = [
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("💰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.message.reply_text(
+                message,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
             
         except Exception as e:
             logger.error(f"❌ Ошибка получения инвентаря для пользователя {user_id}: {e}")
@@ -5207,19 +5188,32 @@ class ForestWolvesBot:
                 await query.answer("❌ Товар не найден!", show_alert=True)
                 return
             
-            # Используем новую систему покупок
+            # Используем новую атомарную систему покупок
             from database_psycopg2 import buy_item
             item_price = int(item['price'])
-            success = buy_item(user_id, item['item_name'], item_price)
+            result = buy_item(user_id, item['item_name'], item_price)
             
-            if success:
+            if result['success']:
+                # Формируем сообщение об успешной покупке
+                success_message = (
+                    f"✅ Ты купил: {result['item_name']}\n"
+                    f"🌰 Баланс: {result['balance']}\n"
+                    f"🎒 Инвентарь обновлён!"
+                )
+                
+                await query.answer(success_message, show_alert=True)
+                logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {result['item_name']} за {item_price} орешков. Новый баланс: {result['balance']}")
+                
                 # Обновляем сообщение магазина
                 await self.shop_command(Update(update_id=0, message=query.message), context)
-                
-                await query.answer(f"✅ {item['item_name']} куплен за {item_price} орешков!", show_alert=True)
-                logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {item['item_name']} за {item_price} орешков")
             else:
-                await query.answer("❌ Недостаточно орешков или ошибка при покупке!", show_alert=True)
+                # Показываем ошибку
+                error_message = f"❌ {result['error']}"
+                if 'balance' in result:
+                    error_message += f"\n🌰 Твой баланс: {result['balance']}"
+                
+                await query.answer(error_message, show_alert=True)
+                logger.warning(f"❌ Покупка не удалась для пользователя {username} (ID: {user_id}): {result['error']}")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка при покупке товара: {e}")

@@ -2083,9 +2083,9 @@ def update_item_flags(user_id: int, item_name: str, flags: Dict[str, Any]) -> bo
         logger.error(f"❌ Ошибка обновления флагов предмета: {e}")
         return False
 
-def buy_item(user_id: int, item_name: str, price: int) -> bool:
+def buy_item(user_id: int, item_name: str, price: int) -> dict:
     """
-    Покупает предмет в магазине
+    Покупает предмет в магазине (атомарная операция)
     
     Args:
         user_id: ID пользователя
@@ -2093,36 +2093,142 @@ def buy_item(user_id: int, item_name: str, price: int) -> bool:
         price: Цена предмета
     
     Returns:
-        bool: True если покупка успешна
+        dict: Результат покупки с информацией о балансе и инвентаре
     """
     try:
-        # Проверяем баланс пользователя
-        user_balance = get_user_balance(user_id)
-        if user_balance < price:
-            logger.warning(f"⚠️ Недостаточно средств для покупки {item_name}. Баланс: {user_balance}, цена: {price}")
-            return False
+        # Получаем соединение с базой данных
+        db = init_db()
         
-        # Списываем деньги
-        if not update_user_balance(user_id, -price):
-            logger.error(f"❌ Не удалось списать деньги за покупку {item_name}")
-            return False
-        
-        # Добавляем предмет в инвентарь
-        if not add_item_to_inventory(user_id, item_name, 1):
-            # Если не удалось добавить предмет, возвращаем деньги
-            update_user_balance(user_id, price)
-            logger.error(f"❌ Не удалось добавить предмет {item_name} в инвентарь, деньги возвращены")
-            return False
-        
-        # Записываем покупку
-        add_purchase(user_id, item_name, price)
-        
-        logger.info(f"✅ Пользователь {user_id} успешно купил {item_name} за {price} орешков")
-        return True
-        
+        with db.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Начинаем транзакцию
+                cursor.execute("BEGIN")
+                
+                try:
+                    # 1. Проверяем баланс пользователя
+                    balance_query = "SELECT balance FROM users WHERE user_id = %s"
+                    cursor.execute(balance_query, (user_id,))
+                    balance_result = cursor.fetchone()
+                    
+                    if not balance_result:
+                        cursor.execute("ROLLBACK")
+                        return {
+                            'success': False,
+                            'error': 'Пользователь не найден',
+                            'balance': 0
+                        }
+                    
+                    current_balance = balance_result['balance']
+                    
+                    if current_balance < price:
+                        cursor.execute("ROLLBACK")
+                        return {
+                            'success': False,
+                            'error': 'Недостаточно орешков!',
+                            'balance': current_balance
+                        }
+                    
+                    # 2. Списываем деньги
+                    new_balance = current_balance - price
+                    update_balance_query = """
+                        UPDATE users 
+                        SET balance = %s, updated_at = CURRENT_TIMESTAMP 
+                        WHERE user_id = %s
+                    """
+                    cursor.execute(update_balance_query, (new_balance, user_id))
+                    
+                    # 3. Добавляем/обновляем предмет в инвентаре
+                    inventory_query = """
+                        INSERT INTO inventory (user_id, item_name, count, flags, created_at, updated_at)
+                        VALUES (%s, %s, 1, '{}'::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        ON CONFLICT (user_id, item_name)
+                        DO UPDATE SET 
+                            count = inventory.count + 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        RETURNING count
+                    """
+                    cursor.execute(inventory_query, (user_id, item_name))
+                    inventory_result = cursor.fetchone()
+                    item_count = inventory_result['count'] if inventory_result else 1
+                    
+                    # 4. Записываем покупку
+                    purchase_query = """
+                        INSERT INTO purchases (user_id, item_id, purchased_at)
+                        VALUES (%s, (SELECT id FROM shop WHERE item_name = %s), CURRENT_TIMESTAMP)
+                    """
+                    cursor.execute(purchase_query, (user_id, item_name))
+                    
+                    # Подтверждаем транзакцию
+                    cursor.execute("COMMIT")
+                    
+                    logger.info(f"✅ Пользователь {user_id} успешно купил {item_name} за {price} орешков. Новый баланс: {new_balance}")
+                    
+                    return {
+                        'success': True,
+                        'item_name': item_name,
+                        'item_count': item_count,
+                        'balance': new_balance,
+                        'price': price
+                    }
+                    
+                except Exception as e:
+                    # Откатываем транзакцию при ошибке
+                    cursor.execute("ROLLBACK")
+                    logger.error(f"❌ Ошибка в транзакции покупки {item_name}: {e}")
+                    return {
+                        'success': False,
+                        'error': f'Ошибка покупки: {str(e)}',
+                        'balance': current_balance
+                    }
+                    
     except Exception as e:
         logger.error(f"❌ Ошибка покупки предмета {item_name}: {e}")
-        return False
+        return {
+            'success': False,
+            'error': f'Системная ошибка: {str(e)}',
+            'balance': 0
+        }
+
+def get_user_inventory_detailed(user_id: int) -> dict:
+    """
+    Получает подробную информацию об инвентаре пользователя
+    
+    Args:
+        user_id: ID пользователя
+    
+    Returns:
+        dict: Информация об инвентаре и балансе
+    """
+    try:
+        # Получаем баланс пользователя
+        balance = get_user_balance(user_id) or 0
+        
+        # Получаем инвентарь
+        inventory_query = """
+            SELECT item_name, count, flags, created_at, updated_at
+            FROM inventory 
+            WHERE user_id = %s 
+            ORDER BY created_at DESC
+        """
+        
+        inventory_items = fetch_query(inventory_query, (user_id,))
+        
+        return {
+            'success': True,
+            'balance': balance,
+            'items': inventory_items,
+            'total_items': len(inventory_items)
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения инвентаря пользователя {user_id}: {e}")
+        return {
+            'success': False,
+            'error': f'Ошибка получения инвентаря: {str(e)}',
+            'balance': 0,
+            'items': [],
+            'total_items': 0
+        }
 
 # Пример использования
 if __name__ == "__main__":
