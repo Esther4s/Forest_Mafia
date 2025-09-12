@@ -2649,6 +2649,10 @@ class ForestWolvesBot:
             except Exception as e:
                 logger.error(f"Не удалось отправить сообщение лисе {fox.user_id}: {e}")
 
+        # Отправляем роли всем игрокам (только в первой ночи)
+        if game.current_round == 1:
+            await self.send_roles_to_players(context, game)
+        
         # меню ночных действий
         await self.send_night_actions_to_players(context, game)
 
@@ -4664,10 +4668,7 @@ class ForestWolvesBot:
             message_thread_id=game.thread_id
         )
         
-        # Отправляем роли всем игрокам
-        await self.send_roles_to_players(context, game)
-        
-        # Запускаем первую ночь
+        # Запускаем первую ночь (роли будут отправлены в start_night_phase)
         await self.start_night_phase(context, game)
 
     async def send_roles_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
