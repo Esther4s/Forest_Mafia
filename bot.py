@@ -22,6 +22,7 @@ from config import BOT_TOKEN  # ваши настройки
 from night_actions import NightActions
 from night_interface import NightInterface
 from global_settings import GlobalSettings # Импортируем GlobalSettings
+from forest_mafia_settings import ForestWolvesSettings
 from database_adapter import DatabaseAdapter
 from database_psycopg2 import (
     init_db, close_db,
@@ -409,10 +410,12 @@ class ForestWolvesBot:
             # Кнопка "Выйти из регистрации"
             keyboard.append([InlineKeyboardButton("❌ Выйти из регистрации", callback_data="leave_registration")])
             
-            # Кнопка "Посмотреть свою роль" (скрывает ссылку на ЛС с ботом)
+            # Кнопка "Посмотреть свою роль" (повторяет сообщения с кнопками действий)
             if game.phase != GamePhase.WAITING:
-                bot_username = context.bot.username
-                keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", url=f"https://t.me/{bot_username}?start=role")])
+                keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", callback_data="repeat_role_actions")])
+            
+            # Кнопка "Магазин"
+            keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
             
             # Кнопка "Начать игру" (если можно)
             if game.can_start_game():
@@ -803,6 +806,10 @@ class ForestWolvesBot:
             
             logger.info(f"🛍️ Запрос магазина для пользователя {username} (ID: {user_id})")
             
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
             # Получаем товары из магазина
             shop_items = get_shop_items()
             
@@ -810,21 +817,34 @@ class ForestWolvesBot:
                 await update.message.reply_text("🛍️ **Магазин пуст**\n\nТовары появятся позже!")
                 return
             
-            # Формируем сообщение с товарами
-            shop_text = "🛍️ **Магазин ForestMafia**\n\n"
-            shop_text += "💰 **Доступные товары:**\n\n"
+            # Создаем клавиатуру для магазина
+            keyboard = []
             
+            # Добавляем кнопки для каждого товара
             for item in shop_items:
-                shop_text += f"**{item['id']}.** {item['item_name']}\n"
-                shop_text += f"   💰 Цена: {int(item['price'])} орешков\n"
-                shop_text += f"   📝 {item['description']}\n\n"
+                price = int(item['price'])
+                button_text = f"{item['item_name']} - {price}🌰"
+                callback_data = f"buy_item_{item['id']}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
             
-            shop_text += "💡 **Как купить:**\n"
-            shop_text += "Используйте команду /buy <номер_товара>\n"
-            shop_text += "Например: /buy 1\n\n"
-            shop_text += "🌰 Проверить баланс: /balance"
+            # Добавляем кнопку "Назад"
+            keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")])
             
-            await update.message.reply_text(shop_text)
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Формируем сообщение с информацией о пользователе и товарах
+            shop_text = f"🌲 **Лесной магазин**\n\n"
+            shop_text += f"👤 **{username}:**\n"
+            shop_text += f"🌰 Орешки: {user_balance}\n\n"
+            shop_text += "🛍️ **Что будем покупать?**\n\n"
+            
+            # Добавляем описание товаров
+            for item in shop_items:
+                shop_text += f"**{item['item_name']}**\n"
+                shop_text += f"📝 {item['description']}\n"
+                shop_text += f"💰 {int(item['price'])} орешков\n\n"
+            
+            await update.message.reply_text(shop_text, reply_markup=reply_markup)
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения магазина: {e}")
@@ -959,13 +979,20 @@ class ForestWolvesBot:
             
             logger.info(f"🎮 Начинаем начисление орешков за игру. Игроков: {len(game.players)}, Победитель: {winner}")
             
+            # Получаем настройки чата для проверки начисления наград
+            chat_settings = get_chat_settings(game.chat_id)
+            loser_rewards_enabled = chat_settings.get('loser_rewards_enabled', True)
+            dead_rewards_enabled = chat_settings.get('dead_rewards_enabled', True)
+            logger.info(f"🏆 Награды проигравшим: {'ВКЛ' if loser_rewards_enabled else 'ВЫКЛ'}")
+            logger.info(f"💀 Награды умершим: {'ВКЛ' if dead_rewards_enabled else 'ВЫКЛ'}")
+            
             nuts_awards = []  # Список для хранения информации о наградах
             
             for player in game.players.values():
                 user_id = player.user_id
                 username = player.username or f"Player_{user_id}"
                 
-                logger.info(f"👤 Обрабатываем игрока: {username} (ID: {user_id}), Жив: {player.is_alive}, Команда: {player.team}")
+                logger.info(f"👤 Обрабатываем игрока: {username} (ID: {user_id}), Жив: {player.is_alive}, Команда: {player.team}, Роль: {player.role}")
                 
                 # Создаем пользователя в БД, если его нет
                 create_user(user_id, username)
@@ -993,9 +1020,26 @@ class ForestWolvesBot:
                         nuts_amount = 50  # Если нет победителя, все живые получают 50
                         logger.info(f"🤷 Игрок {username} - живой, но нет победителя, получает 50 орешков")
                 else:
-                    # Мертвый игрок получает 25 орешков
-                    nuts_amount = 25
-                    logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
+                    # Мертвый игрок получает 25 орешков (если награды умершим включены)
+                    if dead_rewards_enabled:
+                        nuts_amount = 25
+                        logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
+                    else:
+                        nuts_amount = 0
+                        logger.info(f"💀 Игрок {username} - мертвый, но награды умершим отключены")
+                
+                # Если награды проигравшим отключены, не начисляем орешки проигравшим
+                if not loser_rewards_enabled and winner:
+                    # Проверяем, проиграл ли игрок
+                    player_lost = False
+                    if winner == Team.HERBIVORES and player.team == Team.PREDATORS:
+                        player_lost = True
+                    elif winner == Team.PREDATORS and player.team == Team.HERBIVORES:
+                        player_lost = True
+                    
+                    if player_lost:
+                        nuts_amount = 0  # Проигравшие не получают орешки
+                        logger.info(f"🏆 Игрок {username} проиграл, но награды проигравшим отключены")
                 
                 # Начисляем орешки через новую систему баланса
                 if nuts_amount > 0:
@@ -1066,8 +1110,21 @@ class ForestWolvesBot:
 
         # Для личных сообщений отправляем информацию о том, как начать игру
         if chat_id == user_id:
-            await update.message.reply_text(
-                "🌲 *Добро пожаловать в 'Лес и Волки'!* 🌲\n\n"
+            # Создаем клавиатуру для личных сообщений
+            keyboard = [
+                [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🎮 Войти в чат", callback_data="join_chat")],
+                [InlineKeyboardButton("🌍 Язык / Language", callback_data="language_settings")],
+                [InlineKeyboardButton("👤 Профиль", callback_data="show_profile_pm")],
+                [InlineKeyboardButton("🎭 Роли", callback_data="show_roles_pm")],
+                [InlineKeyboardButton("💡 Советы по игре (Роль)", url=f"https://t.me/{context.bot.username}?start=role")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            welcome_text = (
+                "🌲 *Привет!*\n\n"
+                "Я бот-ведущий для игры в 🌲 *Лес и Волки*.\n\n"
                 "🎭 *Ролевая игра в стиле 'Мафия' с лесными зверушками*\n\n"
                 "🐺 *Хищники:* Волки + Лиса\n"
                 "🐰 *Травоядные:* Зайцы + Крот + Бобёр\n\n"
@@ -1075,11 +1132,13 @@ class ForestWolvesBot:
                 "• Ночью хищники охотятся, травоядные защищаются\n"
                 "• Днем все обсуждают и голосуют за изгнание\n"
                 "• Цель: уничтожить всех противников\n\n"
-                "🚀 *Чтобы начать игру:*\n"
-                "1. Добавьте бота в группу\n"
-                "2. Используйте команду /start в группе\n"
-                "3. Или нажмите кнопку 'Начать игру' в приветственном сообщении\n\n"
-                "💡 *Команды:* `/rules`, `/help`, `/settings`"
+                "🚀 *Выберите действие:*"
+            )
+            
+            await update.message.reply_text(
+                welcome_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
             )
             return
 
@@ -1160,7 +1219,7 @@ class ForestWolvesBot:
             return False
 
     async def show_role_in_private(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Показывает роль игрока в личных сообщениях"""
+        """Показывает советы по игре для роли игрока в личных сообщениях"""
         user_id = update.effective_user.id
         
         if user_id not in self.player_games:
@@ -1182,7 +1241,7 @@ class ForestWolvesBot:
             await update.message.reply_text("❌ Вы не найдены в игре!")
             return
         
-        # Формируем красивое сообщение о роли
+        # Формируем советы по игре для роли
         role_emojis = {
             Role.WOLF: "🐺",
             Role.FOX: "🦊", 
@@ -1204,22 +1263,96 @@ class ForestWolvesBot:
             Team.HERBIVORES: "Травоядные"
         }
         
-        role_descriptions = {
-            Role.WOLF: "Вы - Волк! Выбирайте жертву каждую ночь. Работайте с другими хищниками.",
-            Role.FOX: "Вы - Лиса! Воруйте запасы у травоядных. После 2 краж жертва уходит.",
-            Role.HARE: "Вы - Заяц! Выживайте и помогайте команде найти хищников.",
-            Role.MOLE: "Вы - Крот! Проверяйте команды других игроков каждую ночь.",
-            Role.BEAVER: "Вы - Бобёр! Защищайте травоядных от лисы, возвращая украденные запасы."
+        # Детальные советы по игре для каждой роли
+        role_game_tips = {
+            Role.WOLF: {
+                "title": "🐺 Советы для Волка",
+                "description": "Вы - лидер хищников! Ваша цель - уничтожить всех травоядных.",
+                "tips": [
+                    "🎯 **Выбор жертвы:** Выбирайте активных игроков, которые могут быть кротом или бобром",
+                    "🤝 **Работа в команде:** Найдите лису и координируйте действия",
+                    "🎭 **Маскировка:** Не привлекайте к себе внимание в обсуждениях",
+                    "📊 **Анализ:** Следите за голосованиями - кто голосует против кого",
+                    "⏰ **Тайминг:** Не убивайте слишком рано, чтобы не выдать себя"
+                ],
+                "night_action": "🌙 **Ночное действие:** Выбирайте жертву для убийства",
+                "win_condition": "🏆 **Цель:** Уничтожить всех травоядных"
+            },
+            Role.FOX: {
+                "title": "🦊 Советы для Лисы",
+                "description": "Вы - вор! Крадите орешки у травоядных, но не более 2 раз.",
+                "tips": [
+                    "💰 **Выбор цели:** Воруйте у игроков с большим количеством орешков",
+                    "🎭 **Скрытность:** Не воруйте у одного игрока дважды подряд",
+                    "🤝 **Координация:** Работайте с волками, но не раскрывайтесь",
+                    "📈 **Стратегия:** Воруйте у подозрительных игроков",
+                    "⚠️ **Осторожность:** После 2 краж вы умрете!"
+                ],
+                "night_action": "🌙 **Ночное действие:** Выбирайте игрока для кражи орешков",
+                "win_condition": "🏆 **Цель:** Помочь хищникам победить"
+            },
+            Role.HARE: {
+                "title": "🐰 Советы для Зайца",
+                "description": "Вы - обычный мирный житель. Выживайте и помогайте команде найти хищников.",
+                "tips": [
+                    "👂 **Наблюдение:** Внимательно слушайте обсуждения и анализируйте поведение",
+                    "🗣️ **Общение:** Задавайте вопросы, но не раскрывайте важную информацию",
+                    "📊 **Анализ:** Следите за голосованиями и выявляйте подозрительных",
+                    "🤝 **Команда:** Работайте с кротом и бобром",
+                    "🎭 **Маскировка:** Не привлекайте к себе внимание хищников"
+                ],
+                "night_action": "🌙 **Ночное действие:** Отдыхайте и ждите утра",
+                "win_condition": "🏆 **Цель:** Найти и изгнать всех хищников"
+            },
+            Role.MOLE: {
+                "title": "🦫 Советы для Крота",
+                "description": "Вы - детектив! Проверяйте роли игроков каждую ночь.",
+                "tips": [
+                    "🔍 **Выбор цели:** Проверяйте подозрительных игроков",
+                    "📝 **Запись:** Записывайте результаты проверок",
+                    "🤝 **Команда:** Делитесь информацией с травоядными",
+                    "🎭 **Скрытность:** Не раскрывайте свою роль раньше времени",
+                    "📊 **Анализ:** Используйте информацию для голосований"
+                ],
+                "night_action": "🌙 **Ночное действие:** Выбирайте игрока для проверки роли",
+                "win_condition": "🏆 **Цель:** Помочь травоядным найти хищников"
+            },
+            Role.BEAVER: {
+                "title": "🦦 Советы для Бобра",
+                "description": "Вы - защитник! Защищайте травоядных от лисы, возвращая украденные орешки.",
+                "tips": [
+                    "🛡️ **Защита:** Защищайте игроков, у которых украли орешки",
+                    "💰 **Восстановление:** Возвращайте украденные орешки",
+                    "🤝 **Команда:** Работайте с кротом и зайцами",
+                    "📊 **Анализ:** Следите за тем, у кого украли орешки",
+                    "🎭 **Скрытность:** Не раскрывайте свою роль"
+                ],
+                "night_action": "🌙 **Ночное действие:** Выбирайте игрока для защиты",
+                "win_condition": "🏆 **Цель:** Помочь травоядным победить"
+            }
         }
         
-        message = (
-            f"{role_emojis[player.role]} *Ваша роль: {role_names_russian[player.role]}*\n\n"
-            f"🏷️ Команда: {team_names[player.team]}\n"
-            f"📝 Описание: {role_descriptions[player.role]}\n\n"
-            f"🎮 Раунд: {game.current_round}\n"
-            f"🌙 Выжили ночей: {player.consecutive_nights_survived}\n\n"
-            f"💡 *Совет:* {self._get_role_tip(player.role)}"
-        )
+        tips = role_game_tips[player.role]
+        
+        message = f"{tips['title']}\n\n"
+        message += f"🏷️ **Команда:** {team_names[player.team]}\n"
+        message += f"📝 **Описание:** {tips['description']}\n\n"
+        
+        message += "💡 **Советы по игре:**\n"
+        for tip in tips['tips']:
+            message += f"{tip}\n"
+        
+        message += f"\n{tips['night_action']}\n"
+        message += f"{tips['win_condition']}\n\n"
+        
+        message += f"🎮 **Текущий раунд:** {game.current_round}\n"
+        message += f"🌙 **Выжили ночей:** {player.consecutive_nights_survived}\n\n"
+        
+        message += "🎯 **Общие советы:**\n"
+        message += "• Внимательно читайте сообщения бота\n"
+        message += "• Анализируйте поведение других игроков\n"
+        message += "• Не раскрывайте свою роль раньше времени\n"
+        message += "• Работайте в команде с союзниками"
         
         await update.message.reply_text(message, parse_mode='Markdown')
 
@@ -1455,8 +1588,7 @@ class ForestWolvesBot:
         
         # Кнопка "Посмотреть свою роль" (если игра идет)
         if game.phase != GamePhase.WAITING:
-            bot_username = context.bot.username
-            keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", url=f"https://t.me/{bot_username}?start=role")])
+            keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", callback_data="repeat_role_actions")])
         
         # Основные кнопки управления игрой
         if game.phase == GamePhase.WAITING:
@@ -2662,14 +2794,23 @@ class ForestWolvesBot:
         # Получаем детальную информацию о голосовании
         voting_details = game.get_voting_details()
         
+        # Проверяем, было ли голосование завершено досрочно
+        is_early_completion = hasattr(game, 'exile_voting_completed') and game.exile_voting_completed
+        
         # Формируем сообщение с результатами
         if exiled_player:
             role_name = self.get_role_info(exiled_player.role)['name']
-            result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
+            if is_early_completion:
+                result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
+            else:
+                result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
         else:
             # Если никто не изгнан, выбираем случайное сообщение
             random_message = random.choice(self.no_exile_messages)
-            result_text = f"🌲 {voting_details['voting_summary']}\n\n{random_message}"
+            if is_early_completion:
+                result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {voting_details['voting_summary']}\n\n{random_message}"
+            else:
+                result_text = f"🌲 {voting_details['voting_summary']}\n\n{random_message}"
         
         # Добавляем детальную информацию о голосовании
         result_text += "\n\n📊 **Результаты голосования:**\n"
@@ -3427,6 +3568,7 @@ class ForestWolvesBot:
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
             [InlineKeyboardButton("👥 Лимиты игроков", callback_data="settings_players")],
+            [InlineKeyboardButton("🌲 Настройки лесной мафии", callback_data="forest_settings")],
             [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
             [InlineKeyboardButton("🔄 Сбросить настройки", callback_data="settings_reset_chat")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
@@ -3495,6 +3637,75 @@ class ForestWolvesBot:
             await self.show_min_players_options(query, context)
         elif query.data == "players_max":
             await self.show_max_players_options(query, context)
+        elif query.data == "forest_settings":
+            await self.show_forest_settings(query, context)
+        elif query.data == "forest_rewards_settings":
+            await self.show_rewards_settings(query, context)
+        elif query.data == "forest_dead_settings":
+            await self.show_dead_settings(query, context)
+        elif query.data == "forest_settings_back":
+            await self.show_forest_settings(query, context)
+        elif query.data == "set_loser_rewards_true":
+            await self.set_loser_rewards_setting(query, context, True)
+        elif query.data == "set_loser_rewards_false":
+            await self.set_loser_rewards_setting(query, context, False)
+        elif query.data == "set_dead_rewards_true":
+            await self.set_dead_rewards_setting(query, context, True)
+        elif query.data == "set_dead_rewards_false":
+            await self.set_dead_rewards_setting(query, context, False)
+        elif query.data.startswith("buy_item_"):
+            item_id = int(query.data.split("_")[2])
+            await self.handle_buy_item(query, context, item_id)
+        elif query.data == "back_to_main":
+            await self.show_main_menu(query, context)
+        elif query.data == "show_balance":
+            await self.show_balance_menu(query, context)
+        elif query.data == "show_shop":
+            await self.show_shop_menu(query, context)
+        elif query.data == "show_stats":
+            await self.show_stats_menu(query, context)
+        elif query.data == "close_menu":
+            await query.edit_message_text("🌲 Меню закрыто")
+        elif query.data == "show_inventory":
+            await self.show_inventory(query, context)
+        elif query.data == "show_chat_stats":
+            await self.show_chat_stats(query, context)
+        elif query.data == "close_profile":
+            await query.edit_message_text("👤 Профиль закрыт")
+        elif query.data == "back_to_profile":
+            await self.back_to_profile(query, context)
+        elif query.data == "join_chat":
+            await self.handle_join_chat(query, context)
+        elif query.data == "language_settings":
+            await self.handle_language_settings(query, context)
+        elif query.data == "show_profile_pm":
+            await self.show_profile_pm(query, context)
+        elif query.data == "show_roles_pm":
+            await self.show_roles_pm(query, context)
+        elif query.data == "lang_ru":
+            await self.handle_language_ru(query, context)
+        elif query.data == "lang_en_disabled":
+            await self.handle_language_en_disabled(query, context)
+        elif query.data == "show_rules_pm":
+            await self.show_rules_pm(query, context)
+        elif query.data == "back_to_start":
+            await self.back_to_start(query, context)
+        elif query.data == "repeat_role_actions":
+            await self.repeat_role_actions(query, context)
+        elif query.data.startswith("farewell_message_"):
+            user_id = int(query.data.split("_")[2])
+            await self.handle_farewell_message(query, context, user_id)
+        elif query.data == "leave_forest":
+            await self.handle_leave_forest(query, context)
+        elif query.data.startswith("farewell_"):
+            parts = query.data.split("_")
+            if len(parts) >= 3:
+                farewell_type = parts[1]
+                user_id = int(parts[2])
+                await self.handle_farewell_type(query, context, farewell_type, user_id)
+        elif query.data.startswith("farewell_back_"):
+            user_id = int(query.data.split("_")[2])
+            await self.handle_farewell_back(query, context, user_id)
 
     async def show_timer_settings(self, query, context):
         chat_id = query.message.chat.id
@@ -3775,6 +3986,7 @@ class ForestWolvesBot:
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
             [InlineKeyboardButton("🎭 Изменить распределение ролей", callback_data="settings_roles")],
             [InlineKeyboardButton("👥 Лимиты игроков", callback_data="settings_players")],
+            [InlineKeyboardButton("🌲 Настройки лесной мафии", callback_data="forest_settings")],
             [InlineKeyboardButton(test_mode_text, callback_data="settings_toggle_test")],
             [InlineKeyboardButton("🔄 Сбросить настройки", callback_data="settings_reset_chat")],
             [InlineKeyboardButton("❌ Закрыть", callback_data="settings_close")]
@@ -3974,16 +4186,145 @@ class ForestWolvesBot:
                 f"⭐️ До свидания, {player_name} ⭐️"
             )
             
+            # Создаем клавиатуру с кнопкой прощального сообщения
+            keyboard = [
+                [InlineKeyboardButton("💬 Сказать прощальное слово", callback_data=f"farewell_message_{player.user_id}")],
+                [InlineKeyboardButton("🌲 Покинуть лес", callback_data="leave_forest")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
             # Отправляем сообщение в личку
             await context.bot.send_message(
                 chat_id=player.user_id,
-                text=squirrel_message
+                text=squirrel_message,
+                reply_markup=reply_markup
             )
             
             logger.info(f"Отправлено сообщение белочки игроку {player_name} ({player.user_id})")
             
         except Exception as e:
             logger.error(f"Ошибка при отправке сообщения белочки игроку {player.user_id}: {e}")
+
+    async def send_wolf_victim_pm(self, context: ContextTypes.DEFAULT_TYPE, victim_info: Dict):
+        """Отправляет ЛС игроку, которого съел волк"""
+        try:
+            user_id = victim_info['user_id']
+            username = victim_info['username']
+            role_name = victim_info['role_name']
+            
+            # Формируем сообщение
+            message = (
+                f"Не послушался, ты @{username} взрослых да других зверей, "
+                f"открыл дверь злому волку. И остались от тебя ножки да орешков немножко. "
+                f"покойся с миром!\n\n"
+                f"🎭 Твоя роль: {role_name}\n"
+                f"🚫 Твои действия в игре завершены.\n"
+                f"🔇 Молчание - твоя новая обязанность."
+            )
+            
+            # Создаем клавиатуру с кнопкой прощального сообщения
+            keyboard = [
+                [InlineKeyboardButton("💬 Сказать прощальное слово", callback_data=f"farewell_message_{user_id}")],
+                [InlineKeyboardButton("🌲 Покинуть лес", callback_data="leave_forest")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Отправляем ЛС
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=message,
+                parse_mode='Markdown',
+                reply_markup=reply_markup
+            )
+            
+            logger.info(f"✅ Отправлено ЛС жертве волка {username} (ID: {user_id})")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при отправке ЛС жертве волка: {e}")
+
+    async def send_mole_check_pm(self, context: ContextTypes.DEFAULT_TYPE, check_info: Dict):
+        """Отправляет ЛС кроту с результатом проверки"""
+        try:
+            mole_id = check_info['mole_id']
+            mole_username = check_info['mole_username']
+            target_username = check_info['target_username']
+            target_role = check_info['target_role']
+            check_result = check_info['check_result']
+            
+            # Получаем русское название роли
+            from role_translator import get_role_name_russian
+            role_name = get_role_name_russian(target_role)
+            
+            # Создаем специальное сообщение для крота с правильными обращениями
+            pm_message = self._create_mole_pm_message(target_role, target_username, check_result)
+            
+            # Формируем сообщение для ЛС
+            message = (
+                f"🦫 *Результат твоей проверки:*\n\n"
+                f"👤 Проверяемый: @{target_username}\n"
+                f"🎭 Роль: {role_name}\n\n"
+                f"{pm_message}"
+            )
+            
+            # Отправляем ЛС
+            await context.bot.send_message(
+                chat_id=mole_id,
+                text=message,
+                parse_mode='Markdown'
+            )
+            
+            logger.info(f"✅ Отправлено ЛС кроту {mole_username} (ID: {mole_id}) с результатом проверки")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при отправке ЛС кроту: {e}")
+
+    def _create_mole_pm_message(self, target_role, target_username: str, check_result: str) -> str:
+        """Создает сообщение для крота с правильными обращениями"""
+        from game_logic import Role
+        
+        # Получаем правильные склонения для родительного падежа
+        role_genitive = {
+            Role.WOLF: "волка",
+            Role.FOX: "лисы", 
+            Role.HARE: "зайца",
+            Role.MOLE: "крота",
+            Role.BEAVER: "бобра"
+        }
+        role_genitive_name = role_genitive.get(target_role, "неизвестного")
+        
+        # Создаем сообщения специально для крота
+        if target_role == Role.WOLF:
+            if "отправился на охоту" in check_result:
+                return f"🦡 Крот заглянул в норку, но она была пуста. Похоже, @{target_username} отправился на охоту..."
+            else:
+                return f"🦡 Крот посмотрел из-под тишка и заметил, что это @{target_username} - Волк!"
+        
+        elif target_role == Role.FOX:
+            if "отправилась на дело" in check_result:
+                return f"🦡 Крот заглянул в норку, но она была пуста. Похоже, @{target_username} отправилась на дело..."
+            else:
+                return f"🦡 Крот посмотрел из-под тишка и заметил, что это @{target_username} - Лиса!"
+        
+        elif target_role == Role.HARE:
+            if "отправился по делам" in check_result:
+                return f"🦡 Крот заглянул в норку, но она была пуста. Похоже, @{target_username} отправился по делам..."
+            else:
+                return f"🦡 Крот пришёл к норке @{target_username}, он открыл дверь. Всё спокойно, он мирный."
+        
+        elif target_role == Role.BEAVER:
+            if "отправился помогать" in check_result:
+                return f"🦡 Крот заглянул в норку, но она была пуста. Похоже, @{target_username} отправился помогать..."
+            else:
+                return f"🦡 Крот пришёл к норке @{target_username}, он открыл дверь. Всё спокойно, он мирный."
+        
+        elif target_role == Role.MOLE:
+            if "отправился на разведку" in check_result:
+                return f"🦡 Крот заглянул в норку, но она была пуста. Похоже, @{target_username} отправился на разведку..."
+            else:
+                return f"🦡 Крот посмотрел из-под тишка и заметил, что это @{target_username} - Крот!"
+        
+        else:
+            return f"🦡 Крот заглянул в норку @{target_username}, но не смог понять, кто здесь живёт..."
 
     async def process_night_phase(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         chat_id = game.chat_id
@@ -3993,6 +4334,16 @@ class ForestWolvesBot:
             results = night_actions.process_all_actions()
             await night_interface.send_night_results(context, results)
             night_actions.clear_actions()
+            
+            # Отправляем ЛС жертве волка, если есть
+            if game.last_wolf_victim:
+                await self.send_wolf_victim_pm(context, game.last_wolf_victim)
+                game.last_wolf_victim = None  # Очищаем после отправки
+            
+            # Отправляем ЛС кроту с результатом проверки, если есть
+            if game.last_mole_check:
+                await self.send_mole_check_pm(context, game.last_mole_check)
+                game.last_mole_check = None  # Очищаем после отправки
             
         # Проверяем условия автоматического завершения игры после ночных действий
         winner = game.check_game_end()
@@ -4018,16 +4369,7 @@ class ForestWolvesBot:
         await asyncio.sleep(0.5)  # Небольшая задержка чтобы все голоса успели обработаться
         
         try:
-            await context.bot.send_message(
-                chat_id=game.chat_id, 
-                text="⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.",
-                message_thread_id=game.thread_id,
-                read_timeout=10,  # Увеличиваем таймаут
-                write_timeout=10,
-                connect_timeout=10
-            )
-            
-            # Вызываем process_voting_results напрямую
+            # Вызываем process_voting_results напрямую (он сам отправит объединенное сообщение)
             await self.process_voting_results(context, game)
         except Exception as e:
             logger.error(f"Ошибка в complete_exile_voting_early: {e}")
@@ -4388,6 +4730,8 @@ class ForestWolvesBot:
             BotCommand("rules", "📖 Правила игры"),
             BotCommand("balance", "💰 Показать баланс"),
             BotCommand("shop", "🛍️ Магазин товаров"),
+            BotCommand("profile", "👤 Профиль игрока"),
+            BotCommand("global_stats", "🌍 Общая статистика"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -4434,6 +4778,8 @@ class ForestWolvesBot:
         # Новые команды для работы с базой данных
         application.add_handler(CommandHandler("balance", self.balance_command)) # Команда /balance
         application.add_handler(CommandHandler("shop", self.shop_command)) # Команда /shop
+        application.add_handler(CommandHandler("profile", self.profile_command)) # Команда /profile
+        application.add_handler(CommandHandler("global_stats", self.global_stats_command)) # Команда /global_stats
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         
 
@@ -4638,6 +4984,1085 @@ class ForestWolvesBot:
             result_text += "ℹ️ Создайте игру командой `/join` для применения настроек"
 
         await update.message.reply_text(result_text)
+
+    async def show_forest_settings(self, query, context):
+        """Показывает настройки лесной мафии"""
+        from forest_mafia_settings import ForestWolvesSettings
+        forest_settings = ForestWolvesSettings(self.global_settings)
+        
+        keyboard = forest_settings.get_forest_wolves_settings_keyboard()
+        summary = forest_settings.get_settings_summary()
+        
+        await query.edit_message_text(
+            summary,
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
+
+    async def show_rewards_settings(self, query, context):
+        """Показывает настройки наград"""
+        from forest_mafia_settings import ForestWolvesSettings
+        forest_settings = ForestWolvesSettings(self.global_settings)
+        
+        keyboard = forest_settings.get_rewards_settings_keyboard()
+        
+        current_enabled = self.global_settings.get("forest_wolves_features", {}).get("loser_rewards_enabled", True)
+        status_text = "ВКЛ" if current_enabled else "ВЫКЛ"
+        
+        await query.edit_message_text(
+            f"🏆 *Настройки наград*\n\n"
+            f"🌰 Награды проигравшим игрокам: {status_text}\n\n"
+            f"Выберите действие:",
+            reply_markup=keyboard,
+            parse_mode='Markdown'
+        )
+
+    async def set_loser_rewards_setting(self, query, context, enabled: bool):
+        """Устанавливает настройку награждения проигравших"""
+        from forest_mafia_settings import ForestWolvesSettings
+        forest_settings = ForestWolvesSettings(self.global_settings)
+        
+        success = forest_settings.apply_setting("loser_rewards", enabled)
+        
+        if success:
+            status_text = "включены" if enabled else "отключены"
+            await query.edit_message_text(
+                f"🏆 Награды проигравшим {status_text}!\n\n"
+                f"✅ Настройка сохранена и будет применена для следующих игр.",
+                reply_markup=forest_settings.get_forest_settings_back_keyboard()
+            )
+        else:
+            await query.answer("❌ Ошибка при сохранении настройки!", show_alert=True)
+
+    async def show_dead_settings(self, query, context):
+        """Показывает настройки умерших игроков"""
+        try:
+            forest_settings = ForestWolvesSettings()
+            keyboard = forest_settings.get_dead_settings_keyboard()
+            
+            settings_text = (
+                "💀 **Настройки умерших игроков** 💀\n\n"
+                "🌲 Здесь можно настроить, получают ли умершие игроки орешки за участие в игре.\n\n"
+                "💡 *Награды умершим* - получают ли орешки игроки, которые умерли во время игры."
+            )
+            
+            await query.edit_message_text(settings_text, reply_markup=keyboard)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа настроек умерших: {e}")
+            await query.answer("❌ Ошибка при загрузке настроек!", show_alert=True)
+
+    async def set_dead_rewards_setting(self, query, context, value: bool):
+        """Устанавливает настройку наград умершим игрокам"""
+        try:
+            chat_id = query.message.chat.id
+            
+            # Обновляем настройку в базе данных
+            success = update_chat_settings(chat_id, dead_rewards_enabled=value)
+            
+            if success:
+                # Обновляем настройку в глобальных настройках
+                forest_settings = ForestWolvesSettings()
+                forest_settings.global_settings.update_forest_feature("dead_rewards_enabled", value)
+                
+                status_text = "включены" if value else "отключены"
+                await query.edit_message_text(
+                    f"💀 Награды умершим {status_text}!\n\n"
+                    f"✅ Настройка сохранена и будет применена для следующих игр.",
+                    reply_markup=forest_settings.get_forest_settings_back_keyboard()
+                )
+            else:
+                await query.answer("❌ Ошибка при сохранении настройки!", show_alert=True)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка установки настройки умерших: {e}")
+            await query.answer("❌ Ошибка при сохранении настройки!", show_alert=True)
+
+    async def handle_buy_item(self, query, context, item_id: int):
+        """Обрабатывает покупку товара"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем информацию о товаре
+            shop_items = get_shop_items()
+            item = None
+            for shop_item in shop_items:
+                if shop_item['id'] == item_id:
+                    item = shop_item
+                    break
+            
+            if not item:
+                await query.answer("❌ Товар не найден!", show_alert=True)
+                return
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            item_price = int(item['price'])
+            
+            if user_balance < item_price:
+                await query.answer(f"❌ Недостаточно орешков! Нужно: {item_price}, у вас: {user_balance}", show_alert=True)
+                return
+            
+            # Создаем покупку
+            from database_psycopg2 import create_purchase
+            success = create_purchase(user_id, item_id, 1)
+            
+            if success:
+                # Списываем орешки
+                balance_manager.subtract_from_balance(user_id, item_price)
+                
+                # Обновляем сообщение магазина
+                await self.shop_command(Update(update_id=0, message=query.message), context)
+                
+                await query.answer(f"✅ {item['item_name']} куплен за {item_price} орешков!", show_alert=True)
+                logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {item['item_name']} за {item_price} орешков")
+            else:
+                await query.answer("❌ Ошибка при покупке товара!", show_alert=True)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка при покупке товара: {e}")
+            await query.answer("❌ Произошла ошибка при покупке!", show_alert=True)
+
+    async def show_main_menu(self, query, context):
+        """Показывает главное меню"""
+        try:
+            keyboard = [
+                [InlineKeyboardButton("🌰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("📊 Статистика", callback_data="show_stats")],
+                [InlineKeyboardButton("❌ Закрыть", callback_data="close_menu")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                "🌲 **Главное меню ForestMafia**\n\nВыберите действие:",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа главного меню: {e}")
+
+    async def show_balance_menu(self, query, context):
+        """Показывает меню баланса"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
+            keyboard = [
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            balance_text = f"🌲 **Баланс ForestMafia**\n\n"
+            balance_text += f"👤 **{username}:**\n"
+            balance_text += f"🌰 Орешки: {user_balance}\n\n"
+            balance_text += "💡 Орешки можно заработать, играя в ForestMafia!"
+            
+            await query.edit_message_text(balance_text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа баланса: {e}")
+
+    async def show_shop_menu(self, query, context):
+        """Показывает меню магазина"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
+            # Получаем товары из магазина
+            shop_items = get_shop_items()
+            
+            if not shop_items:
+                await query.edit_message_text("🛍️ **Магазин пуст**\n\nТовары появятся позже!")
+                return
+            
+            # Создаем клавиатуру для магазина
+            keyboard = []
+            
+            # Добавляем кнопки для каждого товара
+            for item in shop_items:
+                price = int(item['price'])
+                button_text = f"{item['item_name']} - {price}🌰"
+                callback_data = f"buy_item_{item['id']}"
+                keyboard.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+            
+            # Добавляем кнопку "Назад"
+            keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")])
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Формируем сообщение с информацией о пользователе и товарах
+            shop_text = f"🌲 **Лесной магазин**\n\n"
+            shop_text += f"👤 **{username}:**\n"
+            shop_text += f"🌰 Орешки: {user_balance}\n\n"
+            shop_text += "🛍️ **Что будем покупать?**\n\n"
+            
+            # Добавляем описание товаров
+            for item in shop_items:
+                shop_text += f"**{item['item_name']}**\n"
+                shop_text += f"📝 {item['description']}\n"
+                shop_text += f"💰 {int(item['price'])} орешков\n\n"
+            
+            await query.edit_message_text(shop_text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа магазина: {e}")
+
+    async def show_stats_menu(self, query, context):
+        """Показывает меню статистики"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем статистику пользователя
+            from database_psycopg2 import get_player_detailed_stats
+            stats = get_player_detailed_stats(user_id)
+            
+            keyboard = [
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            stats_text = f"🌲 **Статистика ForestMafia**\n\n"
+            stats_text += f"👤 **{username}:**\n\n"
+            
+            if stats:
+                stats_text += f"🎮 Игр сыграно: {stats.get('games_played', 0)}\n"
+                stats_text += f"🏆 Побед: {stats.get('wins', 0)}\n"
+                stats_text += f"💀 Поражений: {stats.get('losses', 0)}\n"
+                stats_text += f"🌰 Орешков заработано: {stats.get('total_nuts', 0)}\n"
+            else:
+                stats_text += "📊 Статистика пока пуста\n"
+                stats_text += "🎮 Сыграйте в игру, чтобы появилась статистика!"
+            
+            await query.edit_message_text(stats_text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа статистики: {e}")
+
+    async def profile_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает профиль игрока"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            user_id = update.effective_user.id
+            username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+            
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            logger.info(f"👤 Запрос профиля для пользователя {username} (ID: {user_id})")
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
+            # Создаем клавиатуру профиля
+            keyboard = [
+                [InlineKeyboardButton("🧺 Корзинка", callback_data="show_inventory")],
+                [InlineKeyboardButton("📜 Свиток чести", callback_data="show_chat_stats")],
+                [InlineKeyboardButton("🌰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("❌ Закрыть", callback_data="close_profile")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Формируем сообщение профиля
+            profile_text = f"👤 **Профиль игрока** 👤\n\n"
+            profile_text += f"🌲 **{username}**\n"
+            profile_text += f"🌰 Орешки: {user_balance}\n\n"
+            profile_text += "🎮 Выберите действие:\n"
+            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
+            profile_text += "📜 *Свиток чести* - статистика в этом чате\n"
+            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
+            profile_text += "🛍️ *Магазин* - покупка товаров"
+            
+            await update.message.reply_text(profile_text, reply_markup=reply_markup)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения профиля: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            await update.message.reply_text("❌ Произошла ошибка при получении профиля. Попробуйте позже.")
+
+    async def global_stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показывает общую статистику игрока"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            user_id = update.effective_user.id
+            username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+            
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            logger.info(f"🌍 Запрос общей статистики для пользователя {username} (ID: {user_id})")
+            
+            # Получаем общую статистику пользователя
+            from database_psycopg2 import get_player_detailed_stats
+            stats = get_player_detailed_stats(user_id)
+            
+            # Формируем сообщение статистики
+            stats_text = f"🌍 **Общая статистика** 🌍\n\n"
+            stats_text += f"👤 **{username}**\n\n"
+            
+            if stats:
+                games_played = stats.get('games_played', 0)
+                games_won = stats.get('wins', 0)
+                games_lost = stats.get('losses', 0)
+                total_nuts = stats.get('total_nuts', 0)
+                win_rate = (games_won / games_played * 100) if games_played > 0 else 0
+                
+                stats_text += f"🎮 **Игровая статистика:**\n"
+                stats_text += f"• Игр сыграно: {games_played}\n"
+                stats_text += f"• Побед: {games_won}\n"
+                stats_text += f"• Поражений: {games_lost}\n"
+                stats_text += f"• Процент побед: {win_rate:.1f}%\n\n"
+                
+                stats_text += f"🌰 **Орешки:**\n"
+                stats_text += f"• Всего заработано: {total_nuts}\n"
+                stats_text += f"• Среднее за игру: {total_nuts // games_played if games_played > 0 else 0}\n\n"
+                
+                # Дополнительная статистика по ролям
+                if 'role_stats' in stats:
+                    role_stats = stats['role_stats']
+                    stats_text += f"🎭 **Статистика по ролям:**\n"
+                    for role, count in role_stats.items():
+                        stats_text += f"• {role}: {count} раз\n"
+            else:
+                stats_text += "📊 Статистика пока пуста\n"
+                stats_text += "🎮 Сыграйте в игру, чтобы появилась статистика!\n\n"
+                stats_text += "💡 Используйте /profile для просмотра статистики в конкретном чате"
+            
+            await update.message.reply_text(stats_text)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка получения общей статистики: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            await update.message.reply_text("❌ Произошла ошибка при получении статистики. Попробуйте позже.")
+
+    async def handle_farewell_message(self, query, context, user_id: int):
+        """Обрабатывает запрос на прощальное сообщение"""
+        try:
+            # Проверяем, что запрос от правильного пользователя
+            if query.from_user.id != user_id:
+                await query.answer("❌ Это не ваше прощальное сообщение!", show_alert=True)
+                return
+            
+            # Создаем клавиатуру с вариантами прощальных сообщений
+            keyboard = [
+                [InlineKeyboardButton("🌲 Лесное прощание", callback_data=f"farewell_forest_{user_id}")],
+                [InlineKeyboardButton("🐺 Прощание волка", callback_data=f"farewell_wolf_{user_id}")],
+                [InlineKeyboardButton("🦊 Прощание лисы", callback_data=f"farewell_fox_{user_id}")],
+                [InlineKeyboardButton("🐰 Прощание зайца", callback_data=f"farewell_hare_{user_id}")],
+                [InlineKeyboardButton("🦫 Прощание бобра", callback_data=f"farewell_beaver_{user_id}")],
+                [InlineKeyboardButton("🕳️ Прощание крота", callback_data=f"farewell_mole_{user_id}")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            farewell_text = (
+                "🍂 **Прощальные слова** 🍂\n\n"
+                "🌲 Лес прощается с тобой...\n"
+                "💭 Выбери, как ты хочешь попрощаться с остальными обитателями леса:\n\n"
+                "🌿 Каждое прощание имеет свой особый лесной стиль!"
+            )
+            
+            await query.edit_message_text(farewell_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки прощального сообщения: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_leave_forest(self, query, context):
+        """Обрабатывает покидание леса"""
+        try:
+            farewell_text = (
+                "🌲 **Покидание леса** 🌲\n\n"
+                "🍂 Ты тихо покидаешь лес...\n"
+                "🌙 Твоя душа уходит в звёздный лес навсегда.\n\n"
+                "⭐️ До свидания, путник! ⭐️"
+            )
+            
+            await query.edit_message_text(farewell_text)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка покидания леса: {e}")
+
+    async def send_farewell_to_chat(self, context: ContextTypes.DEFAULT_TYPE, user_id: int, farewell_type: str, username: str):
+        """Отправляет прощальное сообщение в чат"""
+        try:
+            # Находим активную игру для этого пользователя
+            active_game = None
+            for chat_id, game in self.games.items():
+                if user_id in [player.user_id for player in game.players.values()]:
+                    active_game = game
+                    break
+            
+            if not active_game:
+                logger.warning(f"Не найдена активная игра для пользователя {user_id}")
+                return
+            
+            # Получаем прощальное сообщение по типу
+            farewell_messages = {
+                "forest": f"🌲 {username} прощается с лесом: \"Спасибо за игру, друзья! Лес навсегда останется в моём сердце... 🌿\"",
+                "wolf": f"🐺 {username} воет на прощание: \"Аууу! Было круто охотиться с вами! Увидимся в звёздном лесу! 🌙\"",
+                "fox": f"🦊 {username} машет хвостом: \"Хи-хи! Какая интересная игра! Надеюсь, вы не забудете мои хитрости! 🍇\"",
+                "hare": f"🐰 {username} подпрыгивает: \"Прыг-скок! Спасибо за веселье! Лес полон чудес! 🥕\"",
+                "beaver": f"🦫 {username} стучит хвостом: \"Тук-тук! Отличная работа, команда! Строим мосты дружбы! 🌉\"",
+                "mole": f"🕳️ {username} выглядывает из норки: \"Копаю-копаю! Было интересно рыть туннели! До встречи! 🕳️\""
+            }
+            
+            message = farewell_messages.get(farewell_type, farewell_messages["forest"])
+            
+            # Отправляем в чат игры
+            await context.bot.send_message(
+                chat_id=active_game.chat_id,
+                text=message,
+                message_thread_id=active_game.thread_id
+            )
+            
+            logger.info(f"✅ Отправлено прощальное сообщение от {username} в чат {active_game.chat_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки прощального сообщения в чат: {e}")
+
+    async def handle_farewell_type(self, query, context, farewell_type: str, user_id: int):
+        """Обрабатывает выбор типа прощания"""
+        try:
+            # Проверяем, что запрос от правильного пользователя
+            if query.from_user.id != user_id:
+                await query.answer("❌ Это не ваше прощальное сообщение!", show_alert=True)
+                return
+            
+            username = query.from_user.username or query.from_user.first_name or "Игрок"
+            
+            # Отправляем прощальное сообщение в чат
+            await self.send_farewell_to_chat(context, user_id, farewell_type, username)
+            
+            # Показываем подтверждение
+            confirmation_text = (
+                f"✅ **Прощальное сообщение отправлено!**\n\n"
+                f"🌲 Твоё прощание в стиле {farewell_type} было отправлено в чат игры.\n\n"
+                f"🍂 Лес будет помнить твои слова...\n"
+                f"⭐️ До свидания, {username}!"
+            )
+            
+            await query.edit_message_text(confirmation_text)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки типа прощания: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_farewell_back(self, query, context, user_id: int):
+        """Обрабатывает возврат к предыдущему меню прощания"""
+        try:
+            # Проверяем, что запрос от правильного пользователя
+            if query.from_user.id != user_id:
+                await query.answer("❌ Это не ваше прощальное сообщение!", show_alert=True)
+                return
+            
+            # Возвращаемся к основному меню прощания
+            await self.handle_farewell_message(query, context, user_id)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка возврата к меню прощания: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def show_inventory(self, query, context):
+        """Показывает инвентарь игрока (корзинка)"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем покупки пользователя
+            from database_psycopg2 import get_user_purchases
+            purchases = get_user_purchases(user_id)
+            
+            keyboard = [
+                [InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            inventory_text = f"🧺 **Корзинка** 🧺\n\n"
+            inventory_text += f"👤 **{username}**\n\n"
+            
+            if purchases:
+                inventory_text += "🛍️ **Ваши товары:**\n\n"
+                
+                # Группируем товары по названию
+                item_counts = {}
+                for purchase in purchases:
+                    item_name = purchase.get('item_name', 'Неизвестный товар')
+                    quantity = purchase.get('quantity', 1)
+                    if item_name in item_counts:
+                        item_counts[item_name] += quantity
+                    else:
+                        item_counts[item_name] = quantity
+                
+                for item_name, count in item_counts.items():
+                    inventory_text += f"• {item_name} x{count}\n"
+                
+                inventory_text += f"\n📦 Всего товаров: {len(item_counts)} видов\n"
+                inventory_text += f"🔢 Общее количество: {sum(item_counts.values())} штук"
+            else:
+                inventory_text += "📦 Корзинка пуста\n\n"
+                inventory_text += "🛍️ Посетите магазин, чтобы купить товары!\n"
+                inventory_text += "💡 Используйте кнопку 'Магазин' в профиле"
+            
+            await query.edit_message_text(inventory_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа инвентаря: {e}")
+            await query.answer("❌ Произошла ошибка при загрузке инвентаря!", show_alert=True)
+
+    async def show_chat_stats(self, query, context):
+        """Показывает статистику игрока в этом чате (свиток чести)"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            chat_id = query.message.chat.id
+            
+            # Получаем статистику игрока в этом чате
+            from database_psycopg2 import get_player_chat_stats
+            stats = get_player_chat_stats(user_id, chat_id)
+            
+            keyboard = [
+                [InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            stats_text = f"📜 **Свиток чести** 📜\n\n"
+            stats_text += f"👤 **{username}**\n"
+            stats_text += f"🌲 **В этом чате**\n\n"
+            
+            if stats:
+                games_played = stats.get('games_played', 0)
+                games_won = stats.get('games_won', 0)
+                games_lost = stats.get('games_lost', 0)
+                total_nuts = stats.get('total_nuts', 0)
+                win_rate = (games_won / games_played * 100) if games_played > 0 else 0
+                
+                stats_text += f"🎮 **Игровая статистика:**\n"
+                stats_text += f"• Игр сыграно: {games_played}\n"
+                stats_text += f"• Побед: {games_won}\n"
+                stats_text += f"• Поражений: {games_lost}\n"
+                stats_text += f"• Процент побед: {win_rate:.1f}%\n\n"
+                
+                stats_text += f"🌰 **Орешки в этом чате:**\n"
+                stats_text += f"• Заработано: {total_nuts}\n"
+                stats_text += f"• Среднее за игру: {total_nuts // games_played if games_played > 0 else 0}\n\n"
+                
+                # Статистика по ролям в этом чате
+                if 'role_stats' in stats:
+                    role_stats = stats['role_stats']
+                    stats_text += f"🎭 **Роли в этом чате:**\n"
+                    for role, count in role_stats.items():
+                        stats_text += f"• {role}: {count} раз\n"
+                
+                # Рейтинг в чате
+                if 'chat_rank' in stats:
+                    rank = stats['chat_rank']
+                    stats_text += f"\n🏆 **Рейтинг в чате:** #{rank}"
+            else:
+                stats_text += "📊 Статистика в этом чате пуста\n\n"
+                stats_text += "🎮 Сыграйте в игру в этом чате, чтобы появилась статистика!\n\n"
+                stats_text += "💡 Используйте /global_stats для просмотра общей статистики"
+            
+            await query.edit_message_text(stats_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа статистики чата: {e}")
+            await query.answer("❌ Произошла ошибка при загрузке статистики!", show_alert=True)
+
+    async def back_to_profile(self, query, context):
+        """Возвращает к профилю игрока"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
+            # Создаем клавиатуру профиля
+            keyboard = [
+                [InlineKeyboardButton("🧺 Корзинка", callback_data="show_inventory")],
+                [InlineKeyboardButton("📜 Свиток чести", callback_data="show_chat_stats")],
+                [InlineKeyboardButton("🌰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("❌ Закрыть", callback_data="close_profile")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Формируем сообщение профиля
+            profile_text = f"👤 **Профиль игрока** 👤\n\n"
+            profile_text += f"🌲 **{username}**\n"
+            profile_text += f"🌰 Орешки: {user_balance}\n\n"
+            profile_text += "🎮 Выберите действие:\n"
+            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
+            profile_text += "📜 *Свиток чести* - статистика в этом чате\n"
+            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
+            profile_text += "🛍️ *Магазин* - покупка товаров"
+            
+            await query.edit_message_text(profile_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка возврата к профилю: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_join_chat(self, query, context):
+        """Обрабатывает кнопку 'Войти в чат'"""
+        try:
+            join_text = (
+                "🎮 **Войти в чат** 🎮\n\n"
+                "🌲 Чтобы присоединиться к игре:\n\n"
+                "1️⃣ **Найдите чат с игрой**\n"
+                "• Ищите чаты, где уже запущена игра 'Лес и Волки'\n"
+                "• Или создайте новый чат и добавьте бота\n\n"
+                "2️⃣ **Присоединитесь к игре**\n"
+                "• Используйте команду `/join` в чате с игрой\n"
+                "• Или нажмите кнопку 'Присоединиться' в сообщении игры\n\n"
+                "3️⃣ **Начните играть!**\n"
+                "• Дождитесь начала игры\n"
+                "• Следуйте инструкциям бота\n\n"
+                "💡 *Совет:* Добавьте бота в свой чат, чтобы создать игру!"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(join_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки 'Войти в чат': {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_language_settings(self, query, context):
+        """Обрабатывает кнопку 'Язык / Language'"""
+        try:
+            language_text = (
+                "🌍 **Язык / Language** 🌍\n\n"
+                "🌲 **Русский (Russian)**\n"
+                "• Основной язык бота\n"
+                "• Все сообщения на русском\n"
+                "• Роли и описания на русском\n\n"
+                "🇺🇸 **English**\n"
+                "• Английский язык (в разработке)\n"
+                "• English language (coming soon)\n\n"
+                "💡 *Сейчас доступен только русский язык*"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("🇷🇺 Русский", callback_data="lang_ru")],
+                [InlineKeyboardButton("🇺🇸 English (скоро)", callback_data="lang_en_disabled")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(language_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки настроек языка: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def show_profile_pm(self, query, context):
+        """Показывает профиль в личных сообщениях"""
+        try:
+            user_id = query.from_user.id
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            
+            # Получаем баланс пользователя
+            from database_balance_manager import balance_manager
+            user_balance = balance_manager.get_balance(user_id)
+            
+            # Создаем клавиатуру профиля для ЛС
+            keyboard = [
+                [InlineKeyboardButton("🧺 Корзинка", callback_data="show_inventory")],
+                [InlineKeyboardButton("📜 Свиток чести", callback_data="show_chat_stats")],
+                [InlineKeyboardButton("🌰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Формируем сообщение профиля
+            profile_text = f"👤 **Профиль игрока** 👤\n\n"
+            profile_text += f"🌲 **{username}**\n"
+            profile_text += f"🌰 Орешки: {user_balance}\n\n"
+            profile_text += "🎮 Выберите действие:\n"
+            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
+            profile_text += "📜 *Свиток чести* - статистика в чатах\n"
+            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
+            profile_text += "🛍️ *Магазин* - покупка товаров"
+            
+            await query.edit_message_text(profile_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа профиля в ЛС: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def show_roles_pm(self, query, context):
+        """Показывает роли в личных сообщениях"""
+        try:
+            roles_text = (
+                "🎭 **Роли в игре** 🎭\n\n"
+                "🐺 **ХИЩНИКИ (Predators)**\n\n"
+                "🐺 **Волк**\n"
+                "• Убивает одного игрока каждую ночь\n"
+                "• Цель: уничтожить всех травоядных\n"
+                "• Может быть изгнан голосованием\n\n"
+                "🦊 **Лиса**\n"
+                "• Крадет орешки у игроков\n"
+                "• Умирает после 2 краж\n"
+                "• Помогает волкам\n\n"
+                "🐰 **ТРАВОЯДНЫЕ (Herbivores)**\n\n"
+                "🐰 **Зайец**\n"
+                "• Обычный мирный житель\n"
+                "• Может быть убит волком\n"
+                "• Участвует в голосовании\n\n"
+                "🦫 **Бобёр**\n"
+                "• Защищает одного игрока за ночь\n"
+                "• Может спасти от волка\n"
+                "• Защита работает один раз\n\n"
+                "🕳️ **Крот**\n"
+                "• Проверяет роли игроков\n"
+                "• Узнает, кто хищник, а кто нет\n"
+                "• Помогает травоядным"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("📖 Подробные правила", callback_data="show_rules_pm")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(roles_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа ролей в ЛС: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+
+    async def repeat_role_actions(self, query, context):
+        """Повторяет сообщения с кнопками действий для роли игрока"""
+        try:
+            user_id = query.from_user.id
+            chat_id = query.message.chat.id
+            
+            # Проверяем, что игра существует
+            if chat_id not in self.games:
+                await query.answer("❌ Игра не найдена!", show_alert=True)
+                return
+            
+            game = self.games[chat_id]
+            
+            # Проверяем, что игра идет
+            if game.phase == GamePhase.WAITING:
+                await query.answer("⏳ Игра еще не началась!", show_alert=True)
+                return
+            
+            # Проверяем, что игрок участвует в игре
+            if user_id not in game.players:
+                await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
+                return
+            
+            player = game.players[user_id]
+            
+            # Отправляем сообщения с кнопками действий в зависимости от роли и фазы
+            if game.phase == GamePhase.NIGHT:
+                await self._send_night_role_actions(query, context, game, player)
+            elif game.phase == GamePhase.DAY:
+                await self._send_day_role_actions(query, context, game, player)
+            elif game.phase == GamePhase.VOTING:
+                await self._send_voting_role_actions(query, context, game, player)
+            else:
+                await query.answer("❌ Неизвестная фаза игры!", show_alert=True)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка повторения действий роли: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _send_night_role_actions(self, query, context, game, player):
+        """Отправляет ночные действия для роли"""
+        try:
+            if player.role == Role.WOLF:
+                # Действия для волка
+                message = (
+                    "🐺 **Ваша роль: Волк**\n\n"
+                    "🌙 **Ночная фаза**\n\n"
+                    "Выберите жертву для убийства:"
+                )
+                
+                # Создаем клавиатуру с живыми игроками
+                keyboard = []
+                for player_id, p in game.players.items():
+                    if p.is_alive and p.role != Role.WOLF:
+                        username = p.username or p.first_name or f"Игрок {player_id}"
+                        keyboard.append([InlineKeyboardButton(f"🎯 {username}", callback_data=f"wolf_kill_{player_id}")])
+                
+                if keyboard:
+                    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await query.message.reply_text(message, reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Нет доступных целей!", show_alert=True)
+                    
+            elif player.role == Role.FOX:
+                # Действия для лисы
+                message = (
+                    "🦊 **Ваша роль: Лиса**\n\n"
+                    "🌙 **Ночная фаза**\n\n"
+                    "Выберите жертву для кражи орешков:"
+                )
+                
+                # Создаем клавиатуру с живыми травоядными
+                keyboard = []
+                for player_id, p in game.players.items():
+                    if p.is_alive and p.team == Team.HERBIVORES:
+                        username = p.username or p.first_name or f"Игрок {player_id}"
+                        keyboard.append([InlineKeyboardButton(f"💰 {username}", callback_data=f"fox_steal_{player_id}")])
+                
+                if keyboard:
+                    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await query.message.reply_text(message, reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Нет доступных целей!", show_alert=True)
+                    
+            elif player.role == Role.MOLE:
+                # Действия для крота
+                message = (
+                    "🦫 **Ваша роль: Крот**\n\n"
+                    "🌙 **Ночная фаза**\n\n"
+                    "Выберите игрока для проверки роли:"
+                )
+                
+                # Создаем клавиатуру с живыми игроками
+                keyboard = []
+                for player_id, p in game.players.items():
+                    if p.is_alive and p.role != Role.MOLE:
+                        username = p.username or p.first_name or f"Игрок {player_id}"
+                        keyboard.append([InlineKeyboardButton(f"🔍 {username}", callback_data=f"mole_check_{player_id}")])
+                
+                if keyboard:
+                    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await query.message.reply_text(message, reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Нет доступных целей!", show_alert=True)
+                    
+            elif player.role == Role.BEAVER:
+                # Действия для бобра
+                message = (
+                    "🦦 **Ваша роль: Бобёр**\n\n"
+                    "🌙 **Ночная фаза**\n\n"
+                    "Выберите игрока для защиты:"
+                )
+                
+                # Создаем клавиатуру с живыми травоядными
+                keyboard = []
+                for player_id, p in game.players.items():
+                    if p.is_alive and p.team == Team.HERBIVORES and p.role != Role.BEAVER:
+                        username = p.username or p.first_name or f"Игрок {player_id}"
+                        keyboard.append([InlineKeyboardButton(f"🛡️ {username}", callback_data=f"beaver_protect_{player_id}")])
+                
+                if keyboard:
+                    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await query.message.reply_text(message, reply_markup=reply_markup)
+                else:
+                    await query.answer("❌ Нет доступных целей!", show_alert=True)
+                    
+            else:
+                # Заяц - нет ночных действий
+                message = (
+                    "🐰 **Ваша роль: Заяц**\n\n"
+                    "🌙 **Ночная фаза**\n\n"
+                    "У вас нет ночных действий. Отдыхайте и ждите утра!"
+                )
+                await query.message.reply_text(message)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки ночных действий: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _send_day_role_actions(self, query, context, game, player):
+        """Отправляет дневные действия для роли"""
+        try:
+            message = (
+                f"☀️ **Дневная фаза**\n\n"
+                f"🎭 **Ваша роль:** {self.get_role_name_russian(player.role)}\n"
+                f"🏷️ **Команда:** {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
+                f"💬 **Обсуждайте события ночи и выдвигайте подозрения!**\n\n"
+                f"🎯 **Ваша цель:** {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
+            )
+            
+            await query.message.reply_text(message)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки дневных действий: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _send_voting_role_actions(self, query, context, game, player):
+        """Отправляет действия голосования для роли"""
+        try:
+            message = (
+                f"🗳️ **Фаза голосования**\n\n"
+                f"🎭 **Ваша роль:** {self.get_role_name_russian(player.role)}\n"
+                f"🏷️ **Команда:** {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
+                f"🗳️ **Голосуйте за изгнание подозреваемого!**\n\n"
+                f"🎯 **Ваша цель:** {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
+            )
+            
+            # Создаем клавиатуру с живыми игроками для голосования
+            keyboard = []
+            for player_id, p in game.players.items():
+                if p.is_alive and p.user_id != player.user_id:
+                    username = p.username or p.first_name or f"Игрок {player_id}"
+                    keyboard.append([InlineKeyboardButton(f"🗳️ {username}", callback_data=f"vote_{player_id}")])
+            
+            if keyboard:
+                keyboard.append([InlineKeyboardButton("❌ Пропустить", callback_data="vote_skip")])
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.message.reply_text(message, reply_markup=reply_markup)
+            else:
+                await query.message.reply_text(message)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки действий голосования: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def back_to_start(self, query, context):
+        """Возвращает к начальному меню"""
+        try:
+            # Создаем клавиатуру для личных сообщений
+            keyboard = [
+                [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                [InlineKeyboardButton("🎮 Войти в чат", callback_data="join_chat")],
+                [InlineKeyboardButton("🌍 Язык / Language", callback_data="language_settings")],
+                [InlineKeyboardButton("👤 Профиль", callback_data="show_profile_pm")],
+                [InlineKeyboardButton("🎭 Роли", callback_data="show_roles_pm")],
+                [InlineKeyboardButton("💡 Советы по игре (Роль)", url=f"https://t.me/{context.bot.username}?start=role")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            welcome_text = (
+                "🌲 *Привет!*\n\n"
+                "Я бот-ведущий для игры в 🌲 *Лес и Волки*.\n\n"
+                "🎭 *Ролевая игра в стиле 'Мафия' с лесными зверушками*\n\n"
+                "🐺 *Хищники:* Волки + Лиса\n"
+                "🐰 *Травоядные:* Зайцы + Крот + Бобёр\n\n"
+                "🌙 *Как играть:*\n"
+                "• Ночью хищники охотятся, травоядные защищаются\n"
+                "• Днем все обсуждают и голосуют за изгнание\n"
+                "• Цель: уничтожить всех противников\n\n"
+                "🚀 *Выберите действие:*"
+            )
+            
+            await query.edit_message_text(
+                welcome_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка возврата к начальному меню: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_language_ru(self, query, context):
+        """Обрабатывает выбор русского языка"""
+        try:
+            await query.answer("🇷🇺 Русский язык уже выбран!", show_alert=True)
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки выбора русского языка: {e}")
+
+    async def handle_language_en_disabled(self, query, context):
+        """Обрабатывает попытку выбрать английский язык (отключен)"""
+        try:
+            await query.answer("🇺🇸 Английский язык пока недоступен! Скоро будет добавлен.", show_alert=True)
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки выбора английского языка: {e}")
+
+    async def show_rules_pm(self, query, context):
+        """Показывает подробные правила в личных сообщениях"""
+        try:
+            rules_text = (
+                "📖 **Подробные правила игры** 📖\n\n"
+                "🌲 **Лес и Волки** - ролевая игра в стиле 'Мафия'\n\n"
+                "🎯 **Цель игры:**\n"
+                "• Хищники: уничтожить всех травоядных\n"
+                "• Травоядные: найти и изгнать всех хищников\n\n"
+                "🌙 **Ночная фаза:**\n"
+                "• Волк выбирает жертву для убийства\n"
+                "• Лиса крадет орешки у игрока\n"
+                "• Бобёр защищает одного игрока\n"
+                "• Крот проверяет роль игрока\n\n"
+                "☀️ **Дневная фаза:**\n"
+                "• Все игроки обсуждают события ночи\n"
+                "• Голосование за изгнание подозреваемого\n"
+                "• Изгнанный игрок покидает игру\n\n"
+                "🎭 **Роли:**\n"
+                "• **Волк** - убивает каждую ночь\n"
+                "• **Лиса** - крадет орешки (умирает после 2 краж)\n"
+                "• **Зайец** - обычный мирный житель\n"
+                "• **Бобёр** - защищает игроков\n"
+                "• **Крот** - проверяет роли\n\n"
+                "🏆 **Победа:**\n"
+                "• Хищники побеждают, если осталось равное количество\n"
+                "• Травоядные побеждают, если изгнали всех хищников\n\n"
+                "💡 **Советы:**\n"
+                "• Внимательно слушайте других игроков\n"
+                "• Анализируйте поведение и голосования\n"
+                "• Не раскрывайте свою роль раньше времени"
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("🎭 Роли", callback_data="show_roles_pm")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_start")]
+            ]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(rules_text, reply_markup=reply_markup)
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка показа правил в ЛС: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
 
 
 if __name__ == "__main__":

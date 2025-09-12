@@ -475,12 +475,12 @@ def update_user_balance(user_id: int, new_balance: float) -> bool:
 
 def get_shop_items() -> List[Dict[str, Any]]:
     """
-    Получает все активные товары из магазина
+    Получает все товары из магазина
     
     Returns:
         List[Dict]: Список товаров
     """
-    query = "SELECT * FROM shop WHERE is_active = TRUE ORDER BY category, price"
+    query = "SELECT * FROM shop ORDER BY price"
     return fetch_query(query)
 
 def create_purchase(user_id: int, item_id: int, quantity: int = 1) -> bool:
@@ -615,7 +615,9 @@ def get_chat_settings(chat_id: int) -> Dict[str, Any]:
         'herbivore_survival_threshold': 1,
         'max_rounds': 20,
         'max_time': 3600,
-        'min_alive': 2
+        'min_alive': 2,
+        'loser_rewards_enabled': True,
+        'dead_rewards_enabled': True
     }
     
     insert_query = """
@@ -623,12 +625,13 @@ def get_chat_settings(chat_id: int) -> Dict[str, Any]:
             chat_id, test_mode, min_players, max_players, night_duration, 
             day_duration, vote_duration, fox_death_threshold, beaver_protection,
             mole_reveal_threshold, herbivore_survival_threshold, max_rounds,
-            max_time, min_alive
+            max_time, min_alive, loser_rewards_enabled, dead_rewards_enabled
         ) VALUES (
             %(chat_id)s, %(test_mode)s, %(min_players)s, %(max_players)s, 
             %(night_duration)s, %(day_duration)s, %(vote_duration)s, 
             %(fox_death_threshold)s, %(beaver_protection)s, %(mole_reveal_threshold)s,
-            %(herbivore_survival_threshold)s, %(max_rounds)s, %(max_time)s, %(min_alive)s
+            %(herbivore_survival_threshold)s, %(max_rounds)s, %(max_time)s, %(min_alive)s,
+            %(loser_rewards_enabled)s, %(dead_rewards_enabled)s
         )
     """
     
@@ -1220,6 +1223,115 @@ def get_player_detailed_stats(user_id: int) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"❌ Ошибка получения детальной статистики: {e}")
         return None
+
+def get_user_purchases(user_id: int) -> List[Dict[str, Any]]:
+    """
+    Получает покупки пользователя
+    
+    Args:
+        user_id: ID пользователя
+        
+    Returns:
+        List[Dict]: Список покупок пользователя
+    """
+    try:
+        query = """
+            SELECT 
+                p.id,
+                p.quantity,
+                p.total_price,
+                p.purchased_at,
+                s.item_name,
+                s.description
+            FROM purchases p
+            JOIN shop s ON p.item_id = s.id
+            WHERE p.user_id = %s
+            ORDER BY p.purchased_at DESC
+        """
+        
+        return fetch_query(query, (user_id,))
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения покупок пользователя: {e}")
+        return []
+
+def get_player_chat_stats(user_id: int, chat_id: int) -> Dict[str, Any]:
+    """
+    Получает статистику игрока в конкретном чате
+    
+    Args:
+        user_id: ID пользователя
+        chat_id: ID чата
+        
+    Returns:
+        Dict: Статистика игрока в чате
+    """
+    try:
+        query = """
+            SELECT 
+                COUNT(g.id) as games_played,
+                COUNT(CASE WHEN g.winner_team = p.team THEN 1 END) as games_won,
+                COUNT(CASE WHEN g.winner_team != p.team AND g.winner_team IS NOT NULL THEN 1 END) as games_lost,
+                COALESCE(SUM(p.nuts_earned), 0) as total_nuts
+            FROM games g
+            JOIN players p ON g.id = p.game_id
+            WHERE p.user_id = %s AND g.chat_id = %s
+        """
+        
+        result = fetch_one(query, (user_id, chat_id))
+        
+        if result and result['games_played'] > 0:
+            # Получаем статистику по ролям в этом чате
+            role_query = """
+                SELECT 
+                    p.role,
+                    COUNT(*) as count
+                FROM games g
+                JOIN players p ON g.id = p.game_id
+                WHERE p.user_id = %s AND g.chat_id = %s
+                GROUP BY p.role
+            """
+            
+            role_results = fetch_query(role_query, (user_id, chat_id))
+            role_stats = {}
+            for role_result in role_results:
+                role_name = role_result['role']
+                count = role_result['count']
+                role_stats[role_name] = count
+            
+            # Получаем рейтинг в чате
+            rank_query = """
+                WITH player_stats AS (
+                    SELECT 
+                        p.user_id,
+                        COUNT(g.id) as games_played,
+                        COUNT(CASE WHEN g.winner_team = p.team THEN 1 END) as games_won
+                    FROM games g
+                    JOIN players p ON g.id = p.game_id
+                    WHERE g.chat_id = %s
+                    GROUP BY p.user_id
+                )
+                SELECT 
+                    ROW_NUMBER() OVER (ORDER BY games_won DESC, games_played DESC) as rank
+                FROM player_stats
+                WHERE user_id = %s
+            """
+            
+            rank_result = fetch_one(rank_query, (chat_id, user_id))
+            chat_rank = rank_result['rank'] if rank_result else None
+            
+            return {
+                'games_played': result['games_played'],
+                'games_won': result['games_won'],
+                'games_lost': result['games_lost'],
+                'total_nuts': result['total_nuts'],
+                'role_stats': role_stats,
+                'chat_rank': chat_rank
+            }
+        
+        return {}
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статистики чата: {e}")
+        return {}
 
 def create_tables():
     """

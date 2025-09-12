@@ -194,6 +194,14 @@ class NightActions:
             from role_translator import get_role_name_russian
             role_name = get_role_name_russian(target.role)
             results.append(f"🐺 Волки съели {target.username} ({role_name})!")
+            
+            # Сохраняем информацию об убитом игроке для отправки ЛС
+            self.game.last_wolf_victim = {
+                'user_id': target.user_id,
+                'username': target.username,
+                'role': target.role,
+                'role_name': role_name
+            }
         
         return results
     
@@ -279,6 +287,16 @@ class NightActions:
                 # Используем новую логику проверки крота
                 check_result = Mole.check_player(target, self.game.current_round)
                 results.append(check_result)
+                
+                # Сохраняем информацию о проверке крота для отправки ЛС
+                self.game.last_mole_check = {
+                    'mole_id': mole_id,
+                    'mole_username': mole.username,
+                    'target_id': target_id,
+                    'target_username': target.username,
+                    'target_role': target.role,
+                    'check_result': check_result
+                }
         
         return results
     

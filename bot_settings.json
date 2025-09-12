@@ -22,6 +22,7 @@
     "fox_death_threshold": 2,
     "beaver_protection_enabled": true,
     "mole_revelation_threshold": 0.8,
-    "herbivore_survival_threshold": 0.7
+    "herbivore_survival_threshold": 0.7,
+    "loser_rewards_enabled": true
   }
 }

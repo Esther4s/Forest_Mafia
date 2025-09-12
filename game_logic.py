@@ -157,6 +157,12 @@ class Game:
         
         # Состояние игры
         self.game_over_sent = False
+        
+        # Информация о последней жертве волка (для отправки ЛС)
+        self.last_wolf_victim: Optional[Dict] = None
+        
+        # Информация о последней проверке крота (для отправки ЛС)
+        self.last_mole_check: Optional[Dict] = None
 
     def add_player(self, user_id: int, username: str) -> bool:
         """Добавляет игрока в игру"""

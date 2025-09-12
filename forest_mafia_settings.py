@@ -18,6 +18,8 @@ class ForestWolvesSettings:
             [InlineKeyboardButton("🦊 Настройки лисы", callback_data="forest_fox_settings")],
             [InlineKeyboardButton("🦦 Настройки бобра", callback_data="forest_beaver_settings")],
             [InlineKeyboardButton("🦫 Настройки крота", callback_data="forest_mole_settings")],
+            [InlineKeyboardButton("🏆 Настройки наград", callback_data="forest_rewards_settings")],
+            [InlineKeyboardButton("💀 Настройки умерших", callback_data="forest_dead_settings")],
             [InlineKeyboardButton("⏰ Автозавершение", callback_data="forest_auto_end_settings")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="settings_back")]
         ]
@@ -66,6 +68,16 @@ class ForestWolvesSettings:
             [InlineKeyboardButton(f"🦫 70% раскрытых = победа", callback_data="set_mole_threshold_0.7")],
             [InlineKeyboardButton(f"🦫 80% раскрытых = победа (текущее)", callback_data="set_mole_threshold_0.8")],
             [InlineKeyboardButton(f"🦫 90% раскрытых = победа", callback_data="set_mole_threshold_0.9")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="forest_settings_back")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
+    def get_rewards_settings_keyboard(self) -> InlineKeyboardMarkup:
+        """Возвращает клавиатуру настроек наград"""
+        current_enabled = self.global_settings.get("forest_wolves_features", {}).get("loser_rewards_enabled", True)
+        keyboard = [
+            [InlineKeyboardButton("🏆 Включить награды проигравшим", callback_data="set_loser_rewards_true")],
+            [InlineKeyboardButton("🏆 Отключить награды проигравшим", callback_data="set_loser_rewards_false")],
             [InlineKeyboardButton("⬅️ Назад", callback_data="forest_settings_back")]
         ]
         return InlineKeyboardMarkup(keyboard)
@@ -136,7 +148,17 @@ class ForestWolvesSettings:
             [InlineKeyboardButton("⬅️ Назад к автозавершению", callback_data="forest_auto_end_settings")]
         ]
         return InlineKeyboardMarkup(keyboard)
-    
+
+    def get_dead_settings_keyboard(self) -> InlineKeyboardMarkup:
+        """Возвращает клавиатуру настроек умерших игроков"""
+        current_enabled = self.global_settings.get("forest_wolves_features", {}).get("dead_rewards_enabled", True)
+        keyboard = [
+            [InlineKeyboardButton("💀 Включить награды умершим", callback_data="set_dead_rewards_true")],
+            [InlineKeyboardButton("💀 Отключить награды умершим", callback_data="set_dead_rewards_false")],
+            [InlineKeyboardButton("⬅️ Назад", callback_data="forest_settings_back")]
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
     def get_settings_summary(self) -> str:
         """Возвращает сводку настроек лесной мафии"""
         forest_features = self.global_settings.get("forest_wolves_features", {})
@@ -147,6 +169,8 @@ class ForestWolvesSettings:
             f"🦊 Порог смерти лисы: {forest_features.get('fox_death_threshold', 2)} кражи\n"
             f"🦦 Защита бобра: {'ВКЛ' if forest_features.get('beaver_protection_enabled', True) else 'ВЫКЛ'}\n"
             f"🦫 Порог раскрытия крота: {int(forest_features.get('mole_revelation_threshold', 0.8) * 100)}%\n"
+            f"🏆 Награды проигравшим: {'ВКЛ' if forest_features.get('loser_rewards_enabled', True) else 'ВЫКЛ'}\n"
+            f"💀 Награды умершим: {'ВКЛ' if forest_features.get('dead_rewards_enabled', True) else 'ВЫКЛ'}\n"
             f"🌿 Порог выживания травоядных: {int(forest_features.get('herbivore_survival_threshold', 0.7) * 100)}%\n\n"
             f"⏰ Автозавершение:\n"
             f"🎮 Максимум раундов: {auto_end.get('max_rounds', 25)}\n"
@@ -163,6 +187,10 @@ class ForestWolvesSettings:
                 return self.global_settings.update_forest_feature("beaver_protection_enabled", value)
             elif setting_type == "mole_threshold":
                 return self.global_settings.update_forest_feature("mole_revelation_threshold", value)
+            elif setting_type == "loser_rewards":
+                return self.global_settings.update_forest_feature("loser_rewards_enabled", value)
+            elif setting_type == "dead_rewards":
+                return self.global_settings.update_forest_feature("dead_rewards_enabled", value)
             elif setting_type == "max_rounds":
                 return self.global_settings.update_auto_end_condition("max_rounds", value)
             elif setting_type == "max_time":

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS chat_settings (
     max_rounds INTEGER DEFAULT 20,
     max_time INTEGER DEFAULT 3600,
     min_alive INTEGER DEFAULT 2,
+    loser_rewards_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -52,3 +53,4 @@ COMMENT ON COLUMN chat_settings.herbivore_survival_threshold IS 'Порог вы
 COMMENT ON COLUMN chat_settings.max_rounds IS 'Максимальное количество раундов';
 COMMENT ON COLUMN chat_settings.max_time IS 'Максимальное время игры в секундах';
 COMMENT ON COLUMN chat_settings.min_alive IS 'Минимальное количество живых игроков для продолжения игры';
+COMMENT ON COLUMN chat_settings.loser_rewards_enabled IS 'Начисление орешков проигравшим игрокам';
