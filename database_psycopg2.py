@@ -1343,7 +1343,7 @@ def create_tables():
         SELECT table_name 
         FROM information_schema.tables 
         WHERE table_schema = 'public' 
-        AND table_name IN ('users', 'games', 'players', 'stats', 'chat_settings')
+        AND table_name IN ('users', 'games', 'players', 'stats', 'chat_settings', 'inventory')
         """
         
         existing_tables = fetch_query(check_tables_query)
@@ -1505,6 +1505,19 @@ def create_tables():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
+        -- Таблица инвентаря
+        CREATE TABLE IF NOT EXISTS inventory (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            count INTEGER DEFAULT 1,
+            flags JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+            UNIQUE(user_id, item_name)
+        );
+        
         -- Создаем индексы
         CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
         CREATE INDEX IF NOT EXISTS idx_games_chat_id ON games(chat_id);
@@ -1523,6 +1536,7 @@ def create_tables():
         CREATE INDEX IF NOT EXISTS idx_player_stats_user_id ON player_stats(user_id);
         CREATE INDEX IF NOT EXISTS idx_votes_game_id ON votes(game_id);
         CREATE INDEX IF NOT EXISTS idx_votes_voter_id ON votes(voter_id);
+        CREATE INDEX IF NOT EXISTS idx_inventory_user_id ON inventory(user_id);
         
         -- Функция для обновления updated_at
         CREATE OR REPLACE FUNCTION update_updated_at_column()
