@@ -1277,6 +1277,11 @@ class ForestWolvesBot:
             [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
         ]
         
+        # Добавляем кнопку "Быстрый режим" (только для админов)
+        if await self.is_user_admin(update, context):
+            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
+        
         # Добавляем кнопку "Начать игру" если достаточно игроков
         if game.can_start_game():
             keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
@@ -2390,6 +2395,11 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
                 [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
             ]
+            
+            # Добавляем кнопку "Быстрый режим" (только для админов)
+            if await self.is_user_admin(update, context):
+                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Отправляем сообщение об успешной настройке
@@ -3409,6 +3419,11 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
                 [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
             ]
+            
+            # Добавляем кнопку "Быстрый режим" (только для админов)
+            if await self.is_user_admin(query, context):
+                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             welcome_text = (
