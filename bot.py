@@ -4073,7 +4073,16 @@ class ForestWolvesBot:
 
     async def toggle_quick_mode_from_game(self, query, context, game: Optional[Game]):
         """Переключает быстрый режим из сообщения регистрации игры"""
+        logger.info(f"🔄 Вызвана функция toggle_quick_mode_from_game для чата {query.message.chat.id}")
         chat_id = query.message.chat.id
+        
+        # Проверяем права администратора
+        is_admin = await self.is_user_admin(query, context)
+        logger.info(f"🔍 Проверка прав администратора для пользователя {query.from_user.id}: {is_admin}")
+        
+        if not is_admin:
+            await query.answer("❌ Только администраторы могут изменять настройки!", show_alert=True)
+            return
         
         # Проверяем, можно ли изменить быстрый режим
         if game and game.phase != GamePhase.WAITING:
@@ -4090,6 +4099,9 @@ class ForestWolvesBot:
         
         if success:
             mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+            
+            # Обновляем глобальные настройки
+            self.global_settings.set_test_mode(new_mode)
             
             # Обновляем игру, если она есть
             if game:
