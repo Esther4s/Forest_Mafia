@@ -379,8 +379,7 @@ class ForestWolvesBot:
         # create game if needed
         if chat_id not in self.games:
             thread_id = self.get_thread_id(update)
-            self.games[chat_id] = Game(chat_id, thread_id)
-            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
+            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
             
@@ -1237,7 +1236,7 @@ class ForestWolvesBot:
 
         # Создаем игру, если её нет
         if chat_id not in self.games:
-            self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id)
+            self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
 
@@ -2358,8 +2357,7 @@ class ForestWolvesBot:
             self.authorize_chat(chat_id, thread_id)
             
             # Создаем новую игру
-            self.games[chat_id] = Game(chat_id, thread_id)
-            self.games[chat_id].is_test_mode = self.global_settings.is_test_mode()
+            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
             
@@ -3969,9 +3967,12 @@ class ForestWolvesBot:
                 game.is_test_mode = new_mode
             
             await query.answer("✅ Настройка сохранена!", show_alert=True)
+            # Получаем правильное минимальное количество игроков
+            min_players = 3 if new_mode else 6
+            
             await query.edit_message_text(
-                f"✅ Тестовый режим переключен: {mode_text}\n\n"
-                f"Минимум игроков: {chat_settings['min_players']}\n\n"
+                f"✅ Быстрый режим переключен: {mode_text}\n\n"
+                f"Минимум игроков: {min_players}\n\n"
                 "Настройка сохранена в базе данных и будет применена для следующих игр!"
             )
         else:

@@ -615,7 +615,7 @@ def get_chat_settings(chat_id: int) -> Dict[str, Any]:
     default_settings = {
         'chat_id': chat_id,
         'test_mode': True,  # Быстрый режим включен по умолчанию
-        'min_players': 4,
+        'min_players': 3,  # В быстром режиме достаточно 3 игроков
         'max_players': 12,
         'night_duration': 60,
         'day_duration': 300,
