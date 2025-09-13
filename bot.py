@@ -5205,7 +5205,7 @@ class ForestWolvesBot:
             shop_items = get_shop_items()
             
             if not shop_items:
-                await query.edit_message_text("🛍️ *Магазин пуст*\n\nТовары появятся позже!")
+                await query.edit_message_text("🛍️ *Магазин пуст*\n\nТовары появятся позже!", parse_mode='Markdown')
                 return
             
             # Создаем клавиатуру для магазина
@@ -5235,7 +5235,7 @@ class ForestWolvesBot:
                 shop_text += f"📝 {item['description']}\n"
                 shop_text += f"💰 {int(item['price'])} орешков\n\n"
             
-            await query.edit_message_text(shop_text, reply_markup=reply_markup)
+            await query.edit_message_text(shop_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка обновления магазина: {e}")
@@ -5334,7 +5334,7 @@ class ForestWolvesBot:
             balance_text += f"🌰 Орешки: {user_balance}\n\n"
             balance_text += "💡 Орешки можно заработать, играя в Лес и волки!"
             
-            await query.edit_message_text(balance_text, reply_markup=reply_markup)
+            await query.edit_message_text(balance_text, reply_markup=reply_markup, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"❌ Ошибка показа баланса: {e}")
 
@@ -5352,7 +5352,7 @@ class ForestWolvesBot:
             shop_items = get_shop_items()
             
             if not shop_items:
-                await query.edit_message_text("🛍️ *Магазин пуст*\n\nТовары появятся позже!")
+                await query.edit_message_text("🛍️ *Магазин пуст*\n\nТовары появятся позже!", parse_mode='Markdown')
                 return
             
             # Создаем клавиатуру для магазина
@@ -5382,7 +5382,7 @@ class ForestWolvesBot:
                 shop_text += f"📝 {item['description']}\n"
                 shop_text += f"💰 {int(item['price'])} орешков\n\n"
             
-            await query.edit_message_text(shop_text, reply_markup=reply_markup)
+            await query.edit_message_text(shop_text, reply_markup=reply_markup, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"❌ Ошибка показа магазина: {e}")
 
@@ -5414,7 +5414,7 @@ class ForestWolvesBot:
                 stats_text += "📊 Статистика пока пуста\n"
                 stats_text += "🎮 Сыграйте в игру, чтобы появилась статистика!"
             
-            await query.edit_message_text(stats_text, reply_markup=reply_markup)
+            await query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode='Markdown')
         except Exception as e:
             logger.error(f"❌ Ошибка показа статистики: {e}")
 
@@ -5561,7 +5561,7 @@ class ForestWolvesBot:
                 ]
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 
-                await query.edit_message_text(error_text, reply_markup=reply_markup)
+                await query.edit_message_text(error_text, reply_markup=reply_markup, parse_mode='Markdown')
                 return
             
             # Создаем клавиатуру с вариантами прощальных сообщений
@@ -5585,7 +5585,7 @@ class ForestWolvesBot:
                 f"⏰ Время на прощание: в течение часа после окончания игры"
             )
             
-            await query.edit_message_text(farewell_text, reply_markup=reply_markup)
+            await query.edit_message_text(farewell_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки прощального сообщения: {e}")
@@ -5815,7 +5815,7 @@ class ForestWolvesBot:
                 inventory_text += "🛍️ Посетите магазин, чтобы купить товары!\n"
                 inventory_text += "💡 Используйте кнопку 'Магазин' в профиле"
             
-            await query.edit_message_text(inventory_text, reply_markup=reply_markup)
+            await query.edit_message_text(inventory_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа инвентаря: {e}")
@@ -5875,7 +5875,7 @@ class ForestWolvesBot:
                 stats_text += "🎮 Сыграйте в игру в этом чате, чтобы появилась статистика!\n\n"
                 stats_text += "💡 Используйте /global_stats для просмотра общей статистики"
             
-            await query.edit_message_text(stats_text, reply_markup=reply_markup)
+            await query.edit_message_text(stats_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа статистики чата: {e}")
@@ -5912,7 +5912,7 @@ class ForestWolvesBot:
             profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
             profile_text += "🛍️ *Магазин* - покупка товаров"
             
-            await query.edit_message_text(profile_text, reply_markup=reply_markup)
+            await query.edit_message_text(profile_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка возврата к профилю: {e}")
@@ -5943,7 +5943,7 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(join_text, reply_markup=reply_markup)
+            await query.edit_message_text(join_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки 'Войти в чат': {e}")
@@ -5972,7 +5972,7 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(language_text, reply_markup=reply_markup)
+            await query.edit_message_text(language_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки настроек языка: {e}")
@@ -6009,7 +6009,7 @@ class ForestWolvesBot:
             profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
             profile_text += "🛍️ *Магазин* - покупка товаров"
             
-            await query.edit_message_text(profile_text, reply_markup=reply_markup)
+            await query.edit_message_text(profile_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа профиля в ЛС: {e}")
@@ -6051,7 +6051,7 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(roles_text, reply_markup=reply_markup)
+            await query.edit_message_text(roles_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа ролей в ЛС: {e}")
@@ -6339,7 +6339,7 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            await query.edit_message_text(rules_text, reply_markup=reply_markup)
+            await query.edit_message_text(rules_text, reply_markup=reply_markup, parse_mode='Markdown')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа правил в ЛС: {e}")
