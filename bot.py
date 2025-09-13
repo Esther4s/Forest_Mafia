@@ -1327,7 +1327,7 @@ class ForestWolvesBot:
 
         # Формируем сообщение о регистрации
         # Получаем настройки чата для правильного отображения минимума игроков
-        chat_settings = self.database.get_chat_settings(chat_id)
+        chat_settings = get_chat_settings(chat_id)
         min_players = chat_settings.get('min_players', 6)
         current_players = len(game.players)
         
@@ -1738,7 +1738,7 @@ class ForestWolvesBot:
             players_list += f"• {player_tag}\n"
         
         # Получаем настройки чата для правильного отображения минимума игроков
-        chat_settings = self.database.get_chat_settings(game.chat_id)
+        chat_settings = get_chat_settings(game.chat_id)
         min_players = chat_settings.get('min_players', 6)
         
         message = (
@@ -4149,7 +4149,7 @@ class ForestWolvesBot:
             players_list += f"• {player_tag}\n"
         
         # Получаем настройки чата для правильного отображения минимума игроков
-        chat_settings = self.database.get_chat_settings(chat_id)
+        chat_settings = get_chat_settings(chat_id)
         min_players = chat_settings.get('min_players', 6)
         
         # Создаем сообщение регистрации
