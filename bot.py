@@ -877,7 +877,7 @@ class ForestWolvesBot:
             shop_items = get_shop_items()
             
             if not shop_items:
-                await update.message.reply_text("🛍️ <b>Магазин пуст</b>\n\nТовары появятся позже!")
+                await update.message.reply_text("🛍️ <b>Магазин пуст</b>\n\nТовары появятся позже!", parse_mode='HTML')
                 return
             
             # Создаем клавиатуру для магазина
@@ -5481,7 +5481,7 @@ class ForestWolvesBot:
             profile_text += "🌰 <b>Баланс</b> - подробная информация об орешках\n"
             profile_text += "🛍️ <b>Магазин</b> - покупка товаров"
             
-            await update.message.reply_text(profile_text, reply_markup=reply_markup)
+            await update.message.reply_text(profile_text, reply_markup=reply_markup, parse_mode='HTML')
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения профиля: {e}")

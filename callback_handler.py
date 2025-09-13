@@ -111,7 +111,7 @@ class CallbackHandler:
             
             # Отправляем роль в личные сообщения
             try:
-                await context.bot.send_message(chat_id=user_id, text=role_text, parse_mode='Markdown')
+                await context.bot.send_message(chat_id=user_id, text=role_text, parse_mode='HTML')
                 await error_handler.show_success_alert(query, "Информация о вашей роли отправлена в личные сообщения!")
             except Exception as e:
                 await error_handler.show_alert(query, "network_error", "❌ Не удалось отправить сообщение в личку!")
@@ -301,7 +301,7 @@ class CallbackHandler:
             
             await query.edit_message_text(
                 text=admin_panel["text"],
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 reply_markup=admin_panel["keyboard"]
             )
             
@@ -328,7 +328,7 @@ class CallbackHandler:
             
             await query.edit_message_text(
                 text=stats_text,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
         except Exception as e:
@@ -363,7 +363,7 @@ class CallbackHandler:
             
             await query.edit_message_text(
                 text=stats_text,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
         except Exception as e:
@@ -387,7 +387,7 @@ class CallbackHandler:
             
             await query.edit_message_text(
                 text=balance_text,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
         except Exception as e:
@@ -415,7 +415,7 @@ class CallbackHandler:
             
             await query.edit_message_text(
                 text=rewards_text,
-                parse_mode='Markdown'
+                parse_mode='HTML'
             )
             
         except Exception as e:
@@ -539,7 +539,7 @@ class CallbackHandler:
             await context.bot.send_message(
                 chat_id=game.chat_id,
                 text=message,
-                parse_mode='Markdown',
+                parse_mode='HTML',
                 message_thread_id=game.thread_id
             )
             
