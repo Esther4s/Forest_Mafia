@@ -1139,7 +1139,7 @@ def get_top_players(limit: int = 10, sort_by: str = 'games_won') -> List[Dict[st
             s.games_won,
             s.games_lost,
             s.last_played,
-            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+            ROUND(((s.games_won::float / NULLIF(s.games_played, 0)) * 100)::numeric, 1) as win_rate
         FROM stats s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.games_played > 0
@@ -1166,7 +1166,7 @@ def get_best_predator() -> Optional[Dict[str, Any]]:
             u.username,
             s.games_won,
             s.games_played,
-            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+            ROUND(((s.games_won::float / NULLIF(s.games_played, 0)) * 100)::numeric, 1) as win_rate
         FROM stats s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.games_played > 0 AND s.games_won > 0
@@ -1194,7 +1194,7 @@ def get_best_herbivore() -> Optional[Dict[str, Any]]:
             u.username,
             s.games_won,
             s.games_played,
-            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+            ROUND(((s.games_won::float / NULLIF(s.games_played, 0)) * 100)::numeric, 1) as win_rate
         FROM stats s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.games_played > 0 AND s.games_won > 0
@@ -1225,7 +1225,7 @@ def get_player_detailed_stats(user_id: int) -> Optional[Dict[str, Any]]:
             s.games_won,
             s.games_lost,
             s.last_played,
-            ROUND((s.games_won::float / NULLIF(s.games_played, 0)) * 100, 1) as win_rate
+            ROUND(((s.games_won::float / NULLIF(s.games_played, 0)) * 100)::numeric, 1) as win_rate
         FROM stats s
         LEFT JOIN users u ON s.user_id = u.user_id
         WHERE s.user_id = %s

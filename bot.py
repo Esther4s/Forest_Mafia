@@ -5450,10 +5450,13 @@ class ForestWolvesBot:
             
             if stats:
                 games_played = stats.get('games_played', 0)
-                games_won = stats.get('wins', 0)
-                games_lost = stats.get('losses', 0)
-                total_nuts = stats.get('total_nuts', 0)
-                win_rate = (games_won / games_played * 100) if games_played > 0 else 0
+                games_won = stats.get('games_won', 0)
+                games_lost = stats.get('games_lost', 0)
+                win_rate = stats.get('win_rate', 0)
+                
+                # Получаем баланс пользователя
+                from database_balance_manager import balance_manager
+                total_nuts = balance_manager.get_user_balance(user_id)
                 
                 stats_text += f"🎮 **Игровая статистика:**\n"
                 stats_text += f"• Игр сыграно: {games_played}\n"
