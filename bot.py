@@ -5327,7 +5327,8 @@ class ForestWolvesBot:
             
             await query.edit_message_text(
                 "🌲 <b>Главное меню Лес и волки</b>\n\nВыберите действие:",
-                reply_markup=reply_markup
+                reply_markup=reply_markup,
+                parse_mode='HTML'
             )
         except Exception as e:
             logger.error(f"❌ Ошибка показа главного меню: {e}")
