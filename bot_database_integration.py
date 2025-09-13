@@ -51,7 +51,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         if db_user:
             welcome_message = f"""
-🎮 Добро пожаловать в ForestMafia Bot, {db_user['username']}!
+🎮 Добро пожаловать в Лес и волки Bot, {db_user['username']}!
 
 🌰 Ваш баланс: {db_user['balance']} орешков
 📊 Статус: {'Новый игрок' if db_user['balance'] == 0 else 'Опытный игрок'}
@@ -63,7 +63,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 /stats - показать статистику
             """
         else:
-            welcome_message = "🎮 Добро пожаловать в ForestMafia Bot!"
+            welcome_message = "🎮 Добро пожаловать в Лес и волки Bot!"
         
         await update.message.reply_text(welcome_message)
         

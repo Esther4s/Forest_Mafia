@@ -40,7 +40,7 @@ async def shop_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE)
             return
         
         # Формируем сообщение с товарами
-        shop_text = "🛍️ **Магазин ForestMafia**\n\n"
+        shop_text = "🛍️ **Магазин Лес и волки**\n\n"
         shop_text += "💰 **Доступные товары:**\n\n"
         
         for item in shop_items:
@@ -165,7 +165,7 @@ from database_psycopg2 import (
 
 ### **Команда /shop:**
 ```
-🛍️ Магазин ForestMafia
+🛍️ Магазин Лес и волки
 
 💰 Доступные товары:
 

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-ForestMafia Bot - Рефакторенная версия
+Лес и волки Bot - Рефакторенная версия
 Telegram бот для игры "Лес и Волки"
 """
 
@@ -34,8 +34,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-class ForestMafiaBot:
-    """Основной класс бота ForestMafia"""
+class ЛесИВолкиBot:
+    """Основной класс бота Лес и волки"""
     
     def __init__(self):
         # Инициализация компонентов
@@ -310,7 +310,7 @@ class ForestMafiaBot:
 async def main():
     """Главная функция"""
     # Создаем бота
-    bot = ForestMafiaBot()
+    bot = ЛесИВолкиBot()
     
     # Создаем приложение
     application = Application.builder().token(config.bot_token).build()
@@ -320,7 +320,7 @@ async def main():
     await bot.setup_bot_commands(application)
     
     # Запускаем бота
-    logger.info("🌲 ForestMafia Bot запущен! 🌲")
+    logger.info("🌲 Лес и волки Bot запущен! 🌲")
     
     try:
         # Запускаем игровой цикл в фоне

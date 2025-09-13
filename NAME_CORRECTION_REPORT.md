@@ -11,9 +11,9 @@
 ### 🎯 **Основные файлы системы:**
 
 1. **`bot.py`**
-   - `class ForestMafiaBot` → `class ForestWolvesBot`
+   - `class ForestMafiaBot` → `class ЛесИВолкиBot`
    - `"🌲 *Лесная Мафия - Регистрация* 🌲"` → `"🌲 *Лес и Волки - Регистрация* 🌲"`
-   - `bot = ForestMafiaBot()` → `bot = ForestWolvesBot()`
+   - `bot = ForestMafiaBot()` → `bot = ЛесИВолкиBot()`
 
 2. **`forest_mafia_settings.py`**
    - `class ForestMafiaSettings` → `class ForestWolvesSettings`
@@ -34,8 +34,8 @@
 ### 🧪 **Тестовые файлы:**
 
 6. **`test_comprehensive_system.py`**
-   - `from bot import ForestMafiaBot` → `from bot import ForestWolvesBot`
-   - `self.bot = ForestMafiaBot()` → `self.bot = ForestWolvesBot()`
+   - `from bot import ForestMafiaBot` → `from bot import ЛесИВолкиBot`
+   - `self.bot = ForestMafiaBot()` → `self.bot = ЛесИВолкиBot()`
    - `"КОМПЛЕКСНОЕ ТЕСТИРОВАНИЕ СИСТЕМЫ ЛЕСНАЯ МАФИЯ"` → `"КОМПЛЕКСНОЕ ТЕСТИРОВАНИЕ СИСТЕМЫ ЛЕС И ВОЛКИ"`
 
 7. **Все остальные тестовые файлы:**
@@ -49,15 +49,15 @@
    - `test_thread_support.py`
 
    **Изменения:**
-   - `from bot import ForestMafiaBot` → `from bot import ForestWolvesBot`
-   - `bot = ForestMafiaBot()` → `bot = ForestWolvesBot()`
+   - `from bot import ForestMafiaBot` → `from bot import ЛесИВолкиBot`
+   - `bot = ForestMafiaBot()` → `bot = ЛесИВолкиBot()`
 
 ---
 
 ## 🔧 **ТЕХНИЧЕСКИЕ ДЕТАЛИ**
 
 ### **Классы:**
-- `ForestMafiaBot` → `ForestWolvesBot`
+- `ForestMafiaBot` → `ЛесИВолкиBot`
 - `ForestMafiaSettings` → `ForestWolvesSettings`
 
 ### **Настройки JSON:**

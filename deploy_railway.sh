@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Скрипт для быстрого деплоя ForestMafia Bot на Railway
+# Скрипт для быстрого деплоя Лес и волки Bot на Railway
 
 set -e
 
-echo "🚀 Деплой ForestMafia Bot на Railway..."
+echo "🚀 Деплой Лес и волки Bot на Railway..."
 
 # Проверяем наличие Railway CLI
 if ! command -v railway &> /dev/null; then

@@ -172,7 +172,7 @@ def main():
         print("\n🚀 Команды для загрузки:")
         print("git init")
         print("git add .")
-        print("git commit -m \"Initial commit: ForestMafia Bot ready for production\"")
+        print("git commit -m \"Initial commit: Лес и волки Bot ready for production\"")
         print("git remote add origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git")
         print("git push -u origin main")
         return True

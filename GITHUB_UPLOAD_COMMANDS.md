@@ -12,7 +12,7 @@
 1. Перейдите на [github.com](https://github.com)
 2. Нажмите **"New repository"**
 3. Название: `forest-mafia-bot`
-4. Описание: `🌲 ForestMafia Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
+4. Описание: `🌲 Лес и волки Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
 5. Сделайте **Public**
 6. **НЕ добавляйте** README, .gitignore, license
 7. Нажмите **"Create repository"**
@@ -27,7 +27,7 @@ git init
 git add .
 
 # Сделайте коммит
-git commit -m "Initial commit: ForestMafia Bot ready for production"
+git commit -m "Initial commit: Лес и волки Bot ready for production"
 
 # Добавьте удаленный репозиторий (ЗАМЕНИТЕ YOUR_USERNAME на ваш GitHub username)
 git remote add origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git
@@ -75,14 +75,14 @@ git push origin main
 
 ### 1️⃣ **Настройте репозиторий:**
 1. Перейдите в **Settings** → **About**
-2. Добавьте описание: `🌲 ForestMafia Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
+2. Добавьте описание: `🌲 Лес и волки Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
 3. Добавьте топики: `telegram-bot, mafia-game, werewolf-game, forest-theme, python, sqlalchemy, postgresql, docker, railway, game-bot, multiplayer-game, telegram-games, bot-framework, database-integration, production-ready`
 
 ### 2️⃣ **Создайте релиз (опционально):**
 1. Перейдите в **Releases**
 2. Нажмите **"Create a new release"**
 3. Версия: `v1.0.0`
-4. Заголовок: `ForestMafia Bot v1.0.0 - Production Ready`
+4. Заголовок: `Лес и волки Bot v1.0.0 - Production Ready`
 5. Описание: `Полнофункциональный Telegram бот для игры "Лес и Волки" с базой данных и готовностью к продакшену`
 
 ---
@@ -92,7 +92,7 @@ git push origin main
 ```bash
 git init
 git add .
-git commit -m "Initial commit: ForestMafia Bot ready for production"
+git commit -m "Initial commit: Лес и волки Bot ready for production"
 git remote add origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git
 git push -u origin main
 ```
@@ -140,7 +140,7 @@ git remote set-url origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git
 
 ---
 
-**🌲 Удачи с загрузкой ForestMafia Bot на GitHub!** 🐺🦊🦌
+**🌲 Удачи с загрузкой Лес и волки Bot на GitHub!** 🐺🦊🦌
 
 ---
 *Готовые команды для загрузки на GitHub*

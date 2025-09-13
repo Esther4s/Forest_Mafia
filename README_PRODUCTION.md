@@ -1,4 +1,4 @@
-# 🌲 ForestMafia Bot - Production Guide
+# 🌲 Лес и волки Bot - Production Guide
 
 ## 🚀 Быстрый старт
 
@@ -145,10 +145,10 @@ journalctl -u forest-mafia-bot -f
 .\deploy_production.ps1
 
 # Проверка статуса
-Get-Service -Name ForestMafiaBot
+Get-Service -Name ЛесИВолкиBot
 
 # Просмотр логов
-Get-EventLog -LogName Application -Source ForestMafiaBot -Newest 10
+Get-EventLog -LogName Application -Source ЛесИВолкиBot -Newest 10
 ```
 
 ### Docker
@@ -174,7 +174,7 @@ docker run -d \
 journalctl -u forest-mafia-bot -f
 
 # Windows
-Get-EventLog -LogName Application -Source ForestMafiaBot -Newest 100
+Get-EventLog -LogName Application -Source ЛесИВолкиBot -Newest 100
 
 # Docker
 docker logs -f forest-mafia-bot

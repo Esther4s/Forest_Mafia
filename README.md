@@ -1,11 +1,11 @@
-# 🌲 ForestMafia Bot - Telegram Bot для игры "Лес и Волки"
+# 🌲 Лес и волки Bot - Telegram Bot для игры "Лес и Волки"
 
 [![Production Ready](https://img.shields.io/badge/Production-Ready-green.svg)](https://github.com/your-username/forest-mafia-bot)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-blue.svg)](https://python.org)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-blue.svg)](https://core.telegram.org/bots)
 [![Database](https://img.shields.io/badge/Database-PostgreSQL-blue.svg)](https://postgresql.org)
 
-**ForestMafia Bot** - полнофункциональный Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену.
+**Лес и волки Bot** - полнофункциональный Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену.
 
 ## ✨ **Особенности**
 

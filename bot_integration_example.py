@@ -40,7 +40,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         db_user = get_user_by_telegram_id(user_id)
         
         welcome_message = f"""
-🎮 Добро пожаловать в ForestMafia Bot, {db_user['username']}!
+🎮 Добро пожаловать в Лес и волки Bot, {db_user['username']}!
 
 🌰 Ваш баланс: {db_user['balance']} орешков
 

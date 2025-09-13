@@ -1,4 +1,4 @@
-# 🚀 ForestMafia Bot - Production Ready Report
+# 🚀 Лес и волки Bot - Production Ready Report
 
 ## ✅ Статус: ГОТОВ К ПРОДАКШЕНУ
 
@@ -148,11 +148,11 @@
 ```bash
 # Проверка статуса
 systemctl status forest-mafia-bot  # Linux
-Get-Service ForestMafiaBot         # Windows
+Get-Service ЛесИВолкиBot         # Windows
 
 # Просмотр логов
 journalctl -u forest-mafia-bot -f  # Linux
-Get-EventLog -LogName Application -Source ForestMafiaBot -Newest 10  # Windows
+Get-EventLog -LogName Application -Source ЛесИВолкиBot -Newest 10  # Windows
 ```
 
 ---
@@ -194,7 +194,7 @@ Get-EventLog -LogName Application -Source ForestMafiaBot -Newest 10  # Windows
 
 ## 🎉 Заключение
 
-**ForestMafia Bot полностью готов к продакшену!**
+**Лес и волки Bot полностью готов к продакшену!**
 
 ### Что готово:
 - ✅ Все функции реализованы и протестированы

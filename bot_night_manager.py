@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Менеджер ночных действий для ForestMafia Bot
+Менеджер ночных действий для Лес и волки Bot
 """
 
 import logging

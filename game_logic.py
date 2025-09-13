@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Игровая логика для ForestMafia Bot
+Игровая логика для Лес и волки Bot
 Основные классы и логика игры "Лес и Волки"
 """
 
@@ -32,7 +32,7 @@ class Role(Enum):
 
 @dataclass
 class Player:
-    """Игрок в игре ForestMafia"""
+    """Игрок в игре Лес и волки"""
     user_id: int
     username: str
     role: Role
@@ -126,7 +126,7 @@ class GameStatistics:
 
 
 class Game:
-    """Основной класс игры ForestMafia"""
+    """Основной класс игры Лес и волки"""
     
     def __init__(self, chat_id: int, thread_id: Optional[int] = None, is_test_mode: bool = True):
         self.chat_id = chat_id

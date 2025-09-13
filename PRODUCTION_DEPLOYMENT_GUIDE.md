@@ -44,7 +44,7 @@
 ```bash
 # Клонируйте репозиторий
 git clone <your-repo-url>
-cd ForestMafia-1
+cd ЛесИВолки-1
 
 # Создайте виртуальное окружение
 python -m venv venv

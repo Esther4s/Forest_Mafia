@@ -1,4 +1,4 @@
-# Скрипт для деплоя ForestMafia Bot в продакшен (Windows PowerShell)
+# Скрипт для деплоя Лес и волки Bot в продакшен (Windows PowerShell)
 # Использование: .\deploy_production.ps1
 
 param(
@@ -228,9 +228,9 @@ except ImportError as e:
 function New-WindowsService {
     Write-Log "Создаем Windows сервис..."
     
-    $serviceName = "ForestMafiaBot"
-    $serviceDisplayName = "ForestMafia Bot"
-    $serviceDescription = "Telegram Bot for ForestMafia Game"
+    $serviceName = "ЛесИВолкиBot"
+    $serviceDisplayName = "Лес и волки Bot"
+    $serviceDescription = "Telegram Bot for Лес и волки Game"
     $servicePath = (Get-Location).Path
     $pythonPath = (Get-Command python).Source
     
@@ -274,7 +274,7 @@ function New-WindowsService {
 function Start-WindowsService {
     Write-Log "Запускаем сервис..."
     
-    $serviceName = "ForestMafiaBot"
+    $serviceName = "ЛесИВолкиBot"
     
     try {
         Start-Service -Name $serviceName
@@ -298,7 +298,7 @@ function Start-WindowsService {
 function Test-Bot {
     Write-Log "Тестируем работу бота..."
     
-    $serviceName = "ForestMafiaBot"
+    $serviceName = "ЛесИВолкиBot"
     $service = Get-Service -Name $serviceName
     
     if ($service.Status -eq "Running") {
@@ -314,7 +314,7 @@ function Test-Bot {
 
 # Основная функция
 function Main {
-    Write-Log "🌲 ForestMafia Bot - Деплой в продакшен (Windows)"
+    Write-Log "🌲 Лес и волки Bot - Деплой в продакшен (Windows)"
     Write-Log "=================================================="
     
     Test-Environment
@@ -329,10 +329,10 @@ function Main {
     
     Write-Success "🎉 Деплой завершен успешно!"
     Write-Log "📊 Управление сервисом:"
-    Write-Log "  - Статус: Get-Service -Name ForestMafiaBot"
-    Write-Log "  - Остановка: Stop-Service -Name ForestMafiaBot"
-    Write-Log "  - Запуск: Start-Service -Name ForestMafiaBot"
-    Write-Log "  - Перезапуск: Restart-Service -Name ForestMafiaBot"
+    Write-Log "  - Статус: Get-Service -Name ЛесИВолкиBot"
+    Write-Log "  - Остановка: Stop-Service -Name ЛесИВолкиBot"
+    Write-Log "  - Запуск: Start-Service -Name ЛесИВолкиBot"
+    Write-Log "  - Перезапуск: Restart-Service -Name ЛесИВолкиBot"
 }
 
 # Запуск

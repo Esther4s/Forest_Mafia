@@ -56,7 +56,7 @@ async def join_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
 
 ### ✅ **Исправление:**
 ```python
-class ForestMafiaBot:
+class ЛесИВолкиBot:
     def __init__(self):
         # ... другие поля
         # Блокировка для предотвращения одновременных нажатий кнопок

@@ -8,7 +8,7 @@
 2. Нажмите **"New repository"** (зеленая кнопка)
 3. Заполните форму:
    - **Repository name**: `forest-mafia-bot`
-   - **Description**: `🌲 ForestMafia Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
+   - **Description**: `🌲 Лес и волки Bot - Telegram бот для игры "Лес и Волки" с лесной тематикой, автоматизацией игрового процесса, базой данных и готовностью к продакшену`
    - **Visibility**: Public (рекомендуется)
    - **НЕ добавляйте** README, .gitignore, license (у нас уже есть)
 4. Нажмите **"Create repository"**
@@ -25,7 +25,7 @@ git init
 git add .
 
 # Сделайте первый коммит
-git commit -m "Initial commit: ForestMafia Bot ready for production"
+git commit -m "Initial commit: Лес и волки Bot ready for production"
 
 # Добавьте удаленный репозиторий (замените YOUR_USERNAME)
 git remote add origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git
@@ -113,7 +113,7 @@ cat .gitignore
 # Скопируйте и выполните эти команды (замените YOUR_USERNAME):
 git init
 git add .
-git commit -m "Initial commit: ForestMafia Bot ready for production"
+git commit -m "Initial commit: Лес и волки Bot ready for production"
 git remote add origin https://github.com/YOUR_USERNAME/forest-mafia-bot.git
 git push -u origin main
 ```
@@ -162,7 +162,7 @@ git push -f origin main
 
 ---
 
-**🌲 Удачи с загрузкой ForestMafia Bot на GitHub!** 🐺🦊🦌
+**🌲 Удачи с загрузкой Лес и волки Bot на GitHub!** 🐺🦊🦌
 
 ---
 *Руководство по загрузке проекта на GitHub*
