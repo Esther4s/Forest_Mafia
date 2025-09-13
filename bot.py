@@ -487,7 +487,7 @@ class ForestWolvesBot:
             "🐺 <b>Хищники:</b> Волки + Лиса\n"
             "🐰 <b>Травоядные:</b> Зайцы + Крот + Бобёр\n\n"
             f"👥 Минимум: {self.global_settings.get_min_players()} игроков\n"
-            f"{'🧪 ТЕСТОВЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
+            f"{'⚡ БЫСТРЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
             "🚀 <b>Быстрый старт:</b> нажмите 'Начать игру' или используйте `/join`"
         )
 
@@ -2378,7 +2378,7 @@ class ForestWolvesBot:
                 f"📍 Область действия: {location_name}\n"
                 f"📋 Минимум игроков: {self.global_settings.get_min_players()}\n"
                 f"👥 Максимум игроков: {getattr(self.games[chat_id], 'MAX_PLAYERS', 12)}\n"
-                f"🧪 Тестовый режим: {'Включен' if self.global_settings.is_test_mode() else 'Отключен'}\n\n"
+                f"⚡ Быстрый режим: {'Включен' if self.global_settings.is_test_mode() else 'Отключен'}\n\n"
                 "🚀 Готово к игре! Участники могут использовать:\n"
                 "• `/join` - присоединиться к игре\n"
                 "• `/status` - посмотреть статус\n"
@@ -3387,7 +3387,7 @@ class ForestWolvesBot:
                 "🐰 <b>Травоядные:</b> Зайцы, Крот и Бобёр\n\n"
                 "🎯 <b>Цель:</b> Уничтожить команду противника!\n\n"
                 f"👥 Для игры нужно минимум {self.global_settings.get_min_players()} игроков\n"
-                f"{'🧪 ТЕСТОВЫЙ РЕЖИМ АКТИВЕН' if self.global_settings.is_test_mode() else ''}\n"
+                f"{'⚡ БЫСТРЫЙ РЕЖИМ АКТИВЕН' if self.global_settings.is_test_mode() else ''}\n"
                 "⏰ Игра состоит из ночных и дневных фаз\n\n"
                 "Нажмите кнопку ниже, чтобы начать!"
             )
@@ -3672,7 +3672,7 @@ class ForestWolvesBot:
         # Получаем настройки чата из базы данных
         chat_settings = get_chat_settings(chat_id)
         
-        test_mode_text = "🧪 Тестовый режим: ВКЛ" if chat_settings['test_mode'] else "🧪 Тестовый режим: ВЫКЛ"
+        test_mode_text = "⚡ Быстрый режим: ВКЛ" if chat_settings['test_mode'] else "⚡ Быстрый режим: ВЫКЛ"
 
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
@@ -3691,7 +3691,7 @@ class ForestWolvesBot:
         # Формируем текст с настройками чата
         settings_text = (
             "⚙️ Настройки чата\n\n"
-            f"🧪 Тестовый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
+            f"⚡ Быстрый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
             f"👥 Игроков: {chat_settings['min_players']}-{chat_settings['max_players']}\n"
             f"⏱️ Таймеры: Ночь {chat_settings['night_duration']}с, День {chat_settings['day_duration']}с, Голосование {chat_settings['vote_duration']}с\n"
             f"🎭 Роли: Лиса умрет через {chat_settings['fox_death_threshold']} ночей, Крот раскроется через {chat_settings['mole_reveal_threshold']} ночей\n"
@@ -3727,7 +3727,7 @@ class ForestWolvesBot:
         elif query.data == "settings_roles":
             await self.show_role_settings(query, context)
         elif query.data == "settings_toggle_test":
-            await self.toggle_test_mode(query, context, game)
+            await self.toggle_quick_mode(query, context, game)
         elif query.data == "settings_global":
             await self.show_global_settings(query, context)
         elif query.data == "settings_players":
@@ -3904,7 +3904,7 @@ class ForestWolvesBot:
         
         await query.edit_message_text(
             "🔄 Сброс настроек чата\n\n⚠️ Это действие сбросит ВСЕ настройки чата к дефолтным значениям:\n\n"
-            "• Тестовый режим: ВЫКЛ\n"
+            "• Быстрый режим: ВКЛ\n"
             "• Игроков: 4-12\n"
             "• Таймеры: Ночь 60с, День 300с, Голосование 120с\n"
             "• Роли: Лиса умрет через 2 ночи, Крот раскроется через 3 ночи\n"
@@ -3945,12 +3945,12 @@ class ForestWolvesBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
-    async def toggle_test_mode(self, query, context, game: Optional[Game]):
+    async def toggle_quick_mode(self, query, context, game: Optional[Game]):
         chat_id = query.message.chat.id
         
-        # Проверяем, можно ли изменить тестовый режим
+        # Проверяем, можно ли изменить быстрый режим
         if game and game.phase != GamePhase.WAITING:
-            await query.edit_message_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
+            await query.edit_message_text("❌ Нельзя изменить быстрый режим во время игры! Дождитесь окончания игры.")
             return
 
         # Получаем текущие настройки чата
@@ -4087,7 +4087,7 @@ class ForestWolvesBot:
         # Получаем настройки чата из базы данных
         chat_settings = get_chat_settings(chat_id)
         
-        test_mode_text = "🧪 Тестовый режим: ВКЛ" if chat_settings['test_mode'] else "🧪 Тестовый режим: ВЫКЛ"
+        test_mode_text = "⚡ Быстрый режим: ВКЛ" if chat_settings['test_mode'] else "⚡ Быстрый режим: ВЫКЛ"
 
         keyboard = [
             [InlineKeyboardButton("⏱️ Изменить таймеры", callback_data="settings_timers")],
@@ -4106,7 +4106,7 @@ class ForestWolvesBot:
         # Формируем текст с настройками чата
         settings_text = (
             "⚙️ Настройки чата\n\n"
-            f"🧪 Тестовый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
+            f"⚡ Быстрый режим: {'ВКЛ' if chat_settings['test_mode'] else 'ВЫКЛ'}\n"
             f"👥 Игроков: {chat_settings['min_players']}-{chat_settings['max_players']}\n"
             f"⏱️ Таймеры: Ночь {chat_settings['night_duration']}с, День {chat_settings['day_duration']}с, Голосование {chat_settings['vote_duration']}с\n"
             f"🎭 Роли: Лиса умрет через {chat_settings['fox_death_threshold']} ночей, Крот раскроется через {chat_settings['mole_reveal_threshold']} ночей\n"
@@ -4842,7 +4842,7 @@ class ForestWolvesBot:
             
             # ⚙️ Административные команды
             BotCommand("settings", "⚙️ Настройки игры"),
-            BotCommand("test_mode", "🧪 Тестовый режим"),
+            BotCommand("quick_mode", "⚡ Быстрый режим"),
             BotCommand("force_end", "⛔ Принудительное завершение"),
             BotCommand("clear_all_games", "🧹 Очистить все игры"),
             BotCommand("setup_channel", "🔧 Настройка канала"),
@@ -4871,7 +4871,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("clear_all_games", self.clear_all_games))
         application.add_handler(CommandHandler("settings", self.settings))
         application.add_handler(CommandHandler("status", self.status))
-        application.add_handler(CommandHandler("test_mode", self.handle_test_mode_command)) # Обработчик команды test_mode
+        application.add_handler(CommandHandler("quick_mode", self.handle_quick_mode_command)) # Обработчик команды quick_mode
         application.add_handler(CommandHandler("setup_channel", self.setup_channel)) # Обработчик команды setup_channel
         application.add_handler(CommandHandler("remove_channel", self.remove_channel)) # Обработчик команды remove_channel
         application.add_handler(CommandHandler("save_state", self.save_state_command)) # Команда для принудительного сохранения
@@ -5037,7 +5037,7 @@ class ForestWolvesBot:
             "• Днем все обсуждают и голосуют за изгнание\n"
             "• Цель: уничтожить всех противников\n\n"
             f"👥 Минимум: {self.global_settings.get_min_players()} игроков\n"
-            f"{'🧪 ТЕСТОВЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
+            f"{'⚡ БЫСТРЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
             "🚀 <b>Нажмите кнопку ниже, чтобы начать игру!</b>"
         )
         
@@ -5067,8 +5067,8 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"Не удалось отправить приветственное сообщение в чат {chat_id}: {e}")
 
-    async def handle_test_mode_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает команду /test_mode для включения/выключения тестового режима."""
+    async def handle_quick_mode_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает команду /quick_mode для включения/выключения быстрого режима."""
         # Проверяем права пользователя (только администраторы)
         has_permission, error_msg = await self.check_user_permissions(update, context, "admin")
         if not has_permission:
@@ -5084,20 +5084,20 @@ class ForestWolvesBot:
 
         # Проверяем, что это группа, а не личные сообщения
         if chat_id == user_id:
-            await update.message.reply_text("❌ Управление тестовым режимом доступно только в группах!")
+            await update.message.reply_text("❌ Управление быстрым режимом доступно только в группах!")
             return
 
         # Проверяем права администратора
         chat_member = await context.bot.get_chat_member(chat_id, user_id)
         if chat_member.status not in ['creator', 'administrator']:
-            await update.message.reply_text("❌ Только администраторы могут изменять тестовый режим!")
+            await update.message.reply_text("❌ Только администраторы могут изменять быстрый режим!")
             return
 
         game = self.games.get(chat_id)  # Игра может отсутствовать
 
-        # Проверяем, можно ли изменить тестовый режим
+        # Проверяем, можно ли изменить быстрый режим
         if game and game.phase != GamePhase.WAITING:
-            await update.message.reply_text("❌ Нельзя изменить тестовый режим во время игры! Дождитесь окончания игры.")
+            await update.message.reply_text("❌ Нельзя изменить быстрый режим во время игры! Дождитесь окончания игры.")
             return
 
         self.global_settings.toggle_test_mode() # Используем метод для переключения
@@ -5105,7 +5105,7 @@ class ForestWolvesBot:
         min_players = self.global_settings.get_min_players()
 
         result_text = (
-            f"🧪 Тестовый режим {mode_text}!\n\n"
+            f"⚡ Быстрый режим {mode_text}!\n\n"
             f"📋 Минимум игроков: {min_players}\n"
         )
 
