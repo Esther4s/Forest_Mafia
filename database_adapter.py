@@ -123,7 +123,7 @@ class DatabaseAdapter:
     
     def get_players(self, game_id: str, alive_only: bool = False) -> List[Dict[str, Any]]:
         """Получить список игроков"""
-        players = self.player_service.get_game_players(game_id, alive_only)
+        players = self.player_service.get_game_players(game_id)
         return [
             {
                 "id": player.id,
