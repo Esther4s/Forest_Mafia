@@ -321,7 +321,7 @@ class ForestWolvesBot:
         return True
 
     # ---------------- helper functions for game logic ----------------
-    def format_player_tag(self, username: str, user_id: int) -> str:
+    def format_player_tag(self, username: str, user_id: int, make_clickable: bool = True) -> str:
         """Форматирует тег игрока для отображения с учетом никнейма"""
         try:
             # Сначала пытаемся получить никнейм
@@ -330,20 +330,35 @@ class ForestWolvesBot:
             
             if nickname:
                 # Если есть никнейм, используем его
-                return nickname
+                if make_clickable:
+                    return f'<a href="tg://user?id={user_id}">{nickname}</a>'
+                else:
+                    return nickname
             elif username and not username.isdigit():
                 # Если username есть и это не просто ID
-                return f"@{username}" if not username.startswith('@') else username
+                if make_clickable:
+                    return f'<a href="tg://user?id={user_id}">@{username}</a>'
+                else:
+                    return f"@{username}" if not username.startswith('@') else username
             else:
                 # Если username нет или это ID, используем ID
-                return f"ID:{user_id}"
+                if make_clickable:
+                    return f'<a href="tg://user?id={user_id}">ID:{user_id}</a>'
+                else:
+                    return f"ID:{user_id}"
         except Exception as e:
             # В случае ошибки используем старую логику
             logger.warning(f"⚠️ Ошибка получения никнейма для пользователя {user_id}: {e}")
             if username and not username.isdigit():
-                return f"@{username}" if not username.startswith('@') else username
+                if make_clickable:
+                    return f'<a href="tg://user?id={user_id}">@{username}</a>'
+                else:
+                    return f"@{username}" if not username.startswith('@') else username
             else:
-                return f"ID:{user_id}"
+                if make_clickable:
+                    return f'<a href="tg://user?id={user_id}">ID:{user_id}</a>'
+                else:
+                    return f"ID:{user_id}"
 
     async def _join_game_common(self, chat_id: int, user_id: int, username: str, context: ContextTypes.DEFAULT_TYPE, 
                                is_callback: bool = False, update: Update = None) -> tuple[bool, str, any]:
@@ -448,11 +463,11 @@ class ForestWolvesBot:
             # Форматируем список игроков с тегами
             players_list = ""
             for player in game.players.values():
-                player_tag = self.format_player_tag(player.username, player.user_id)
+                player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
                 players_list += f"• {player_tag}\n"
             
             message = (
-                f"✅ {self.format_player_tag(username, user_id)} присоединился к игре!\n\n"
+                f"✅ {self.format_player_tag(username, user_id, make_clickable=True)} присоединился к игре!\n\n"
                 f"👥 Игроков: {len(game.players)}/{max_players}\n"
                 f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
                 f"📝 Участники:\n{players_list}"
@@ -913,9 +928,12 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
             # Формируем сообщение с информацией о пользователе и товарах
             shop_text = f"🌲 <b>Лесной магазин</b>\n\n"
-            shop_text += f"👤 <b>{username}:</b>\n"
+            shop_text += f"👤 <b>{clickable_name}:</b>\n"
             shop_text += f"🌰 Орешки: {user_balance}\n\n"
             shop_text += "🛍️ <b>Что будем покупать?</b>\n\n"
             
@@ -1670,7 +1688,7 @@ class ForestWolvesBot:
         max_players = getattr(game, "MAX_PLAYERS", 12)
         players_list = ""
         for player in game.players.values():
-            player_tag = self.format_player_tag(player.username, player.user_id)
+            player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
             players_list += f"• {player_tag}\n"
         
         message = (
@@ -1788,7 +1806,7 @@ class ForestWolvesBot:
                 "<b>Участники:</b>\n"
             )
             for player in game.players.values():
-                player_tag = self.format_player_tag(player.username, player.user_id)
+                player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
             if game.can_start_game():
                 status_text += "\n✅ <b>Можно начинать игру!</b>"
@@ -1808,7 +1826,7 @@ class ForestWolvesBot:
                 "<b>Живые игроки:</b>\n"
             )
             for p in game.get_alive_players():
-                player_tag = self.format_player_tag(p.username, p.user_id)
+                player_tag = self.format_player_tag(p.username, p.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
 
         await query.edit_message_text(status_text)
@@ -1920,11 +1938,11 @@ class ForestWolvesBot:
             if user_id in self.player_games:
                 del self.player_games[user_id]
             
-            player_tag = self.format_player_tag(username, user_id)
+            player_tag = self.format_player_tag(username, user_id, make_clickable=True)
             # Показываем обновленный список игроков с тегами
             players_list = ""
             for player in game.players.values():
-                tag = self.format_player_tag(player.username, player.user_id)
+                tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
                 players_list += f"• {tag}\n"
             
             message = (
@@ -1976,7 +1994,7 @@ class ForestWolvesBot:
                 "<b>Участники:</b>\n"
             )
             for player in game.players.values():
-                player_tag = self.format_player_tag(player.username, player.user_id)
+                player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
             if game.can_start_game():
                 status_text += "\n✅ <b>Можно начинать игру!</b>"
@@ -1996,7 +2014,7 @@ class ForestWolvesBot:
                 "<b>Живые игроки:</b>\n"
             )
             for p in game.get_alive_players():
-                player_tag = self.format_player_tag(p.username, p.user_id)
+                player_tag = self.format_player_tag(p.username, p.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
 
         # Создаем кнопки для статуса
@@ -5262,7 +5280,9 @@ class ForestWolvesBot:
             
             # Формируем сообщение с информацией о пользователе и товарах
             shop_text = f"🌲 <b>Лесной магазин</b>\n\n"
-            shop_text += f"👤 <b>{username}:</b>\n"
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            shop_text += f"👤 <b>{clickable_name}:</b>\n"
             shop_text += f"🌰 Орешки: {user_balance}\n\n"
             shop_text += "🛍️ <b>Что будем покупать?</b>\n\n"
             
@@ -5367,8 +5387,11 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
             balance_text = f"🌲 <b>Баланс Лес и волки</b>\n\n"
-            balance_text += f"👤 <b>{username}:</b>\n"
+            balance_text += f"👤 <b>{clickable_name}:</b>\n"
             balance_text += f"🌰 Орешки: {user_balance}\n\n"
             balance_text += "💡 Орешки можно заработать, играя в Лес и волки!"
             
@@ -5410,7 +5433,9 @@ class ForestWolvesBot:
             
             # Формируем сообщение с информацией о пользователе и товарах
             shop_text = f"🌲 <b>Лесной магазин</b>\n\n"
-            shop_text += f"👤 <b>{username}:</b>\n"
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            shop_text += f"👤 <b>{clickable_name}:</b>\n"
             shop_text += f"🌰 Орешки: {user_balance}\n\n"
             shop_text += "🛍️ <b>Что будем покупать?</b>\n\n"
             
@@ -5478,9 +5503,8 @@ class ForestWolvesBot:
             from database_balance_manager import balance_manager
             user_balance = balance_manager.get_user_balance(user_id)
             
-            # Получаем отображаемое имя с учетом никнейма
-            from database_psycopg2 import get_display_name
-            display_name = get_display_name(user_id, username, update.effective_user.first_name)
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
             
             # Создаем клавиатуру профиля
             keyboard = [
@@ -5495,7 +5519,7 @@ class ForestWolvesBot:
             
             # Формируем сообщение профиля
             profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
-            profile_text += f"🌲 <b>{display_name}</b>\n"
+            profile_text += f"🌲 <b>{clickable_name}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
             profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
@@ -6137,8 +6161,11 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
             inventory_text = f"🧺 <b>Корзинка</b> 🧺\n\n"
-            inventory_text += f"👤 <b>{username}</b>\n\n"
+            inventory_text += f"👤 <b>{clickable_name}</b>\n\n"
             
             if not inventory_data['success']:
                 inventory_text += f"❌ {inventory_data['error']}"
@@ -6180,8 +6207,11 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
             stats_text = f"📜 <b>Свиток чести</b> 📜\n\n"
-            stats_text += f"👤 <b>{username}</b>\n"
+            stats_text += f"👤 <b>{clickable_name}</b>\n"
             stats_text += f"🌲 <b>В этом чате</b>\n\n"
             
             if stats:
@@ -6244,9 +6274,12 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            # Получаем кликабельное имя с учетом никнейма
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
             # Формируем сообщение профиля
             profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
-            profile_text += f"🌲 <b>{username}</b>\n"
+            profile_text += f"🌲 <b>{clickable_name}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
             profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
