@@ -971,6 +971,17 @@ class ForestWolvesBot:
             logger.error(f"❌ Ошибка создания игры: {e}")
             await update.message.reply_text("❌ Произошла ошибка при создании игры. Попробуйте позже.")
 
+    async def cancel_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает команду /cancel"""
+        user_id = update.effective_user.id
+        
+        # Проверяем, ожидает ли пользователь ввода кастомного прощального сообщения
+        if f'waiting_custom_farewell_{user_id}' in context.user_data:
+            del context.user_data[f'waiting_custom_farewell_{user_id}']
+            await update.message.reply_text("❌ Создание прощального сообщения отменено.")
+        else:
+            await update.message.reply_text("ℹ️ Нет активных операций для отмены.")
+
     async def update_player_stats_after_game(self, game: Game, winner: Optional[Team] = None):
         """Обновляет статистику игроков после окончания игры"""
         try:
@@ -3784,7 +3795,10 @@ class ForestWolvesBot:
             if len(parts) >= 3:
                 farewell_type = parts[1]
                 user_id = int(parts[2])
-                await self.handle_farewell_type(query, context, farewell_type, user_id)
+                if farewell_type == "custom":
+                    await self.handle_custom_farewell(query, context, user_id)
+                else:
+                    await self.handle_farewell_type(query, context, farewell_type, user_id)
         elif query.data.startswith("farewell_back_"):
             user_id = int(query.data.split("_")[2])
             await self.handle_farewell_back(query, context, user_id)
@@ -4854,6 +4868,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("profile", self.profile_command)) # Команда /profile
         application.add_handler(CommandHandler("global_stats", self.global_stats_command)) # Команда /global_stats
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
+        application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
         
 
         # Обработчик присоединения бота к чату
@@ -4937,6 +4952,11 @@ class ForestWolvesBot:
             
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        # Проверяем, ожидает ли пользователь ввода кастомного прощального сообщения
+        if f'waiting_custom_farewell_{user_id}' in context.user_data:
+            await self.handle_custom_farewell_text(update, context, user_id, username)
+            return
         
         # Создаем пользователя в БД с начальным балансом 100 орешков
         try:
@@ -5452,14 +5472,14 @@ class ForestWolvesBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Формируем сообщение профиля
-            profile_text = f"👤 *Профиль игрока* 👤\n\n"
-            profile_text += f"🌲 *{username}*\n"
+            profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
+            profile_text += f"🌲 <b>{username}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
-            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
-            profile_text += "📜 *Свиток чести* - статистика в этом чате\n"
-            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
-            profile_text += "🛍️ *Магазин* - покупка товаров"
+            profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
+            profile_text += "📜 <b>Свиток чести</b> - статистика в этом чате\n"
+            profile_text += "🌰 <b>Баланс</b> - подробная информация об орешках\n"
+            profile_text += "🛍️ <b>Магазин</b> - покупка товаров"
             
             await update.message.reply_text(profile_text, reply_markup=reply_markup)
                 
@@ -5492,8 +5512,8 @@ class ForestWolvesBot:
             stats = get_player_detailed_stats(user_id)
             
             # Формируем сообщение статистики
-            stats_text = f"🌍 *Общая статистика* 🌍\n\n"
-            stats_text += f"👤 *{username}*\n\n"
+            stats_text = f"🌍 <b>Общая статистика</b> 🌍\n\n"
+            stats_text += f"👤 <b>{username}</b>\n\n"
             
             if stats:
                 games_played = stats.get('games_played', 0)
@@ -5505,20 +5525,20 @@ class ForestWolvesBot:
                 from database_balance_manager import balance_manager
                 total_nuts = balance_manager.get_user_balance(user_id)
                 
-                stats_text += f"🎮 *Игровая статистика:*\n"
+                stats_text += f"🎮 <b>Игровая статистика:</b>\n"
                 stats_text += f"• Игр сыграно: {games_played}\n"
                 stats_text += f"• Побед: {games_won}\n"
                 stats_text += f"• Поражений: {games_lost}\n"
                 stats_text += f"• Процент побед: {win_rate:.1f}%\n\n"
                 
-                stats_text += f"🌰 *Орешки:*\n"
+                stats_text += f"🌰 <b>Орешки:</b>\n"
                 stats_text += f"• Всего заработано: {total_nuts}\n"
                 stats_text += f"• Среднее за игру: {total_nuts // games_played if games_played > 0 else 0}\n\n"
                 
                 # Дополнительная статистика по ролям
                 if 'role_stats' in stats:
                     role_stats = stats['role_stats']
-                    stats_text += f"🎭 *Статистика по ролям:*\n"
+                    stats_text += f"🎭 <b>Статистика по ролям:</b>\n"
                     for role, count in role_stats.items():
                         stats_text += f"• {role}: {count} раз\n"
             else:
@@ -5545,14 +5565,16 @@ class ForestWolvesBot:
             # Проверяем, можно ли отправить прощальное сообщение
             can_send, error_message, game_data = await self.can_send_farewell_message(user_id)
             
+            logger.info(f"Прощальное сообщение для пользователя {user_id}: can_send={can_send}, error={error_message}")
+            
             if not can_send:
                 # Показываем ошибку вместо меню
                 error_text = (
-                    f"❌ *Прощальное сообщение недоступно*\n\n"
+                    f"❌ <b>Прощальное сообщение недоступно</b>\n\n"
                     f"{error_message}\n\n"
                     f"💡 Прощальное сообщение можно отправить только:\n"
                     f"• После участия в игре\n"
-                    f"• В течение часа после окончания игры\n"
+                    f"• В течение суток после окончания игры\n"
                     f"• Если в чате не началась новая игра"
                 )
                 
@@ -5572,17 +5594,18 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("🐰 Прощание зайца", callback_data=f"farewell_hare_{user_id}")],
                 [InlineKeyboardButton("🦫 Прощание бобра", callback_data=f"farewell_beaver_{user_id}")],
                 [InlineKeyboardButton("🕳️ Прощание крота", callback_data=f"farewell_mole_{user_id}")],
+                [InlineKeyboardButton("✍️ Написать свое сообщение", callback_data=f"farewell_custom_{user_id}")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
             ]
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             farewell_text = (
-                "🍂 *Прощальные слова* 🍂\n\n"
+                "🍂 <b>Прощальные слова</b> 🍂\n\n"
                 "🌲 Лес прощается с тобой...\n"
                 "💭 Выбери, как ты хочешь попрощаться с остальными обитателями леса:\n\n"
                 "🌿 Каждое прощание имеет свой особый лесной стиль!\n\n"
-                f"⏰ Время на прощание: в течение часа после окончания игры"
+                f"⏰ Время на прощание: в течение суток после окончания игры"
             )
             
             await query.edit_message_text(farewell_text, reply_markup=reply_markup, parse_mode='HTML')
@@ -5595,7 +5618,7 @@ class ForestWolvesBot:
         """Обрабатывает покидание леса"""
         try:
             farewell_text = (
-                "🌲 *Покидание леса* 🌲\n\n"
+                "🌲 <b>Покидание леса</b> 🌲\n\n"
                 "🍂 Ты тихо покидаешь лес...\n"
                 "🌙 Твоя душа уходит в звёздный лес навсегда.\n\n"
                 "⭐️ До свидания, путник! ⭐️"
@@ -5625,33 +5648,48 @@ class ForestWolvesBot:
                 if user_id in [player.user_id for player in game.players.values()]:
                     last_game = game
                     last_game_chat_id = chat_id
+                    logger.info(f"Найдена активная игра для пользователя {user_id} в чате {chat_id}, фаза: {game.phase}")
                     break
             
             # Если нет активной игры, ищем в базе данных последнюю завершенную игру
             if not last_game:
-                from database_psycopg2 import fetch_query
-                
-                # Ищем последнюю игру пользователя в базе данных
-                query = """
-                    SELECT chat_id, thread_id, game_data, created_at, updated_at
-                    FROM active_games_state 
-                    WHERE game_data->>'phase' = 'finished'
-                    AND game_data->'players' ? %s
-                    ORDER BY updated_at DESC 
-                    LIMIT 1
-                """
-                
-                result = fetch_query(query, (str(user_id),))
-                if result:
-                    game_data = result[0]
-                    last_game_chat_id = game_data['chat_id']
-                    last_game = {
-                        'chat_id': game_data['chat_id'],
-                        'thread_id': game_data['thread_id'],
-                        'updated_at': game_data['updated_at']
-                    }
+                try:
+                    from database_psycopg2 import fetch_query
+                    
+                    # Ищем последнюю игру пользователя в базе данных
+                    query = """
+                        SELECT chat_id, thread_id, game_data, created_at, updated_at
+                        FROM active_games_state 
+                        WHERE game_data->>'phase' = 'finished'
+                        AND game_data->'players' ? %s
+                        ORDER BY updated_at DESC 
+                        LIMIT 1
+                    """
+                    
+                    result = fetch_query(query, (str(user_id),))
+                    if result:
+                        game_data = result[0]
+                        last_game_chat_id = game_data['chat_id']
+                        last_game = {
+                            'chat_id': game_data['chat_id'],
+                            'thread_id': game_data['thread_id'],
+                            'updated_at': game_data['updated_at']
+                        }
+                        logger.info(f"Найдена завершенная игра в БД для пользователя {user_id} в чате {last_game_chat_id}")
+                    else:
+                        logger.info(f"Завершенная игра в БД не найдена для пользователя {user_id}")
+                except Exception as db_error:
+                    logger.warning(f"Ошибка поиска в БД: {db_error}")
+                    # Если БД недоступна, разрешаем прощальное сообщение для активных игр
+                    if last_game_chat_id:
+                        last_game = {
+                            'chat_id': last_game_chat_id,
+                            'thread_id': None,
+                            'updated_at': datetime.now()
+                        }
             
             if not last_game:
+                logger.warning(f"Прощальное сообщение: игра не найдена для пользователя {user_id}")
                 return False, "❌ Игра не найдена! Прощальное сообщение можно отправить только после участия в игре.", {}
             
             # Проверяем, не началась ли уже новая игра в том же чате
@@ -5661,21 +5699,24 @@ class ForestWolvesBot:
                     return False, "❌ В чате уже началась новая игра! Прощальное сообщение можно отправить только после окончания игры.", {}
             
             # Проверяем время (не позже чем через час после окончания)
+            game_end_time = None
             if hasattr(last_game, 'updated_at'):
                 game_end_time = last_game.updated_at
-            else:
+            elif isinstance(last_game, dict):
                 game_end_time = last_game.get('updated_at')
             
             if game_end_time:
                 if isinstance(game_end_time, str):
-                    from datetime import datetime
-                    game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                    try:
+                        game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                    except:
+                        game_end_time = datetime.now()
                 
                 current_time = datetime.now(game_end_time.tzinfo) if game_end_time.tzinfo else datetime.now()
                 time_diff = current_time - game_end_time
                 
-                if time_diff > timedelta(hours=1):
-                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение часа после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+                if time_diff > timedelta(hours=24):  # Увеличиваем время до 24 часов
+                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
             
             return True, "", last_game
             
@@ -5697,6 +5738,8 @@ class ForestWolvesBot:
             chat_id = game_data.get('chat_id')
             thread_id = game_data.get('thread_id')
             
+            logger.info(f"Прощальное сообщение: chat_id={chat_id}, thread_id={thread_id}, game_data={game_data}")
+            
             if not chat_id:
                 return False, "❌ Не удалось определить чат для отправки прощального сообщения"
             
@@ -5713,11 +5756,17 @@ class ForestWolvesBot:
             message = farewell_messages.get(farewell_type, farewell_messages["forest"])
             
             # Отправляем в чат игры
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=message,
-                message_thread_id=thread_id
-            )
+            if thread_id:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=message,
+                    message_thread_id=thread_id
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=message
+                )
             
             logger.info(f"✅ Отправлено прощальное сообщение от {username} в чат {chat_id}")
             return True, "✅ Прощальное сообщение отправлено!"
@@ -5742,7 +5791,7 @@ class ForestWolvesBot:
             if success:
                 # Показываем подтверждение
                 confirmation_text = (
-                    f"✅ *Прощальное сообщение отправлено!*\n\n"
+                    f"✅ <b>Прощальное сообщение отправлено!</b>\n\n"
                     f"🌲 Твоё прощание в стиле {farewell_type} было отправлено в чат игры.\n\n"
                     f"🍂 Лес будет помнить твои слова...\n"
                     f"⭐️ До свидания, {username}!"
@@ -5752,7 +5801,7 @@ class ForestWolvesBot:
             else:
                 # Показываем ошибку
                 error_text = (
-                    f"❌ *Не удалось отправить прощальное сообщение*\n\n"
+                    f"❌ <b>Не удалось отправить прощальное сообщение</b>\n\n"
                     f"{message}\n\n"
                     f"💡 Попробуйте позже или обратитесь к администратору."
                 )
@@ -5762,6 +5811,175 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка обработки типа прощания: {e}")
             await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_custom_farewell(self, query, context, user_id: int):
+        """Обрабатывает запрос на написание своего прощального сообщения"""
+        try:
+            # Проверяем, что запрос от правильного пользователя
+            if query.from_user.id != user_id:
+                await query.answer("❌ Это не ваше прощальное сообщение!", show_alert=True)
+                return
+            
+            # Проверяем, можно ли отправить прощальное сообщение
+            can_send, error_message, game_data = await self.can_send_farewell_message(user_id)
+            
+            if not can_send:
+                error_text = (
+                    f"❌ <b>Прощальное сообщение недоступно</b>\n\n"
+                    f"{error_message}\n\n"
+                    f"💡 Прощальное сообщение можно отправить только:\n"
+                    f"• После участия в игре\n"
+                    f"• В течение суток после окончания игры\n"
+                    f"• Если в чате не началась новая игра"
+                )
+                
+                keyboard = [
+                    [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(error_text, reply_markup=reply_markup, parse_mode='HTML')
+                return
+            
+            # Показываем инструкции для написания своего сообщения
+            custom_text = (
+                "✍️ <b>Написать свое прощальное сообщение</b> ✍️\n\n"
+                "🌲 Напишите свое личное прощальное сообщение в следующем сообщении.\n\n"
+                "💭 <b>Советы:</b>\n"
+                "• Сообщение должно быть в духе игры\n"
+                "• Не используйте оскорбления или нецензурную лексику\n"
+                "• Максимум 200 символов\n"
+                "• Можете использовать эмодзи\n\n"
+                "📝 <b>Примеры:</b>\n"
+                "• \"Спасибо за игру, друзья! Было весело! 🌿\"\n"
+                "• \"До свидания, лес! Увидимся в следующей игре! 🐺\"\n\n"
+                "⏰ У вас есть 5 минут на написание сообщения.\n"
+                "❌ Отправьте /cancel для отмены."
+            )
+            
+            keyboard = [
+                [InlineKeyboardButton("⬅️ Назад к выбору", callback_data=f"farewell_back_{user_id}")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(custom_text, reply_markup=reply_markup, parse_mode='HTML')
+            
+            # Сохраняем состояние ожидания пользовательского ввода
+            from datetime import datetime
+            context.user_data[f'waiting_custom_farewell_{user_id}'] = {
+                'game_data': game_data,
+                'start_time': datetime.now()
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки кастомного прощания: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def handle_custom_farewell_text(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, username: str):
+        """Обрабатывает текстовое сообщение для кастомного прощания"""
+        try:
+            from datetime import datetime, timedelta
+            
+            # Получаем данные ожидания
+            waiting_data = context.user_data.get(f'waiting_custom_farewell_{user_id}')
+            if not waiting_data:
+                await update.message.reply_text("❌ Время ожидания истекло. Попробуйте снова.")
+                return
+            
+            # Проверяем время ожидания (5 минут)
+            start_time = waiting_data['start_time']
+            current_time = datetime.now()
+            if current_time - start_time > timedelta(minutes=5):
+                del context.user_data[f'waiting_custom_farewell_{user_id}']
+                await update.message.reply_text("⏰ Время ожидания истекло. Попробуйте снова.")
+                return
+            
+            # Получаем текст сообщения
+            message_text = update.message.text.strip()
+            
+            # Проверяем команду отмены
+            if message_text.lower() in ['/cancel', 'отмена', 'cancel']:
+                del context.user_data[f'waiting_custom_farewell_{user_id}']
+                await update.message.reply_text("❌ Создание прощального сообщения отменено.")
+                return
+            
+            # Проверяем длину сообщения
+            if len(message_text) > 200:
+                await update.message.reply_text(
+                    "❌ Сообщение слишком длинное! Максимум 200 символов.\n"
+                    f"Ваше сообщение: {len(message_text)} символов\n\n"
+                    "Попробуйте сократить сообщение."
+                )
+                return
+            
+            if len(message_text) < 5:
+                await update.message.reply_text(
+                    "❌ Сообщение слишком короткое! Минимум 5 символов.\n\n"
+                    "Попробуйте написать более развернутое сообщение."
+                )
+                return
+            
+            # Проверяем на нецензурную лексику (базовая проверка)
+            bad_words = ['дурак', 'идиот', 'тупой', 'глупый', 'лох', 'придурок']
+            if any(word in message_text.lower() for word in bad_words):
+                await update.message.reply_text(
+                    "❌ Сообщение содержит недопустимые слова!\n\n"
+                    "Пожалуйста, напишите сообщение в духе игры без оскорблений."
+                )
+                return
+            
+            # Отправляем кастомное прощальное сообщение
+            game_data = waiting_data['game_data']
+            chat_id = game_data.get('chat_id')
+            thread_id = game_data.get('thread_id')
+            
+            if not chat_id:
+                await update.message.reply_text("❌ Не удалось определить чат для отправки прощального сообщения.")
+                return
+            
+            # Формируем сообщение
+            farewell_message = f"💬 {username} прощается: \"{message_text}\""
+            
+            # Отправляем в чат игры
+            try:
+                if thread_id:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=farewell_message,
+                        message_thread_id=thread_id
+                    )
+                else:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=farewell_message
+                    )
+                
+                # Удаляем состояние ожидания
+                del context.user_data[f'waiting_custom_farewell_{user_id}']
+                
+                # Показываем подтверждение
+                confirmation_text = (
+                    f"✅ <b>Ваше прощальное сообщение отправлено!</b>\n\n"
+                    f"💬 <b>Сообщение:</b> \"{message_text}\"\n\n"
+                    f"🌲 Ваше прощание было отправлено в чат игры.\n"
+                    f"🍂 Лес будет помнить ваши слова...\n"
+                    f"⭐️ До свидания, {username}!"
+                )
+                
+                await update.message.reply_text(confirmation_text, parse_mode='HTML')
+                
+                logger.info(f"✅ Отправлено кастомное прощальное сообщение от {username} в чат {chat_id}")
+                
+            except Exception as e:
+                logger.error(f"❌ Ошибка отправки кастомного прощального сообщения: {e}")
+                await update.message.reply_text(
+                    "❌ Не удалось отправить прощальное сообщение в чат.\n"
+                    "Попробуйте позже или обратитесь к администратору."
+                )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки кастомного прощального текста: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при обработке сообщения.")
 
     async def handle_farewell_back(self, query, context, user_id: int):
         """Обрабатывает возврат к предыдущему меню прощания"""
@@ -5795,13 +6013,13 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            inventory_text = f"🧺 *Корзинка* 🧺\n\n"
-            inventory_text += f"👤 *{username}*\n\n"
+            inventory_text = f"🧺 <b>Корзинка</b> 🧺\n\n"
+            inventory_text += f"👤 <b>{username}</b>\n\n"
             
             if not inventory_data['success']:
                 inventory_text += f"❌ {inventory_data['error']}"
             elif inventory_data['items']:
-                inventory_text += "🛍️ *Ваши товары:*\n\n"
+                inventory_text += "🛍️ <b>Ваши товары:</b>\n\n"
                 
                 for item in inventory_data['items']:
                     item_name = item['item_name']
@@ -5838,9 +6056,9 @@ class ForestWolvesBot:
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
-            stats_text = f"📜 *Свиток чести* 📜\n\n"
-            stats_text += f"👤 *{username}*\n"
-            stats_text += f"🌲 *В этом чате*\n\n"
+            stats_text = f"📜 <b>Свиток чести</b> 📜\n\n"
+            stats_text += f"👤 <b>{username}</b>\n"
+            stats_text += f"🌲 <b>В этом чате</b>\n\n"
             
             if stats:
                 games_played = stats.get('games_played', 0)
@@ -5849,27 +6067,27 @@ class ForestWolvesBot:
                 total_nuts = stats.get('total_nuts', 0)
                 win_rate = (games_won / games_played * 100) if games_played > 0 else 0
                 
-                stats_text += f"🎮 *Игровая статистика:*\n"
+                stats_text += f"🎮 <b>Игровая статистика:</b>\n"
                 stats_text += f"• Игр сыграно: {games_played}\n"
                 stats_text += f"• Побед: {games_won}\n"
                 stats_text += f"• Поражений: {games_lost}\n"
                 stats_text += f"• Процент побед: {win_rate:.1f}%\n\n"
                 
-                stats_text += f"🌰 *Орешки в этом чате:*\n"
+                stats_text += f"🌰 <b>Орешки в этом чате:</b>\n"
                 stats_text += f"• Заработано: {total_nuts}\n"
                 stats_text += f"• Среднее за игру: {total_nuts // games_played if games_played > 0 else 0}\n\n"
                 
                 # Статистика по ролям в этом чате
                 if 'role_stats' in stats:
                     role_stats = stats['role_stats']
-                    stats_text += f"🎭 *Роли в этом чате:*\n"
+                    stats_text += f"🎭 <b>Роли в этом чате:</b>\n"
                     for role, count in role_stats.items():
                         stats_text += f"• {role}: {count} раз\n"
                 
                 # Рейтинг в чате
                 if 'chat_rank' in stats:
                     rank = stats['chat_rank']
-                    stats_text += f"\n🏆 *Рейтинг в чате:* #{rank}"
+                    stats_text += f"\n🏆 <b>Рейтинг в чате:</b> #{rank}"
             else:
                 stats_text += "📊 Статистика в этом чате пуста\n\n"
                 stats_text += "🎮 Сыграйте в игру в этом чате, чтобы появилась статистика!\n\n"
@@ -5903,14 +6121,14 @@ class ForestWolvesBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Формируем сообщение профиля
-            profile_text = f"👤 *Профиль игрока* 👤\n\n"
-            profile_text += f"🌲 *{username}*\n"
+            profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
+            profile_text += f"🌲 <b>{username}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
-            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
-            profile_text += "📜 *Свиток чести* - статистика в этом чате\n"
-            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
-            profile_text += "🛍️ *Магазин* - покупка товаров"
+            profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
+            profile_text += "📜 <b>Свиток чести</b> - статистика в этом чате\n"
+            profile_text += "🌰 <b>Баланс</b> - подробная информация об орешках\n"
+            profile_text += "🛍️ <b>Магазин</b> - покупка товаров"
             
             await query.edit_message_text(profile_text, reply_markup=reply_markup, parse_mode='HTML')
             
@@ -5922,18 +6140,18 @@ class ForestWolvesBot:
         """Обрабатывает кнопку 'Войти в чат'"""
         try:
             join_text = (
-                "🎮 *Войти в чат* 🎮\n\n"
+                "🎮 <b>Войти в чат</b> 🎮\n\n"
                 "🌲 Чтобы присоединиться к игре:\n\n"
-                "1️⃣ *Найдите чат с игрой*\n"
+                "1️⃣ <b>Найдите чат с игрой</b>\n"
                 "• Ищите чаты, где уже запущена игра 'Лес и Волки'\n"
                 "• Или создайте новый чат и добавьте бота\n\n"
-                "2️⃣ *Присоединитесь к игре*\n"
+                "2️⃣ <b>Присоединитесь к игре</b>\n"
                 "• Используйте команду `/join` в чате с игрой\n"
                 "• Или нажмите кнопку 'Присоединиться' в сообщении игры\n\n"
-                "3️⃣ *Начните играть!*\n"
+                "3️⃣ <b>Начните играть!</b>\n"
                 "• Дождитесь начала игры\n"
                 "• Следуйте инструкциям бота\n\n"
-                "💡 *Совет:* Добавьте бота в свой чат, чтобы создать игру!"
+                "💡 <b>Совет:</b> Добавьте бота в свой чат, чтобы создать игру!"
             )
             
             keyboard = [
@@ -5953,15 +6171,15 @@ class ForestWolvesBot:
         """Обрабатывает кнопку 'Язык / Language'"""
         try:
             language_text = (
-                "🌍 *Язык / Language* 🌍\n\n"
-                "🌲 *Русский (Russian)*\n"
+                "🌍 <b>Язык / Language</b> 🌍\n\n"
+                "🌲 <b>Русский (Russian)</b>\n"
                 "• Основной язык бота\n"
                 "• Все сообщения на русском\n"
                 "• Роли и описания на русском\n\n"
-                "🇺🇸 *English*\n"
+                "🇺🇸 <b>English</b>\n"
                 "• Английский язык (в разработке)\n"
                 "• English language (coming soon)\n\n"
-                "💡 *Сейчас доступен только русский язык*"
+                "💡 <b>Сейчас доступен только русский язык</b>"
             )
             
             keyboard = [
@@ -6000,14 +6218,14 @@ class ForestWolvesBot:
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Формируем сообщение профиля
-            profile_text = f"👤 *Профиль игрока* 👤\n\n"
-            profile_text += f"🌲 *{username}*\n"
+            profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
+            profile_text += f"🌲 <b>{username}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
-            profile_text += "🧺 *Корзинка* - ваш инвентарь\n"
-            profile_text += "📜 *Свиток чести* - статистика в чатах\n"
-            profile_text += "🌰 *Баланс* - подробная информация об орешках\n"
-            profile_text += "🛍️ *Магазин* - покупка товаров"
+            profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
+            profile_text += "📜 <b>Свиток чести</b> - статистика в чатах\n"
+            profile_text += "🌰 <b>Баланс</b> - подробная информация об орешках\n"
+            profile_text += "🛍️ <b>Магазин</b> - покупка товаров"
             
             await query.edit_message_text(profile_text, reply_markup=reply_markup, parse_mode='HTML')
             
@@ -6019,26 +6237,26 @@ class ForestWolvesBot:
         """Показывает роли в личных сообщениях"""
         try:
             roles_text = (
-                "🎭 *Роли в игре* 🎭\n\n"
-                "🐺 *ХИЩНИКИ (Predators)*\n\n"
-                "🐺 *Волк*\n"
+                "🎭 <b>Роли в игре</b> 🎭\n\n"
+                "🐺 <b>ХИЩНИКИ (Predators)</b>\n\n"
+                "🐺 <b>Волк</b>\n"
                 "• Убивает одного игрока каждую ночь\n"
                 "• Цель: уничтожить всех травоядных\n"
                 "• Может быть изгнан голосованием\n\n"
-                "🦊 *Лиса*\n"
+                "🦊 <b>Лиса</b>\n"
                 "• Крадет орешки у игроков\n"
                 "• Умирает после 2 краж\n"
                 "• Помогает волкам\n\n"
-                "🐰 *ТРАВОЯДНЫЕ (Herbivores)*\n\n"
-                "🐰 *Зайец*\n"
+                "🐰 <b>ТРАВОЯДНЫЕ (Herbivores)</b>\n\n"
+                "🐰 <b>Зайец</b>\n"
                 "• Обычный мирный житель\n"
                 "• Может быть убит волком\n"
                 "• Участвует в голосовании\n\n"
-                "🦫 *Бобёр*\n"
+                "🦫 <b>Бобёр</b>\n"
                 "• Защищает одного игрока за ночь\n"
                 "• Может спасти от волка\n"
                 "• Защита работает один раз\n\n"
-                "🕳️ *Крот*\n"
+                "🕳️ <b>Крот</b>\n"
                 "• Проверяет роли игроков\n"
                 "• Узнает, кто хищник, а кто нет\n"
                 "• Помогает травоядным"
@@ -6103,8 +6321,8 @@ class ForestWolvesBot:
             if player.role == Role.WOLF:
                 # Действия для волка
                 message = (
-                    "🐺 *Ваша роль: Волк*\n\n"
-                    "🌙 *Ночная фаза*\n\n"
+                    "🐺 <b>Ваша роль: Волк</b>\n\n"
+                    "🌙 <b>Ночная фаза</b>\n\n"
                     "Выберите жертву для убийства:"
                 )
                 
@@ -6125,8 +6343,8 @@ class ForestWolvesBot:
             elif player.role == Role.FOX:
                 # Действия для лисы
                 message = (
-                    "🦊 *Ваша роль: Лиса*\n\n"
-                    "🌙 *Ночная фаза*\n\n"
+                    "🦊 <b>Ваша роль: Лиса</b>\n\n"
+                    "🌙 <b>Ночная фаза</b>\n\n"
                     "Выберите жертву для кражи орешков:"
                 )
                 
@@ -6147,8 +6365,8 @@ class ForestWolvesBot:
             elif player.role == Role.MOLE:
                 # Действия для крота
                 message = (
-                    "🦫 *Ваша роль: Крот*\n\n"
-                    "🌙 *Ночная фаза*\n\n"
+                    "🦫 <b>Ваша роль: Крот</b>\n\n"
+                    "🌙 <b>Ночная фаза</b>\n\n"
                     "Выберите игрока для проверки роли:"
                 )
                 
@@ -6169,8 +6387,8 @@ class ForestWolvesBot:
             elif player.role == Role.BEAVER:
                 # Действия для бобра
                 message = (
-                    "🦦 *Ваша роль: Бобёр*\n\n"
-                    "🌙 *Ночная фаза*\n\n"
+                    "🦦 <b>Ваша роль: Бобёр</b>\n\n"
+                    "🌙 <b>Ночная фаза</b>\n\n"
                     "Выберите игрока для защиты:"
                 )
                 
@@ -6191,8 +6409,8 @@ class ForestWolvesBot:
             else:
                 # Заяц - нет ночных действий
                 message = (
-                    "🐰 *Ваша роль: Заяц*\n\n"
-                    "🌙 *Ночная фаза*\n\n"
+                    "🐰 <b>Ваша роль: Заяц</b>\n\n"
+                    "🌙 <b>Ночная фаза</b>\n\n"
                     "У вас нет ночных действий. Отдыхайте и ждите утра!"
                 )
                 await query.message.reply_text(message)
@@ -6205,11 +6423,11 @@ class ForestWolvesBot:
         """Отправляет дневные действия для роли"""
         try:
             message = (
-                f"☀️ *Дневная фаза*\n\n"
-                f"🎭 *Ваша роль:* {self.get_role_name_russian(player.role)}\n"
-                f"🏷️ *Команда:* {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
-                f"💬 *Обсуждайте события ночи и выдвигайте подозрения!*\n\n"
-                f"🎯 *Ваша цель:* {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
+                f"☀️ <b>Дневная фаза</b>\n\n"
+                f"🎭 <b>Ваша роль:</b> {self.get_role_name_russian(player.role)}\n"
+                f"🏷️ <b>Команда:</b> {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
+                f"💬 <b>Обсуждайте события ночи и выдвигайте подозрения!</b>\n\n"
+                f"🎯 <b>Ваша цель:</b> {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
             )
             
             await query.message.reply_text(message)
@@ -6222,11 +6440,11 @@ class ForestWolvesBot:
         """Отправляет действия голосования для роли"""
         try:
             message = (
-                f"🗳️ *Фаза голосования*\n\n"
-                f"🎭 *Ваша роль:* {self.get_role_name_russian(player.role)}\n"
-                f"🏷️ *Команда:* {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
-                f"🗳️ *Голосуйте за изгнание подозреваемого!*\n\n"
-                f"🎯 *Ваша цель:* {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
+                f"🗳️ <b>Фаза голосования</b>\n\n"
+                f"🎭 <b>Ваша роль:</b> {self.get_role_name_russian(player.role)}\n"
+                f"🏷️ <b>Команда:</b> {'Хищники' if player.team == Team.PREDATORS else 'Травоядные'}\n\n"
+                f"🗳️ <b>Голосуйте за изгнание подозреваемого!</b>\n\n"
+                f"🎯 <b>Ваша цель:</b> {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
             )
             
             # Создаем клавиатуру с живыми игроками для голосования
@@ -6303,30 +6521,30 @@ class ForestWolvesBot:
         """Показывает подробные правила в личных сообщениях"""
         try:
             rules_text = (
-                "📖 *Подробные правила игры* 📖\n\n"
-                "🌲 *Лес и Волки* - ролевая игра в стиле 'Мафия'\n\n"
-                "🎯 *Цель игры:*\n"
+                "📖 <b>Подробные правила игры</b> 📖\n\n"
+                "🌲 <b>Лес и Волки</b> - ролевая игра в стиле 'Мафия'\n\n"
+                "🎯 <b>Цель игры:</b>\n"
                 "• Хищники: уничтожить всех травоядных\n"
                 "• Травоядные: найти и изгнать всех хищников\n\n"
-                "🌙 *Ночная фаза:*\n"
+                "🌙 <b>Ночная фаза:</b>\n"
                 "• Волк выбирает жертву для убийства\n"
                 "• Лиса крадет орешки у игрока\n"
                 "• Бобёр защищает одного игрока\n"
                 "• Крот проверяет роль игрока\n\n"
-                "☀️ *Дневная фаза:*\n"
+                "☀️ <b>Дневная фаза:</b>\n"
                 "• Все игроки обсуждают события ночи\n"
                 "• Голосование за изгнание подозреваемого\n"
                 "• Изгнанный игрок покидает игру\n\n"
                 "🎭 <b>Роли:</b>\n"
-                "• *Волк* - убивает каждую ночь\n"
-                "• *Лиса* - крадет орешки (умирает после 2 краж)\n"
-                "• *Зайец* - обычный мирный житель\n"
-                "• *Бобёр* - защищает игроков\n"
-                "• *Крот* - проверяет роли\n\n"
-                "🏆 *Победа:*\n"
+                "• <b>Волк</b> - убивает каждую ночь\n"
+                "• <b>Лиса</b> - крадет орешки (умирает после 2 краж)\n"
+                "• <b>Зайец</b> - обычный мирный житель\n"
+                "• <b>Бобёр</b> - защищает игроков\n"
+                "• <b>Крот</b> - проверяет роли\n\n"
+                "🏆 <b>Победа:</b>\n"
                 "• Хищники побеждают, если осталось равное количество\n"
                 "• Травоядные побеждают, если изгнали всех хищников\n\n"
-                "💡 *Советы:*\n"
+                "💡 <b>Советы:</b>\n"
                 "• Внимательно слушайте других игроков\n"
                 "• Анализируйте поведение и голосования\n"
                 "• Не раскрывайте свою роль раньше времени"
