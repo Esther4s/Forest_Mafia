@@ -322,13 +322,28 @@ class ForestWolvesBot:
 
     # ---------------- helper functions for game logic ----------------
     def format_player_tag(self, username: str, user_id: int) -> str:
-        """Форматирует тег игрока для отображения"""
-        if username and not username.isdigit():
-            # Если username есть и это не просто ID
-            return f"@{username}" if not username.startswith('@') else username
-        else:
-            # Если username нет или это ID, используем ID
-            return f"ID:{user_id}"
+        """Форматирует тег игрока для отображения с учетом никнейма"""
+        try:
+            # Сначала пытаемся получить никнейм
+            from database_psycopg2 import get_user_nickname
+            nickname = get_user_nickname(user_id)
+            
+            if nickname:
+                # Если есть никнейм, используем его
+                return nickname
+            elif username and not username.isdigit():
+                # Если username есть и это не просто ID
+                return f"@{username}" if not username.startswith('@') else username
+            else:
+                # Если username нет или это ID, используем ID
+                return f"ID:{user_id}"
+        except Exception as e:
+            # В случае ошибки используем старую логику
+            logger.warning(f"⚠️ Ошибка получения никнейма для пользователя {user_id}: {e}")
+            if username and not username.isdigit():
+                return f"@{username}" if not username.startswith('@') else username
+            else:
+                return f"ID:{user_id}"
 
     async def _join_game_common(self, chat_id: int, user_id: int, username: str, context: ContextTypes.DEFAULT_TYPE, 
                                is_callback: bool = False, update: Update = None) -> tuple[bool, str, any]:
@@ -4867,6 +4882,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("shop", self.shop_command)) # Команда /shop
         application.add_handler(CommandHandler("profile", self.profile_command)) # Команда /profile
         application.add_handler(CommandHandler("global_stats", self.global_stats_command)) # Команда /global_stats
+        application.add_handler(CommandHandler("nickname", self.nickname_command)) # Команда /nickname
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
         
@@ -5461,6 +5477,10 @@ class ForestWolvesBot:
             from database_balance_manager import balance_manager
             user_balance = balance_manager.get_user_balance(user_id)
             
+            # Получаем отображаемое имя с учетом никнейма
+            from database_psycopg2 import get_display_name
+            display_name = get_display_name(user_id, username, update.effective_user.first_name)
+            
             # Создаем клавиатуру профиля
             keyboard = [
                 [InlineKeyboardButton("🧺 Корзинка", callback_data="show_inventory")],
@@ -5474,7 +5494,7 @@ class ForestWolvesBot:
             
             # Формируем сообщение профиля
             profile_text = f"👤 <b>Профиль игрока</b> 👤\n\n"
-            profile_text += f"🌲 <b>{username}</b>\n"
+            profile_text += f"🌲 <b>{display_name}</b>\n"
             profile_text += f"🌰 Орешки: {user_balance}\n\n"
             profile_text += "🎮 Выберите действие:\n"
             profile_text += "🧺 <b>Корзинка</b> - ваш инвентарь\n"
@@ -5554,6 +5574,108 @@ class ForestWolvesBot:
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при получении статистики. Попробуйте позже.")
+
+    async def nickname_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для установки никнейма игрока"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            user_id = update.effective_user.id
+            username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+            
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            # Получаем аргументы команды
+            if not context.args:
+                # Показываем текущий никнейм и инструкции
+                from database_psycopg2 import get_user_nickname, get_display_name
+                
+                current_nickname = get_user_nickname(user_id)
+                display_name = get_display_name(user_id, username, update.effective_user.first_name)
+                
+                help_text = f"🎭 <b>Управление никнеймом</b>\n\n"
+                help_text += f"👤 <b>Текущее имя:</b> {display_name}\n"
+                
+                if current_nickname:
+                    help_text += f"🎭 <b>Никнейм:</b> {current_nickname}\n\n"
+                    help_text += f"💡 <b>Команды:</b>\n"
+                    help_text += f"• <code>/nickname НовыйНик</code> - изменить никнейм\n"
+                    help_text += f"• <code>/nickname clear</code> - удалить никнейм\n"
+                else:
+                    help_text += f"🎭 <b>Никнейм:</b> не установлен\n\n"
+                    help_text += f"💡 <b>Команды:</b>\n"
+                    help_text += f"• <code>/nickname НовыйНик</code> - установить никнейм\n"
+                
+                help_text += f"\n📝 <b>Правила:</b>\n"
+                help_text += f"• Максимум 50 символов\n"
+                help_text += f"• Должен содержать буквы или цифры\n"
+                help_text += f"• Должен быть уникальным\n"
+                help_text += f"• Никнейм будет использоваться во всех играх"
+                
+                await update.message.reply_text(help_text, parse_mode='HTML')
+                return
+            
+            # Обрабатываем команду
+            nickname_arg = " ".join(context.args).strip()
+            
+            if nickname_arg.lower() == "clear":
+                # Удаляем никнейм
+                from database_psycopg2 import clear_user_nickname, get_display_name
+                
+                if clear_user_nickname(user_id):
+                    display_name = get_display_name(user_id, username, update.effective_user.first_name)
+                    await update.message.reply_text(
+                        f"✅ <b>Никнейм удален!</b>\n\n"
+                        f"👤 <b>Теперь вас будут называть:</b> {display_name}",
+                        parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_text("❌ Ошибка при удалении никнейма. Попробуйте позже.")
+            else:
+                # Устанавливаем новый никнейм
+                from database_psycopg2 import set_user_nickname, is_nickname_available, get_display_name
+                
+                # Проверяем доступность никнейма
+                if not is_nickname_available(nickname_arg, user_id):
+                    await update.message.reply_text(
+                        f"❌ <b>Никнейм занят!</b>\n\n"
+                        f"🎭 Никнейм '{nickname_arg}' уже используется другим игроком.\n"
+                        f"💡 Попробуйте другой никнейм.",
+                        parse_mode='HTML'
+                    )
+                    return
+                
+                # Устанавливаем никнейм
+                if set_user_nickname(user_id, nickname_arg):
+                    display_name = get_display_name(user_id, username, update.effective_user.first_name)
+                    await update.message.reply_text(
+                        f"✅ <b>Никнейм установлен!</b>\n\n"
+                        f"🎭 <b>Ваш никнейм:</b> {nickname_arg}\n"
+                        f"👤 <b>Вас будут называть:</b> {display_name}\n\n"
+                        f"💡 Никнейм будет использоваться во всех играх и упоминаниях!",
+                        parse_mode='HTML'
+                    )
+                else:
+                    await update.message.reply_text(
+                        f"❌ <b>Ошибка установки никнейма!</b>\n\n"
+                        f"💡 Проверьте, что никнейм:\n"
+                        f"• Не пустой\n"
+                        f"• Не длиннее 50 символов\n"
+                        f"• Содержит буквы или цифры",
+                        parse_mode='HTML'
+                    )
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка команды nickname: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            await update.message.reply_text("❌ Произошла ошибка при работе с никнеймом. Попробуйте позже.")
 
     async def handle_farewell_message(self, query, context, user_id: int):
         """Обрабатывает запрос на прощальное сообщение"""

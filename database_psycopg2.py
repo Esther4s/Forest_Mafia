@@ -1673,6 +1673,164 @@ def add_nuts_to_user(user_id: int, amount: int) -> bool:
         logger.error(f"❌ Ошибка добавления орешков пользователю {user_id}: {e}")
         return False
 
+# ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С НИКНЕЙМАМИ ====================
+
+def set_user_nickname(user_id: int, nickname: str) -> bool:
+    """
+    Устанавливает никнейм пользователя
+    
+    Args:
+        user_id: Telegram user ID
+        nickname: Новый никнейм (максимум 50 символов)
+    
+    Returns:
+        bool: True если установка успешна
+    """
+    if not nickname or len(nickname.strip()) == 0:
+        logger.warning(f"⚠️ Пустой никнейм для пользователя {user_id}")
+        return False
+    
+    # Очищаем никнейм от лишних пробелов
+    nickname = nickname.strip()
+    
+    # Проверяем длину
+    if len(nickname) > 50:
+        logger.warning(f"⚠️ Никнейм слишком длинный для пользователя {user_id}: {len(nickname)} символов")
+        return False
+    
+    # Проверяем, что никнейм не содержит только специальные символы
+    if not any(c.isalnum() for c in nickname):
+        logger.warning(f"⚠️ Никнейм должен содержать хотя бы одну букву или цифру: {nickname}")
+        return False
+    
+    try:
+        # Проверяем, не занят ли никнейм другим пользователем
+        check_query = "SELECT user_id FROM users WHERE nickname = %s AND user_id != %s"
+        existing = fetch_one(check_query, (nickname, user_id))
+        
+        if existing:
+            logger.warning(f"⚠️ Никнейм '{nickname}' уже занят пользователем {existing['user_id']}")
+            return False
+        
+        # Обновляем никнейм
+        update_query = """
+            UPDATE users 
+            SET nickname = %s, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = %s
+        """
+        
+        result = execute_query(update_query, (nickname, user_id))
+        
+        if result:
+            logger.info(f"✅ Никнейм установлен для пользователя {user_id}: '{nickname}'")
+            return True
+        else:
+            logger.error(f"❌ Пользователь {user_id} не найден")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка установки никнейма для пользователя {user_id}: {e}")
+        return False
+
+def get_user_nickname(user_id: int) -> Optional[str]:
+    """
+    Получает никнейм пользователя
+    
+    Args:
+        user_id: Telegram user ID
+    
+    Returns:
+        str или None: Никнейм пользователя
+    """
+    query = "SELECT nickname FROM users WHERE user_id = %s"
+    result = fetch_one(query, (user_id,))
+    return result['nickname'] if result and result['nickname'] else None
+
+def get_display_name(user_id: int, username: str = None, first_name: str = None) -> str:
+    """
+    Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)
+    
+    Args:
+        user_id: Telegram user ID
+        username: Telegram username
+        first_name: Telegram first name
+    
+    Returns:
+        str: Отображаемое имя пользователя
+    """
+    # Сначала пытаемся получить никнейм
+    nickname = get_user_nickname(user_id)
+    if nickname:
+        return nickname
+    
+    # Если никнейма нет, используем username или first_name
+    if username:
+        return username
+    elif first_name:
+        return first_name
+    else:
+        return f"ID:{user_id}"
+
+def is_nickname_available(nickname: str, exclude_user_id: int = None) -> bool:
+    """
+    Проверяет, доступен ли никнейм
+    
+    Args:
+        nickname: Никнейм для проверки
+        exclude_user_id: ID пользователя, которого исключить из проверки
+    
+    Returns:
+        bool: True если никнейм доступен
+    """
+    if not nickname or len(nickname.strip()) == 0:
+        return False
+    
+    nickname = nickname.strip()
+    
+    try:
+        if exclude_user_id:
+            query = "SELECT user_id FROM users WHERE nickname = %s AND user_id != %s"
+            result = fetch_one(query, (nickname, exclude_user_id))
+        else:
+            query = "SELECT user_id FROM users WHERE nickname = %s"
+            result = fetch_one(query, (nickname,))
+        
+        return result is None
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка проверки доступности никнейма '{nickname}': {e}")
+        return False
+
+def clear_user_nickname(user_id: int) -> bool:
+    """
+    Очищает никнейм пользователя (устанавливает в NULL)
+    
+    Args:
+        user_id: Telegram user ID
+    
+    Returns:
+        bool: True если очистка успешна
+    """
+    try:
+        update_query = """
+            UPDATE users 
+            SET nickname = NULL, updated_at = CURRENT_TIMESTAMP 
+            WHERE user_id = %s
+        """
+        
+        result = execute_query(update_query, (user_id,))
+        
+        if result:
+            logger.info(f"✅ Никнейм очищен для пользователя {user_id}")
+            return True
+        else:
+            logger.error(f"❌ Пользователь {user_id} не найден")
+            return False
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка очистки никнейма для пользователя {user_id}: {e}")
+        return False
+
 # ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С НАГРАДАМИ ====================
 
 def create_user_reward(user_id: int, reward_type: str, reason: str, amount: int, 
