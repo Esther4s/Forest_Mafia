@@ -4852,6 +4852,8 @@ class ForestWolvesBot:
             BotCommand("shop", "🛍️ Магазин товаров"),
             BotCommand("profile", "👤 Профиль игрока"),
             BotCommand("global_stats", "🌍 Общая статистика"),
+            BotCommand("nickname", "🎭 Установить никнейм"),
+            BotCommand("reset_nickname", "🗑️ Сбросить никнейм"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -4902,6 +4904,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("profile", self.profile_command)) # Команда /profile
         application.add_handler(CommandHandler("global_stats", self.global_stats_command)) # Команда /global_stats
         application.add_handler(CommandHandler("nickname", self.nickname_command)) # Команда /nickname
+        application.add_handler(CommandHandler("reset_nickname", self.reset_nickname_command)) # Команда /reset_nickname
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
         
@@ -5632,6 +5635,7 @@ class ForestWolvesBot:
                     help_text += f"💡 <b>Команды:</b>\n"
                     help_text += f"• <code>/nickname НовыйНик</code> - изменить никнейм\n"
                     help_text += f"• <code>/nickname clear</code> - удалить никнейм\n"
+                    help_text += f"• <code>/reset_nickname</code> - быстро сбросить никнейм\n"
                 else:
                     help_text += f"🎭 <b>Никнейм:</b> не установлен\n\n"
                     help_text += f"💡 <b>Команды:</b>\n"
@@ -5701,6 +5705,54 @@ class ForestWolvesBot:
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при работе с никнеймом. Попробуйте позже.")
+
+    async def reset_nickname_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для сброса никнейма игрока"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        try:
+            user_id = update.effective_user.id
+            username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+            
+            if not self.db:
+                await update.message.reply_text("❌ База данных недоступна. Попробуйте позже.")
+                return
+            
+            # Проверяем, есть ли у пользователя никнейм
+            from database_psycopg2 import get_user_nickname, clear_user_nickname, get_display_name
+            
+            current_nickname = get_user_nickname(user_id)
+            
+            if not current_nickname:
+                await update.message.reply_text(
+                    "ℹ️ <b>У вас нет никнейма!</b>\n\n"
+                    "💡 Используйте <code>/nickname НовыйНик</code> для установки никнейма.",
+                    parse_mode='HTML'
+                )
+                return
+            
+            # Удаляем никнейм
+            if clear_user_nickname(user_id):
+                display_name = get_display_name(user_id, username, update.effective_user.first_name)
+                await update.message.reply_text(
+                    f"✅ <b>Никнейм сброшен!</b>\n\n"
+                    f"🎭 <b>Удален никнейм:</b> {current_nickname}\n"
+                    f"👤 <b>Теперь вас будут называть:</b> {display_name}\n\n"
+                    f"💡 Используйте <code>/nickname НовыйНик</code> для установки нового никнейма.",
+                    parse_mode='HTML'
+                )
+            else:
+                await update.message.reply_text("❌ Ошибка при сбросе никнейма. Попробуйте позже.")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка команды reset_nickname: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
+            await update.message.reply_text("❌ Произошла ошибка при сбросе никнейма. Попробуйте позже.")
 
     async def handle_farewell_message(self, query, context, user_id: int):
         """Обрабатывает запрос на прощальное сообщение"""
