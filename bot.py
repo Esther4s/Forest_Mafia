@@ -1326,7 +1326,9 @@ class ForestWolvesBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         # Формируем сообщение о регистрации
-        min_players = self.global_settings.get_min_players()
+        # Получаем настройки чата для правильного отображения минимума игроков
+        chat_settings = self.database.get_chat_settings(chat_id)
+        min_players = chat_settings.get('min_players', 6)
         current_players = len(game.players)
         
         registration_text = (
@@ -1336,7 +1338,7 @@ class ForestWolvesBot:
             "🐰 <b>Травоядные:</b> Зайцы + Крот + Бобёр\n\n"
             f"👥 <b>Игроков зарегистрировано:</b> {current_players}\n"
             f"📋 <b>Минимум для начала:</b> {min_players}\n"
-            f"{'🧪 <b>ТЕСТОВЫЙ РЕЖИМ</b>' if self.global_settings.is_test_mode() else ''}\n\n"
+            f"{'⚡ <b>БЫСТРЫЙ РЕЖИМ</b>' if chat_settings.get('test_mode', False) else ''}\n\n"
             "🎯 <b>Цель:</b> Уничтожить команду противника!\n\n"
             "🚀 <b>Нажмите 'Присоединиться к игре' для участия!</b>"
         )
@@ -4108,7 +4110,9 @@ class ForestWolvesBot:
         new_mode = not current_mode
         
         # Обновляем настройки в базе данных
-        success = update_chat_settings(chat_id, test_mode=new_mode)
+        # Устанавливаем min_players в зависимости от режима
+        min_players = 3 if new_mode else 6
+        success = update_chat_settings(chat_id, test_mode=new_mode, min_players=min_players)
         
         if success:
             mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
@@ -4144,18 +4148,22 @@ class ForestWolvesBot:
             player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
             players_list += f"• {player_tag}\n"
         
+        # Получаем настройки чата для правильного отображения минимума игроков
+        chat_settings = self.database.get_chat_settings(chat_id)
+        min_players = chat_settings.get('min_players', 6)
+        
         # Создаем сообщение регистрации
         message = (
             f"🌲 <b>Лес и Волки - Регистрация</b> 🌲\n\n"
             f"👥 Игроков: {len(game.players)}/{max_players}\n"
-            f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
+            f"📋 Минимум для старта: {min_players}\n\n"
             f"📝 Участники:\n{players_list}"
         )
         
         if game.can_start_game():
             message += "\n✅ Можно начинать игру!"
         else:
-            message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+            message += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
         
         # Создаем клавиатуру с обновленными настройками
         keyboard = []
