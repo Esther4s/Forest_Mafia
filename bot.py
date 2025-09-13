@@ -1721,7 +1721,8 @@ class ForestWolvesBot:
                         self._get_join_message_text(game),
                         chat_id=chat_id,
                         message_id=game.pinned_message_id,
-                        reply_markup=self._get_join_keyboard(game, context)
+                        reply_markup=self._get_join_keyboard(game, context),
+                        parse_mode='HTML'
                     )
         except Exception as e:
             logger.error(f"Error updating join message: {e}")
@@ -1734,17 +1735,21 @@ class ForestWolvesBot:
             player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
             players_list += f"• {player_tag}\n"
         
+        # Получаем настройки чата для правильного отображения минимума игроков
+        chat_settings = self.database.get_chat_settings(game.chat_id)
+        min_players = chat_settings.get('min_players', 6)
+        
         message = (
             "🌲 <b>Лес и Волки - Регистрация</b> 🌲\n\n"
             f"👥 Игроков: {len(game.players)}/{max_players}\n"
-            f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
+            f"📋 Минимум для старта: {min_players}\n\n"
             f"📝 Участники:\n{players_list}"
         )
         
         if game.can_start_game():
             message += "\n✅ Можно начинать игру!"
         else:
-            message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+            message += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
         
         return message
 
@@ -1761,6 +1766,14 @@ class ForestWolvesBot:
             # Кнопки для фазы ожидания
             keyboard.append([InlineKeyboardButton("✅ Присоединиться", callback_data="join_game")])
             keyboard.append([InlineKeyboardButton("❌ Покинуть игру", callback_data="leave_registration")])
+            
+            # Кнопка "Магазин"
+            keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
+            
+            # Кнопка "Быстрый режим" (только для админов)
+            # Добавляем кнопку для всех - проверка прав будет в callback
+            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             
             # Кнопка "Начать игру" (если можно)
             if game.can_start_game():
@@ -1809,14 +1822,14 @@ class ForestWolvesBot:
                     except Exception as e:
                         logger.warning(f"Не удалось отредактировать сообщение: {e}")
                         # Если не удалось отредактировать, создаем новое
-                        join_message = await query.message.reply_text(message, reply_markup=reply_markup)
+                        join_message = await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                         await context.bot.unpin_chat_message(chat_id, game.pinned_message_id)
                         await context.bot.pin_chat_message(chat_id, join_message.message_id)
                         game.pinned_message_id = join_message.message_id
                         logger.info(f"Создано и закреплено новое сообщение о присоединении: {join_message.message_id}")
                 else:
                     # Если нет закрепленного сообщения, создаем новое
-                    join_message = await query.message.reply_text(message, reply_markup=reply_markup)
+                    join_message = await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                     await context.bot.pin_chat_message(chat_id, join_message.message_id)
                     game.pinned_message_id = join_message.message_id
                     logger.info(f"Создано и закреплено новое сообщение о присоединении: {join_message.message_id}")
@@ -1922,7 +1935,7 @@ class ForestWolvesBot:
                     except Exception as e:
                         logger.warning(f"Не удалось отредактировать сообщение: {e}")
                         # Если не удалось отредактировать, создаем новое
-                        join_message = await update.message.reply_text(message, reply_markup=reply_markup)
+                        join_message = await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                         await context.bot.unpin_chat_message(chat_id, game.pinned_message_id)
 
                 if join_message is None:
@@ -1941,7 +1954,7 @@ class ForestWolvesBot:
                 logger.error(f"Error in join: {e}")
                 await update.message.reply_text("❌ Произошла ошибка при присоединении к игре!")
         else:
-            await update.message.reply_text(message, reply_markup=reply_markup)
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
 
     async def leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Проверяем права пользователя
@@ -2000,7 +2013,7 @@ class ForestWolvesBot:
             elif game.can_start_game():
                 message += "\n✅ Можно начинать игру!"
                 
-            await update.message.reply_text(message)
+            await update.message.reply_text(message, parse_mode='HTML')
         else:
             await update.message.reply_text("❌ Не удалось покинуть игру.")
 
