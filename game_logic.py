@@ -8,7 +8,7 @@
 
 import random
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -756,3 +756,142 @@ class Game:
         if not self.day_start_time:
             return 0
         return (datetime.now() - self.day_start_time).total_seconds()
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Сериализует состояние игры в словарь для сохранения в БД
+        
+        Returns:
+            Dict с данными игры
+        """
+        # Сериализуем игроков
+        players_data = []
+        for player in self.players.values():
+            players_data.append({
+                'id': f"{self.chat_id}_{player.user_id}",
+                'user_id': player.user_id,
+                'username': player.username,
+                'role': player.role.value if player.role else None,
+                'is_alive': player.is_alive,
+                'team': player.team.value if player.team else None
+            })
+        
+        # Сериализуем голоса
+        votes_data = {}
+        for voter_id, target_id in self.votes.items():
+            votes_data[str(voter_id)] = str(target_id) if target_id else None
+        
+        # Сериализуем ночные действия
+        night_actions_data = {}
+        for actor_id, action in self.night_actions.items():
+            night_actions_data[str(actor_id)] = {
+                'action': action.get('action'),
+                'target': action.get('target'),
+                'data': action.get('data', {})
+            }
+        
+        return {
+            'id': f"game_{self.chat_id}",
+            'chat_id': self.chat_id,
+            'thread_id': self.thread_id,
+            'phase': self.phase.value,
+            'round_number': self.current_round,
+            'started_at': self.game_start_time.isoformat() if self.game_start_time else None,
+            'finished_at': None,  # Будет установлено при завершении игры
+            'winner_team': None,  # Будет установлено при завершении игры
+            'is_test_mode': self.is_test_mode,
+            'min_players': 3 if self.is_test_mode else 6,
+            'max_players': 12,
+            'day_duration': 300,
+            'night_duration': 60,
+            'voting_duration': 60,
+            'discussion_duration': 300,
+            'players': players_data,
+            'votes': votes_data,
+            'night_actions': night_actions_data,
+            'pinned_message_id': self.pinned_message_id,
+            'stage_pinned_messages': self.stage_pinned_messages,
+            'game_over_sent': self.game_over_sent,
+            'last_wolf_victim': self.last_wolf_victim,
+            'last_mole_check': self.last_mole_check,
+            'game_stats': {
+                'predator_kills': self.game_stats.predator_kills,
+                'herbivore_survivals': self.game_stats.herbivore_survivals,
+                'fox_thefts': self.game_stats.fox_thefts,
+                'beaver_protections': self.game_stats.beaver_protections
+            }
+        }
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'Game':
+        """
+        Восстанавливает состояние игры из словаря
+        
+        Args:
+            data: Словарь с данными игры
+            
+        Returns:
+            Восстановленный объект Game
+        """
+        # Создаем новый объект игры
+        game = cls(
+            chat_id=data['chat_id'],
+            thread_id=data.get('thread_id'),
+            is_test_mode=data.get('is_test_mode', True)
+        )
+        
+        # Восстанавливаем основное состояние
+        game.phase = GamePhase(data['phase'])
+        game.current_round = data.get('round_number', 0)
+        
+        # Восстанавливаем временные метки
+        if data.get('started_at'):
+            if isinstance(data['started_at'], str):
+                game.game_start_time = datetime.fromisoformat(data['started_at'])
+            else:
+                game.game_start_time = data['started_at']
+        
+        # Восстанавливаем игроков
+        game.players = {}
+        for player_data in data.get('players', []):
+            user_id = player_data['user_id']
+            role = Role(player_data['role']) if player_data.get('role') else None
+            team = Team(player_data['team']) if player_data.get('team') else None
+            
+            player = Player(
+                user_id=user_id,
+                username=player_data.get('username'),
+                role=role,
+                team=team
+            )
+            player.is_alive = player_data.get('is_alive', True)
+            game.players[user_id] = player
+        
+        # Восстанавливаем голоса
+        game.votes = {}
+        for voter_id_str, target_id_str in data.get('votes', {}).items():
+            voter_id = int(voter_id_str)
+            target_id = int(target_id_str) if target_id_str else None
+            game.votes[voter_id] = target_id
+        
+        # Восстанавливаем ночные действия
+        game.night_actions = {}
+        for actor_id_str, action_data in data.get('night_actions', {}).items():
+            actor_id = int(actor_id_str)
+            game.night_actions[actor_id] = action_data
+        
+        # Восстанавливаем UI состояние
+        game.pinned_message_id = data.get('pinned_message_id')
+        game.stage_pinned_messages = data.get('stage_pinned_messages', {})
+        game.game_over_sent = data.get('game_over_sent', False)
+        game.last_wolf_victim = data.get('last_wolf_victim')
+        game.last_mole_check = data.get('last_mole_check')
+        
+        # Восстанавливаем статистику
+        stats_data = data.get('game_stats', {})
+        game.game_stats.predator_kills = stats_data.get('predator_kills', 0)
+        game.game_stats.herbivore_survivals = stats_data.get('herbivore_survivals', 0)
+        game.game_stats.fox_thefts = stats_data.get('fox_thefts', 0)
+        game.game_stats.beaver_protections = stats_data.get('beaver_protections', 0)
+        
+        return game

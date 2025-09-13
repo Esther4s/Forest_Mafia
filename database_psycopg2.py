@@ -2484,3 +2484,281 @@ if __name__ == "__main__":
         
     except Exception as e:
         print(f"❌ Ошибка: {e}")
+
+
+# ============================================================================
+# ФУНКЦИИ ДЛЯ СОХРАНЕНИЯ И ВОССТАНОВЛЕНИЯ СОСТОЯНИЯ ИГР
+# ============================================================================
+
+def save_game_state(game_data: Dict[str, Any]) -> bool:
+    """
+    Сохраняет состояние игры в базу данных
+    
+    Args:
+        game_data: Словарь с данными игры
+        
+    Returns:
+        bool: True если сохранение успешно, False иначе
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Подготавливаем данные для сохранения
+                game_id = game_data.get('id')
+                chat_id = game_data.get('chat_id')
+                thread_id = game_data.get('thread_id')
+                status = game_data.get('phase', 'waiting')
+                phase = game_data.get('phase', 'waiting')
+                round_number = game_data.get('round_number', 0)
+                started_at = game_data.get('started_at')
+                finished_at = game_data.get('finished_at')
+                winner_team = game_data.get('winner_team')
+                
+                # Сериализуем настройки игры
+                settings = {
+                    'is_test_mode': game_data.get('is_test_mode', False),
+                    'min_players': game_data.get('min_players', 6),
+                    'max_players': game_data.get('max_players', 12),
+                    'day_duration': game_data.get('day_duration', 300),
+                    'night_duration': game_data.get('night_duration', 60),
+                    'voting_duration': game_data.get('voting_duration', 60),
+                    'discussion_duration': game_data.get('discussion_duration', 300)
+                }
+                settings_json = json.dumps(settings)
+                
+                # Проверяем, существует ли игра
+                cursor.execute("SELECT id FROM games WHERE id = %s", (game_id,))
+                existing_game = cursor.fetchone()
+                
+                if existing_game:
+                    # Обновляем существующую игру
+                    cursor.execute("""
+                        UPDATE games SET
+                            chat_id = %s,
+                            thread_id = %s,
+                            status = %s,
+                            phase = %s,
+                            round_number = %s,
+                            started_at = %s,
+                            finished_at = %s,
+                            winner_team = %s,
+                            settings = %s
+                        WHERE id = %s
+                    """, (chat_id, thread_id, status, phase, round_number, 
+                          started_at, finished_at, winner_team, settings_json, game_id))
+                else:
+                    # Создаем новую игру
+                    cursor.execute("""
+                        INSERT INTO games (id, chat_id, thread_id, status, phase, 
+                                         round_number, started_at, finished_at, 
+                                         winner_team, settings)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (game_id, chat_id, thread_id, status, phase, 
+                          round_number, started_at, finished_at, winner_team, settings_json))
+                
+                conn.commit()
+                logger.info(f"✅ Состояние игры {game_id} сохранено в БД")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения состояния игры: {e}")
+        return False
+
+
+def load_game_state(game_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Загружает состояние игры из базы данных
+    
+    Args:
+        game_id: ID игры
+        
+    Returns:
+        Dict с данными игры или None если игра не найдена
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT * FROM games WHERE id = %s
+                """, (game_id,))
+                
+                game_row = cursor.fetchone()
+                if not game_row:
+                    return None
+                
+                # Преобразуем в словарь
+                game_data = dict(game_row)
+                
+                # Парсим настройки
+                if game_data.get('settings'):
+                    try:
+                        if isinstance(game_data['settings'], str):
+                            settings = json.loads(game_data['settings'])
+                        else:
+                            settings = game_data['settings']
+                        game_data.update(settings)
+                    except (json.JSONDecodeError, TypeError) as e:
+                        logger.warning(f"⚠️ Ошибка парсинга настроек игры {game_id}: {e}")
+                
+                logger.info(f"✅ Состояние игры {game_id} загружено из БД")
+                return game_data
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка загрузки состояния игры {game_id}: {e}")
+        return None
+
+
+def load_all_active_games() -> List[Dict[str, Any]]:
+    """
+    Загружает все активные игры из базы данных
+    
+    Returns:
+        List[Dict]: Список активных игр
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT * FROM games 
+                    WHERE status IN ('waiting', 'playing', 'night', 'day', 'voting')
+                    ORDER BY created_at DESC
+                """)
+                
+                games = []
+                for game_row in cursor.fetchall():
+                    game_data = dict(game_row)
+                    
+                    # Парсим настройки
+                    if game_data.get('settings'):
+                        try:
+                            if isinstance(game_data['settings'], str):
+                                settings = json.loads(game_data['settings'])
+                            else:
+                                settings = game_data['settings']
+                            game_data.update(settings)
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.warning(f"⚠️ Ошибка парсинга настроек игры {game_data['id']}: {e}")
+                    
+                    games.append(game_data)
+                
+                logger.info(f"✅ Загружено {len(games)} активных игр из БД")
+                return games
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка загрузки активных игр: {e}")
+        return []
+
+
+def save_players_state(game_id: str, players: List[Dict[str, Any]]) -> bool:
+    """
+    Сохраняет состояние игроков игры
+    
+    Args:
+        game_id: ID игры
+        players: Список игроков
+        
+    Returns:
+        bool: True если сохранение успешно, False иначе
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Удаляем старых игроков
+                cursor.execute("DELETE FROM players WHERE game_id = %s", (game_id,))
+                
+                # Добавляем новых игроков
+                for player in players:
+                    player_id = player.get('id')
+                    user_id = player.get('user_id')
+                    username = player.get('username')
+                    first_name = player.get('first_name')
+                    role = player.get('role')
+                    is_alive = player.get('is_alive', True)
+                    team = player.get('team')
+                    
+                    cursor.execute("""
+                        INSERT INTO players (id, game_id, user_id, username, first_name, role, is_alive, team)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            user_id = EXCLUDED.user_id,
+                            username = EXCLUDED.username,
+                            first_name = EXCLUDED.first_name,
+                            role = EXCLUDED.role,
+                            is_alive = EXCLUDED.is_alive,
+                            team = EXCLUDED.team
+                    """, (player_id, game_id, user_id, username, first_name, role, is_alive, team))
+                
+                conn.commit()
+                logger.info(f"✅ Состояние игроков игры {game_id} сохранено в БД")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения игроков игры {game_id}: {e}")
+        return False
+
+
+def load_players_state(game_id: str) -> List[Dict[str, Any]]:
+    """
+    Загружает состояние игроков игры
+    
+    Args:
+        game_id: ID игры
+        
+    Returns:
+        List[Dict]: Список игроков
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                cursor.execute("""
+                    SELECT * FROM players WHERE game_id = %s
+                """, (game_id,))
+                
+                players = []
+                for player_row in cursor.fetchall():
+                    player_data = dict(player_row)
+                    players.append(player_data)
+                
+                logger.info(f"✅ Загружено {len(players)} игроков игры {game_id} из БД")
+                return players
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка загрузки игроков игры {game_id}: {e}")
+        return []
+
+
+def delete_game_state(game_id: str) -> bool:
+    """
+    Удаляет состояние игры из базы данных
+    
+    Args:
+        game_id: ID игры
+        
+    Returns:
+        bool: True если удаление успешно, False иначе
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cursor:
+                # Удаляем игроков
+                cursor.execute("DELETE FROM players WHERE game_id = %s", (game_id,))
+                
+                # Удаляем события игры
+                cursor.execute("DELETE FROM game_events WHERE game_id = %s", (game_id,))
+                
+                # Удаляем голоса
+                cursor.execute("DELETE FROM votes WHERE game_id = %s", (game_id,))
+                
+                # Удаляем действия игроков
+                cursor.execute("DELETE FROM player_actions WHERE game_id = %s", (game_id,))
+                
+                # Удаляем саму игру
+                cursor.execute("DELETE FROM games WHERE id = %s", (game_id,))
+                
+                conn.commit()
+                logger.info(f"✅ Состояние игры {game_id} удалено из БД")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления состояния игры {game_id}: {e}")
+        return False

@@ -118,84 +118,50 @@ class ForestWolvesBot:
                 logger.warning("⚠️ База данных недоступна, активные игры не загружены")
                 return
             
-            # Сначала пытаемся загрузить из сохраненного состояния
-            if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
+            from database_psycopg2 import load_all_active_games, load_players_state
+            
+            # Загружаем все активные игры
+            active_games_data = load_all_active_games()
+            
+            for game_data in active_games_data:
                 try:
-                    import asyncio
-                    asyncio.create_task(self.auto_save_manager.load_saved_state())
-                    logger.info("✅ Загружено состояние из автоматического сохранения")
-                    return
-                except Exception as e:
-                    logger.warning(f"⚠️ Не удалось загрузить из автоматического сохранения: {e}")
-            
-            # Fallback: загружаем из основной БД
-            self._load_active_games_from_db()
-                
-        except Exception as e:
-            logger.error(f"Ошибка при загрузке активных игр: {e}")
-    
-    def _load_active_games_from_db(self):
-        """Загружает активные игры из основной БД"""
-        try:
-            # Получаем все активные игры из БД через psycopg2
-            query = """
-            SELECT id, chat_id, thread_id, status, phase, round_number, 
-                   created_at, started_at, finished_at, winner_team, settings
-            FROM games 
-            WHERE status IN ('waiting', 'active')
-            """
-            active_games = fetch_query(query)
-            
-            for game_data in active_games:
-                chat_id = game_data['chat_id']
-                thread_id = game_data.get('thread_id')
-                
-                # Создаем объект игры
-                game = Game()
-                game.chat_id = chat_id
-                game.thread_id = thread_id
-                game.db_game_id = game_data['id']
-                if game_data.get('phase'):
-                    game.phase = GamePhase(game_data['phase'])
-                game.current_round = game_data.get('round_number', 0)
-                game.status = game_data.get('status', 'active')
-                
-                # Загружаем игроков
-                players_query = """
-                SELECT id, user_id, username, first_name, last_name, 
-                       role, team, is_alive
-                FROM players 
-                WHERE game_id = %s
-                """
-                players_data = fetch_query(players_query, (game_data['id'],))
-                
-                for player_data in players_data:
-                    player = Player(
-                        user_id=player_data['user_id'],
-                        username=player_data.get('username'),
-                        first_name=player_data.get('first_name'),
-                        last_name=player_data.get('last_name')
-                    )
-                    if player_data.get('role'):
-                        player.role = Role(player_data['role'])
-                    if player_data.get('team'):
-                        player.team = Team(player_data['team'])
-                    player.is_alive = player_data.get('is_alive', True)
+                    # Восстанавливаем игру из данных
+                    game = Game.from_dict(game_data)
                     
-                    game.players[player.user_id] = player
-                    self.player_games[player.user_id] = chat_id
-                
-                # Создаем NightActions и NightInterface для загруженной игры
-                self.night_actions[chat_id] = NightActions(game)
-                self.night_interfaces[chat_id] = NightInterface(game, self.night_actions[chat_id])
-                
-                # Сохраняем игру в памяти
-                self.games[chat_id] = game
-                
-                logger.info(f"✅ Загружена активная игра {game_data['id']} для чата {chat_id} с ночными действиями")
+                    # Загружаем игроков
+                    players_data = load_players_state(game_data['id'])
+                    for player_data in players_data:
+                        user_id = player_data['user_id']
+                        role = Role(player_data['role']) if player_data.get('role') else None
+                        team = Team(player_data['team']) if player_data.get('team') else None
+                        
+                        player = Player(
+                            user_id=user_id,
+                            username=player_data.get('username'),
+                            first_name=player_data.get('first_name'),
+                            role=role,
+                            team=team
+                        )
+                        player.is_alive = player_data.get('is_alive', True)
+                        game.players[user_id] = player
+                    
+                    # Добавляем игру в словарь
+                    self.games[game.chat_id] = game
+                    
+                    # Восстанавливаем ночные действия и интерфейсы
+                    self.night_actions[game.chat_id] = NightActions(game)
+                    self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id])
+                    
+                    logger.info(f"✅ Восстановлена игра в чате {game.chat_id} (фаза: {game.phase.value})")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Ошибка восстановления игры {game_data.get('id', 'unknown')}: {e}")
+                    continue
+            
+            logger.info(f"✅ Загружено {len(active_games_data)} активных игр из БД")
                 
         except Exception as e:
-            logger.error(f"Ошибка при загрузке активных игр из БД: {e}")
+            logger.error(f"❌ Ошибка при загрузке активных игр: {e}")
     
     def start_auto_save(self):
         """Запускает автоматическое сохранение"""
@@ -214,6 +180,70 @@ class ForestWolvesBot:
         if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
             self.auto_save_manager.force_save()
             logger.info("✅ Состояние принудительно сохранено")
+    
+    def save_game_state(self, chat_id: int) -> bool:
+        """
+        Сохраняет состояние игры в базу данных
+        
+        Args:
+            chat_id: ID чата с игрой
+            
+        Returns:
+            bool: True если сохранение успешно, False иначе
+        """
+        try:
+            if chat_id not in self.games:
+                return False
+            
+            game = self.games[chat_id]
+            from database_psycopg2 import save_game_state, save_players_state
+            
+            # Сериализуем игру
+            game_data = game.to_dict()
+            
+            # Сохраняем состояние игры
+            if not save_game_state(game_data):
+                logger.error(f"❌ Ошибка сохранения состояния игры в чате {chat_id}")
+                return False
+            
+            # Сохраняем игроков
+            players_data = []
+            for player in game.players.values():
+                players_data.append({
+                    'id': f"{chat_id}_{player.user_id}",
+                    'user_id': player.user_id,
+                    'username': player.username,
+                    'first_name': player.first_name,
+                    'role': player.role.value if player.role else None,
+                    'is_alive': player.is_alive,
+                    'team': player.team.value if player.team else None
+                })
+            
+            if not save_players_state(game_data['id'], players_data):
+                logger.error(f"❌ Ошибка сохранения игроков игры в чате {chat_id}")
+                return False
+            
+            logger.debug(f"✅ Состояние игры в чате {chat_id} сохранено в БД")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка сохранения состояния игры в чате {chat_id}: {e}")
+            return False
+    
+    def save_all_games_state(self) -> int:
+        """
+        Сохраняет состояние всех активных игр
+        
+        Returns:
+            int: Количество успешно сохраненных игр
+        """
+        saved_count = 0
+        for chat_id in self.games:
+            if self.save_game_state(chat_id):
+                saved_count += 1
+        
+        logger.info(f"✅ Сохранено состояние {saved_count} игр")
+        return saved_count
 
     # ---------------- helper functions ----------------
     async def can_bot_write_in_chat(self, context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> bool:
@@ -482,6 +512,9 @@ class ForestWolvesBot:
                 message += "\n✅ Можно начинать игру! Используйте `/start_game`"
             else:
                 message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+            
+            # Автосохранение состояния игры
+            self.save_game_state(chat_id)
             
             return True, message, reply_markup
         else:
@@ -2617,6 +2650,9 @@ class ForestWolvesBot:
         if hasattr(game, 'db_game_id') and game.db_game_id:
             update_game_phase(game.db_game_id, "night", game.current_round)
         
+        # Автосохранение состояния игры
+        self.save_game_state(game.chat_id)
+        
         # Открепляем сообщение о присоединении, так как игра началась
         if hasattr(game, 'pinned_message_id') and game.pinned_message_id:
             try:
@@ -2766,6 +2802,9 @@ class ForestWolvesBot:
         # Сохраняем смену фазы в базу данных
         if hasattr(game, 'db_game_id') and game.db_game_id:
             update_game_phase(game.db_game_id, "day", game.current_round)
+        
+        # Автосохранение состояния игры
+        self.save_game_state(game.chat_id)
 
         # Открепляем сообщение ночи
         await self._unpin_previous_stage_message(context, game, "day")
@@ -2821,6 +2860,9 @@ class ForestWolvesBot:
         # Сохраняем смену фазы в базу данных
         if hasattr(game, 'db_game_id') and game.db_game_id:
             update_game_phase(game.db_game_id, "voting", game.current_round)
+        
+        # Автосохранение состояния игры
+        self.save_game_state(game.chat_id)
 
         alive_players = game.get_alive_players()
         if len(alive_players) < 2:
@@ -4843,6 +4885,9 @@ class ForestWolvesBot:
         
         # Запускаем первую ночь (роли будут отправлены в start_night_phase)
         await self.start_night_phase(context, game)
+        
+        # Автосохранение состояния игры
+        self.save_game_state(chat_id)
 
     async def send_roles_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         """Отправляет роли всем игрокам в личные сообщения"""
