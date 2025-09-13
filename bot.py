@@ -450,6 +450,11 @@ class ForestWolvesBot:
             # Кнопка "Магазин"
             keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
             
+            # Кнопка "Быстрый режим" (только для админов)
+            if await self.is_user_admin(update, context):
+                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
+            
             # Кнопка "Начать игру" (если можно)
             if game.can_start_game():
                 keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
@@ -2818,6 +2823,12 @@ class ForestWolvesBot:
         # Открепляем сообщение дня
         await self._unpin_previous_stage_message(context, game, "voting")
 
+        # Создаем клавиатуру для сообщения голосования
+        voting_keyboard = [
+            [InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")]
+        ]
+        voting_reply_markup = InlineKeyboardMarkup(voting_keyboard)
+        
         # Отправляем уведомление в общий чат
         chat_message = (
             "🌲 \"Кого же мы изгоним из нашего Леса?\" - шепчут зверушки между собой.\n\n"
@@ -2829,7 +2840,8 @@ class ForestWolvesBot:
         voting_message = await context.bot.send_message(
             chat_id=game.chat_id, 
             text=chat_message, 
-            message_thread_id=game.thread_id
+            message_thread_id=game.thread_id,
+            reply_markup=voting_reply_markup
         )
         
         # Закрепляем сообщение голосования
@@ -2843,6 +2855,9 @@ class ForestWolvesBot:
             keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
             # Добавляем кнопку "Пропустить голосование"
             keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
+            # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
+            if game.chat_id != voter.user_id:
+                keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
@@ -3744,6 +3759,8 @@ class ForestWolvesBot:
             await self.show_role_settings(query, context)
         elif query.data == "settings_toggle_test":
             await self.toggle_quick_mode(query, context, game)
+        elif query.data == "toggle_quick_mode_game":
+            await self.toggle_quick_mode_from_game(query, context, game)
         elif query.data == "settings_global":
             await self.show_global_settings(query, context)
         elif query.data == "settings_players":
@@ -3996,6 +4013,101 @@ class ForestWolvesBot:
         else:
             await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
             await query.edit_message_text("❌ Ошибка при сохранении настройки в базе данных!")
+
+    async def toggle_quick_mode_from_game(self, query, context, game: Optional[Game]):
+        """Переключает быстрый режим из сообщения регистрации игры"""
+        chat_id = query.message.chat.id
+        
+        # Проверяем, можно ли изменить быстрый режим
+        if game and game.phase != GamePhase.WAITING:
+            await query.answer("❌ Нельзя изменить быстрый режим во время игры!", show_alert=True)
+            return
+
+        # Получаем текущие настройки чата
+        chat_settings = get_chat_settings(chat_id)
+        current_mode = chat_settings['test_mode']
+        new_mode = not current_mode
+        
+        # Обновляем настройки в базе данных
+        success = update_chat_settings(chat_id, test_mode=new_mode)
+        
+        if success:
+            mode_text = "ВКЛ" if new_mode else "ВЫКЛ"
+            
+            # Обновляем игру, если она есть
+            if game:
+                game.is_test_mode = new_mode
+            
+            # Получаем правильное минимальное количество игроков
+            min_players = 3 if new_mode else 6
+            
+            await query.answer(f"✅ Быстрый режим: {mode_text} (минимум: {min_players} игроков)", show_alert=True)
+            
+            # Обновляем сообщение регистрации с новыми настройками
+            await self.update_registration_message(query, context, game)
+        else:
+            await query.answer("❌ Ошибка сохранения настройки!", show_alert=True)
+
+    async def update_registration_message(self, query, context, game: Optional[Game]):
+        """Обновляет сообщение регистрации с актуальными настройками"""
+        if not game:
+            return
+            
+        chat_id = query.message.chat.id
+        max_players = getattr(game, "MAX_PLAYERS", 12)
+        
+        # Формируем список игроков с кликабельными никнеймами
+        players_list = ""
+        for player in game.players.values():
+            player_tag = self.format_player_tag(player.username, player.user_id, make_clickable=True)
+            players_list += f"• {player_tag}\n"
+        
+        # Создаем сообщение регистрации
+        message = (
+            f"🌲 <b>Лес и Волки - Регистрация</b> 🌲\n\n"
+            f"👥 Игроков: {len(game.players)}/{max_players}\n"
+            f"📋 Минимум для старта: {self.global_settings.get_min_players()}\n\n"
+            f"📝 Участники:\n{players_list}"
+        )
+        
+        if game.can_start_game():
+            message += "\n✅ Можно начинать игру!"
+        else:
+            message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+        
+        # Создаем клавиатуру с обновленными настройками
+        keyboard = []
+        
+        # Кнопка "Присоединиться" - всегда первая
+        keyboard.append([InlineKeyboardButton("✅ Присоединиться", callback_data="join_game")])
+        
+        # Кнопка "Выйти из регистрации"
+        keyboard.append([InlineKeyboardButton("❌ Выйти из регистрации", callback_data="leave_registration")])
+        
+        # Кнопка "Посмотреть свою роль" (повторяет сообщения с кнопками действий)
+        if game.phase != GamePhase.WAITING:
+            keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", callback_data="repeat_role_actions")])
+        
+        # Кнопка "Магазин"
+        keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
+        
+        # Кнопка "Быстрый режим" (только для админов)
+        if await self.is_user_admin(query, context):
+            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
+            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
+        
+        # Кнопка "Начать игру" (если можно)
+        if game.can_start_game():
+            keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
+        
+        # Кнопка "Отменить игру" (только для админов)
+        if await self.is_user_admin(query, context):
+            keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        # Обновляем сообщение
+        await query.edit_message_text(message, reply_markup=reply_markup, parse_mode='HTML')
 
     async def show_global_settings(self, query, context):
         """Показывает глобальные настройки бота"""
@@ -6665,6 +6777,9 @@ class ForestWolvesBot:
             
             if keyboard:
                 keyboard.append([InlineKeyboardButton("❌ Пропустить", callback_data="vote_skip")])
+                # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
+                if game.chat_id != player.user_id:
+                    keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.message.reply_text(message, reply_markup=reply_markup)
             else:
