@@ -101,10 +101,10 @@ class CallbackHandler:
             team_name = "🦁 Хищники" if player.team == Team.PREDATORS else "🌿 Травоядные"
             
             role_text = (
-                f"🎭 **Ваша роль в игре:**\n\n"
+                f"🎭 <b>Ваша роль в игре:</b>\n\n"
                 f"👤 {role_info['name']}\n"
                 f"🏴 Команда: {team_name}\n\n"
-                f"📝 **Описание:**\n{role_info['description']}\n\n"
+                f"📝 <b>Описание:</b>\n{role_info['description']}\n\n"
                 f"🌙 Раунд: {game.current_round}\n"
                 f"💚 Статус: {'Живой' if player.is_alive else 'Мертвый'}"
             )
@@ -318,7 +318,7 @@ class CallbackHandler:
             balance_info = balance_manager.get_user_balance_info(user_id)
             
             stats_text = (
-                f"📊 **Ваша статистика:**\n\n"
+                f"📊 <b>Ваша статистика:</b>\n\n"
                 f"💰 Баланс: {balance_info['balance']} орешков\n"
                 f"🏆 Всего наград: {stats['total_rewards']}\n"
                 f"💎 Общая сумма: {stats['total_amount']} орешков\n"
@@ -349,7 +349,7 @@ class CallbackHandler:
             game_stats = game.get_game_statistics()
             
             stats_text = (
-                f"📊 **Статистика игры:**\n\n"
+                f"📊 <b>Статистика игры:</b>\n\n"
                 f"🔄 Раунд: {game_stats['current_round']}\n"
                 f"👥 Живых игроков: {game_stats['alive_players']}\n"
                 f"🦁 Хищников: {game_stats['predators']}\n"
@@ -378,7 +378,7 @@ class CallbackHandler:
             balance_info = balance_manager.get_user_balance_info(user_id)
             
             balance_text = (
-                f"💰 **Информация о балансе:**\n\n"
+                f"💰 <b>Информация о балансе:</b>\n\n"
                 f"💎 Текущий баланс: {balance_info['balance']} орешков\n"
                 f"👤 Пользователь: {balance_info['user_id']}\n"
                 f"📅 Создан: {balance_info.get('created_at', 'Неизвестно')}\n"
@@ -403,11 +403,11 @@ class CallbackHandler:
             total_stats = rewards_system.get_user_total_rewards(user_id)
             
             rewards_text = (
-                f"🏆 **Информация о наградах:**\n\n"
+                f"🏆 <b>Информация о наградах:</b>\n\n"
                 f"📊 Всего наград: {total_stats['total_rewards']}\n"
                 f"💎 Общая сумма: {total_stats['total_amount']} орешков\n"
                 f"📈 Средняя награда: {total_stats['average_amount']:.1f} орешков\n\n"
-                f"🎯 **Последние награды:**\n"
+                f"🎯 <b>Последние награды:</b>\n"
             )
             
             for reward in rewards[:5]:  # Показываем только последние 5
@@ -483,13 +483,13 @@ class CallbackHandler:
         try:
             # Формируем текст панели
             panel_text = (
-                f"⚙️ **Панель администратора** ⚙️\n\n"
+                f"⚙️ <b>Панель администратора</b> ⚙️\n\n"
                 f"🎮 Игра: {game.chat_id}\n"
                 f"📋 Фаза: {self._get_phase_name(game.phase)}\n"
                 f"🔄 Раунд: {game.current_round}\n"
                 f"👥 Игроков: {len(game.players)}\n"
                 f"💚 Живых: {len(game.get_alive_players())}\n\n"
-                f"🛠️ **Доступные действия:**"
+                f"🛠️ <b>Доступные действия:</b>"
             )
             
             # Создаем клавиатуру
@@ -525,7 +525,7 @@ class CallbackHandler:
         """Отправляет результаты голосования"""
         try:
             if exiled_player:
-                message = f"🗳️ **Результаты голосования** 🗳️\n\n❌ {exiled_player.username} изгнан из леса!"
+                message = f"🗳️ <b>Результаты голосования</b> 🗳️\n\n❌ {exiled_player.username} изгнан из леса!"
             else:
                 import random
                 no_exile_messages = [
@@ -534,7 +534,7 @@ class CallbackHandler:
                     "🌲 Животные переглядывались с недоверием, но так и не нашли виновного.",
                     "🌙 Никого не изгнали. Лес уснул с нераскрытой загадкой."
                 ]
-                message = f"🗳️ **Результаты голосования** 🗳️\n\n{random.choice(no_exile_messages)}"
+                message = f"🗳️ <b>Результаты голосования</b> 🗳️\n\n{random.choice(no_exile_messages)}"
             
             await context.bot.send_message(
                 chat_id=game.chat_id,

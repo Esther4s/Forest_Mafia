@@ -165,7 +165,7 @@ class ForestWolvesSettings:
         auto_end = self.global_settings.get("auto_end_conditions", {})
         
         return (
-            "🌲 *Настройки Лес и Волки* 🌲\n\n"
+            "🌲 <b>Настройки Лес и Волки</b> 🌲\n\n"
             f"🦊 Порог смерти лисы: {forest_features.get('fox_death_threshold', 2)} кражи\n"
             f"🦦 Защита бобра: {'ВКЛ' if forest_features.get('beaver_protection_enabled', True) else 'ВЫКЛ'}\n"
             f"🦫 Порог раскрытия крота: {int(forest_features.get('mole_revelation_threshold', 0.8) * 100)}%\n"
