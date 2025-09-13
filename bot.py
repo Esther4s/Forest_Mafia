@@ -4012,31 +4012,27 @@ class ForestWolvesBot:
         # Обрабатываем конкретные настройки ролей
         if query.data.startswith("role_wolves_"):
             percentage = int(query.data.split("_")[2])
-            self.global_settings.set("role_distribution", {
-                *self.global_settings.get("role_distribution", {}),
-                "wolves": percentage / 100.0
-            })
+            current_distribution = self.global_settings.get("role_distribution", {})
+            current_distribution["wolves"] = percentage / 100.0
+            self.global_settings.set("role_distribution", current_distribution)
             await query.edit_message_text(f"🐺 Доля волков изменена на {percentage}%!\n\n✅ Настройка сохранена и будет применена для следующих игр.")
         elif query.data.startswith("role_fox_"):
             percentage = int(query.data.split("_")[2])
-            self.global_settings.set("role_distribution", {
-                *self.global_settings.get("role_distribution", {}),
-                "fox": percentage / 100.0
-            })
+            current_distribution = self.global_settings.get("role_distribution", {})
+            current_distribution["fox"] = percentage / 100.0
+            self.global_settings.set("role_distribution", current_distribution)
             await query.edit_message_text(f"🦊 Доля лисы изменена на {percentage}%!\n\n✅ Настройка сохранена и будет применена для следующих игр.")
         elif query.data.startswith("role_mole_"):
             percentage = int(query.data.split("_")[2])
-            self.global_settings.set("role_distribution", {
-                *self.global_settings.get("role_distribution", {}),
-                "mole": percentage / 100.0
-            })
+            current_distribution = self.global_settings.get("role_distribution", {})
+            current_distribution["mole"] = percentage / 100.0
+            self.global_settings.set("role_distribution", current_distribution)
             await query.edit_message_text(f"🦫 Доля крота изменена на {percentage}%!\n\n✅ Настройка сохранена и будет применена для следующих игр.")
         elif query.data.startswith("role_beaver_"):
             percentage = int(query.data.split("_")[2])
-            self.global_settings.set("role_distribution", {
-                *self.global_settings.get("role_distribution", {}),
-                "beaver": percentage / 100.0
-            })
+            current_distribution = self.global_settings.get("role_distribution", {})
+            current_distribution["beaver"] = percentage / 100.0
+            self.global_settings.set("role_distribution", current_distribution)
             await query.edit_message_text(f"🦦 Доля бобра изменена на {percentage}%!\n\n✅ Настройка сохранена и будет применена для следующих игр.")
         else:
             # Показываем настройки ролей
