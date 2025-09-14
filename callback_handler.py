@@ -615,6 +615,21 @@ class CallbackHandler:
                 else:
                     await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
+            elif len(parts) >= 2 and parts[1] == "skip":
+                # Обрабатываем пропуск хода
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.skip_action(user_id)
+                    
+                    if success:
+                        await query.edit_message_text("⏭️ Вы пропустили ход")
+                    else:
+                        await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия волка: {e}")
             await query.answer("❌ Произошла ошибка!", show_alert=True)
@@ -661,6 +676,21 @@ class CallbackHandler:
                 else:
                     await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
+            elif len(parts) >= 2 and parts[1] == "skip":
+                # Обрабатываем пропуск хода
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.skip_action(user_id)
+                    
+                    if success:
+                        await query.edit_message_text("⏭️ Вы пропустили ход")
+                    else:
+                        await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия лисы: {e}")
             await query.answer("❌ Произошла ошибка!", show_alert=True)
@@ -688,7 +718,7 @@ class CallbackHandler:
                 return
             
             # Обрабатываем действие
-            if len(parts) >= 3 and parts[1] == "dig":
+            if len(parts) >= 3 and parts[1] == "check":
                 target_id = int(parts[2])
                 
                 # Получаем ночные действия
@@ -701,9 +731,24 @@ class CallbackHandler:
                     if success:
                         target = game.players[target_id]
                         display_name = self.get_display_name(target.user_id, target.username, target.first_name)
-                        await query.edit_message_text(f"🕳️ Вы выбрали цель для копания: {display_name}")
+                        await query.edit_message_text(f"🦫 Вы выбрали цель для проверки: {display_name}")
                     else:
                         await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+            elif len(parts) >= 2 and parts[1] == "skip":
+                # Обрабатываем пропуск хода
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.skip_action(user_id)
+                    
+                    if success:
+                        await query.edit_message_text("⏭️ Вы пропустили ход")
+                    else:
+                        await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
                 else:
                     await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
@@ -734,7 +779,7 @@ class CallbackHandler:
                 return
             
             # Обрабатываем действие
-            if len(parts) >= 3 and parts[1] == "protect":
+            if len(parts) >= 3 and parts[1] == "help":
                 target_id = int(parts[2])
                 
                 # Получаем ночные действия
@@ -747,9 +792,24 @@ class CallbackHandler:
                     if success:
                         target = game.players[target_id]
                         display_name = self.get_display_name(target.user_id, target.username, target.first_name)
-                        await query.edit_message_text(f"🦫 Вы выбрали цель для защиты: {display_name}")
+                        await query.edit_message_text(f"🦦 Вы выбрали цель для помощи: {display_name}")
                     else:
                         await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+            elif len(parts) >= 2 and parts[1] == "skip":
+                # Обрабатываем пропуск хода
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.skip_action(user_id)
+                    
+                    if success:
+                        await query.edit_message_text("⏭️ Вы пропустили ход")
+                    else:
+                        await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
                 else:
                     await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             

@@ -42,15 +42,38 @@ class NightInterface:
                 display_name = target.username or target.first_name or f"ID:{target.user_id}"
             button_text = f"{current_mark}{display_name}"
 
+            # Создаем правильный формат callback_data для каждой роли
+            if actions['type'] == 'wolf':
+                callback_data = f"wolf_kill_{target.user_id}"
+            elif actions['type'] == 'fox':
+                callback_data = f"fox_steal_{target.user_id}"
+            elif actions['type'] == 'beaver':
+                callback_data = f"beaver_help_{target.user_id}"
+            elif actions['type'] == 'mole':
+                callback_data = f"mole_check_{target.user_id}"
+            else:
+                callback_data = f"night_{actions['type']}_{target.user_id}"
+
             keyboard.append([InlineKeyboardButton(
                 button_text,
-                callback_data=f"night_{actions['type']}_{target.user_id}"
+                callback_data=callback_data
             )])
 
         # Всегда добавляем кнопку "Пропустить ход"
+        if actions['type'] == 'wolf':
+            skip_callback = "wolf_skip"
+        elif actions['type'] == 'fox':
+            skip_callback = "fox_skip"
+        elif actions['type'] == 'beaver':
+            skip_callback = "beaver_skip"
+        elif actions['type'] == 'mole':
+            skip_callback = "mole_skip"
+        else:
+            skip_callback = f"night_{actions['type']}_skip"
+
         keyboard.append([InlineKeyboardButton(
             "⏭️ Пропустить ход",
-            callback_data=f"night_{actions['type']}_skip"
+            callback_data=skip_callback
         )])
 
         # Добавляем кнопку "Посмотреть роль"
