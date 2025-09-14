@@ -989,7 +989,7 @@ class ForestWolvesBot:
             logger.error(f"❌ Ошибка получения магазина: {e}")
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            await update.message.reply_text("❌ Произошла ошибка при получении магазина. Попробуйте позже.")
+            await update.message.reply_text("❌ Произошла ошибка при получении магазина. Попробуйте позже.", parse_mode='HTML')
 
     async def game_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Создает запись в таблице games для пользователя"""
@@ -3353,7 +3353,7 @@ class ForestWolvesBot:
         # Проверяем пропуск голосования
         if query.data == "vote_skip":
             # Добавляем голос "пропустить" в игру
-            success, already_voted = game.vote(user_id, None)  # None означает пропуск
+            success = game.vote(user_id, None)  # None означает пропуск
             if success:
                 await query.edit_message_text("⏭️ Вы пропустили голосование!\n\n🕐 Ожидайте результатов голосования...")
                 
@@ -3375,10 +3375,12 @@ class ForestWolvesBot:
             await query.answer("❌ Вы не можете голосовать за себя!\n\n🔄 Выберите другого игрока для голосования.", show_alert=True)
             return
         
-        success, already_voted = game.vote(user_id, target_id)
+        success = game.vote(user_id, target_id)
         
         if success:
             target_player = game.players[target_id]
+            # Проверяем, голосовал ли игрок ранее
+            already_voted = user_id in game.votes
             if already_voted:
                 await query.edit_message_text(f"🔄 Ваш голос изменен!\nТеперь вы голосуете за изгнание: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
             else:
@@ -6751,7 +6753,7 @@ class ForestWolvesBot:
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await query.message.reply_text(message, reply_markup=reply_markup)
+                    await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                 else:
                     await query.answer("❌ Нет доступных целей!", show_alert=True)
                     
@@ -6773,7 +6775,7 @@ class ForestWolvesBot:
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await query.message.reply_text(message, reply_markup=reply_markup)
+                    await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                 else:
                     await query.answer("❌ Нет доступных целей!", show_alert=True)
                     
@@ -6795,7 +6797,7 @@ class ForestWolvesBot:
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await query.message.reply_text(message, reply_markup=reply_markup)
+                    await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                 else:
                     await query.answer("❌ Нет доступных целей!", show_alert=True)
                     
@@ -6817,7 +6819,7 @@ class ForestWolvesBot:
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await query.message.reply_text(message, reply_markup=reply_markup)
+                    await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
                 else:
                     await query.answer("❌ Нет доступных целей!", show_alert=True)
                     
@@ -6828,7 +6830,7 @@ class ForestWolvesBot:
                     "🌙 <b>Ночная фаза</b>\n\n"
                     "У вас нет ночных действий. Отдыхайте и ждите утра!"
                 )
-                await query.message.reply_text(message)
+                await query.message.reply_text(message, parse_mode='HTML')
                 
         except Exception as e:
             logger.error(f"❌ Ошибка отправки ночных действий: {e}")
@@ -6845,7 +6847,7 @@ class ForestWolvesBot:
                 f"🎯 <b>Ваша цель:</b> {'Уничтожить всех травоядных' if player.team == Team.PREDATORS else 'Найти и изгнать всех хищников'}"
             )
             
-            await query.message.reply_text(message)
+            await query.message.reply_text(message, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка отправки дневных действий: {e}")
@@ -6875,9 +6877,9 @@ class ForestWolvesBot:
                 if game.chat_id != player.user_id:
                     keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
                 reply_markup = InlineKeyboardMarkup(keyboard)
-                await query.message.reply_text(message, reply_markup=reply_markup)
+                await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
             else:
-                await query.message.reply_text(message)
+                await query.message.reply_text(message, parse_mode='HTML')
                 
         except Exception as e:
             logger.error(f"❌ Ошибка отправки действий голосования: {e}")
