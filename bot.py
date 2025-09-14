@@ -351,6 +351,24 @@ class ForestWolvesBot:
         return True
 
     # ---------------- helper functions for game logic ----------------
+    def get_display_name(self, user_id: int, username: str = None, first_name: str = None) -> str:
+        """Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)"""
+        try:
+            from database_psycopg2 import get_user_nickname
+            nickname = get_user_nickname(user_id)
+            if nickname:
+                return nickname
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка получения никнейма для пользователя {user_id}: {e}")
+        
+        # Если никнейма нет, используем username или first_name
+        if username and not username.isdigit():
+            return username
+        elif first_name:
+            return first_name
+        else:
+            return f"ID:{user_id}"
+
     def format_player_tag(self, username: str, user_id: int, make_clickable: bool = True) -> str:
         """Форматирует тег игрока для отображения с учетом никнейма"""
         try:
@@ -2921,7 +2939,7 @@ class ForestWolvesBot:
         for voter in alive_players:
             # Исключаем самого голосующего из списка целей
             voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
-            keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
+            keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, p.first_name)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
             # Добавляем кнопку "Пропустить голосование"
             keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
             # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
@@ -3706,7 +3724,7 @@ class ForestWolvesBot:
                 for voter in alive_players:
                     # Исключаем самого голосующего из списка целей
                     voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
-                    keyboard = [[InlineKeyboardButton(f"🗳️ {p.username}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
+                    keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, p.first_name)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
                     # Добавляем кнопку "Пропустить голосование"
                     keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
                     reply_markup_voting = InlineKeyboardMarkup(keyboard)
@@ -6152,14 +6170,17 @@ class ForestWolvesBot:
             if not chat_id:
                 return False, "❌ Не удалось определить чат для отправки прощального сообщения"
             
+            # Получаем отображаемое имя пользователя
+            display_name = self.get_display_name(user_id, username, None)
+            
             # Получаем прощальное сообщение по типу
             farewell_messages = {
-                "forest": f"🌲 {username} прощается с лесом: \"Спасибо за игру, друзья! Лес навсегда останется в моём сердце... 🌿\"",
-                "wolf": f"🐺 {username} воет на прощание: \"Аууу! Было круто охотиться с вами! Увидимся в звёздном лесу! 🌙\"",
-                "fox": f"🦊 {username} машет хвостом: \"Хи-хи! Какая интересная игра! Надеюсь, вы не забудете мои хитрости! 🍇\"",
-                "hare": f"🐰 {username} подпрыгивает: \"Прыг-скок! Спасибо за веселье! Лес полон чудес! 🥕\"",
-                "beaver": f"🦫 {username} стучит хвостом: \"Тук-тук! Отличная работа, команда! Строим мосты дружбы! 🌉\"",
-                "mole": f"🕳️ {username} выглядывает из норки: \"Копаю-копаю! Было интересно рыть туннели! До встречи! 🕳️\""
+                "forest": f"🌲 {display_name} прощается с лесом: \"Спасибо за игру, друзья! Лес навсегда останется в моём сердце... 🌿\"",
+                "wolf": f"🐺 {display_name} воет на прощание: \"Аууу! Было круто охотиться с вами! Увидимся в звёздном лесу! 🌙\"",
+                "fox": f"🦊 {display_name} машет хвостом: \"Хи-хи! Какая интересная игра! Надеюсь, вы не забудете мои хитрости! 🍇\"",
+                "hare": f"🐰 {display_name} подпрыгивает: \"Прыг-скок! Спасибо за веселье! Лес полон чудес! 🥕\"",
+                "beaver": f"🦫 {display_name} стучит хвостом: \"Тук-тук! Отличная работа, команда! Строим мосты дружбы! 🌉\"",
+                "mole": f"🕳️ {display_name} выглядывает из норки: \"Копаю-копаю! Было интересно рыть туннели! До встречи! 🕳️\""
             }
             
             message = farewell_messages.get(farewell_type, farewell_messages["forest"])
@@ -6346,8 +6367,11 @@ class ForestWolvesBot:
                 await update.message.reply_text("❌ Не удалось определить чат для отправки прощального сообщения.")
                 return
             
+            # Получаем отображаемое имя пользователя
+            display_name = self.get_display_name(user_id, username, None)
+            
             # Формируем сообщение
-            farewell_message = f"💬 {username} прощается: \"{message_text}\""
+            farewell_message = f"💬 {display_name} прощается: \"{message_text}\""
             
             # Отправляем в чат игры
             try:
@@ -6747,8 +6771,8 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.role != Role.WOLF:
-                        username = p.username or p.first_name or f"Игрок {player_id}"
-                        keyboard.append([InlineKeyboardButton(f"🎯 {username}", callback_data=f"wolf_kill_{player_id}")])
+                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        keyboard.append([InlineKeyboardButton(f"🎯 {display_name}", callback_data=f"wolf_kill_{player_id}")])
                 
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
@@ -6769,8 +6793,8 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.team == Team.HERBIVORES:
-                        username = p.username or p.first_name or f"Игрок {player_id}"
-                        keyboard.append([InlineKeyboardButton(f"💰 {username}", callback_data=f"fox_steal_{player_id}")])
+                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        keyboard.append([InlineKeyboardButton(f"💰 {display_name}", callback_data=f"fox_steal_{player_id}")])
                 
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
@@ -6791,8 +6815,8 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.role != Role.MOLE:
-                        username = p.username or p.first_name or f"Игрок {player_id}"
-                        keyboard.append([InlineKeyboardButton(f"🔍 {username}", callback_data=f"mole_check_{player_id}")])
+                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        keyboard.append([InlineKeyboardButton(f"🔍 {display_name}", callback_data=f"mole_check_{player_id}")])
                 
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
@@ -6813,8 +6837,8 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.team == Team.HERBIVORES and p.role != Role.BEAVER:
-                        username = p.username or p.first_name or f"Игрок {player_id}"
-                        keyboard.append([InlineKeyboardButton(f"🛡️ {username}", callback_data=f"beaver_protect_{player_id}")])
+                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        keyboard.append([InlineKeyboardButton(f"🛡️ {display_name}", callback_data=f"beaver_protect_{player_id}")])
                 
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])
@@ -6868,8 +6892,8 @@ class ForestWolvesBot:
             keyboard = []
             for player_id, p in game.players.items():
                 if p.is_alive and p.user_id != player.user_id:
-                    username = p.username or p.first_name or f"Игрок {player_id}"
-                    keyboard.append([InlineKeyboardButton(f"🗳️ {username}", callback_data=f"vote_{player_id}")])
+                    display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                    keyboard.append([InlineKeyboardButton(f"🗳️ {display_name}", callback_data=f"vote_{player_id}")])
             
             if keyboard:
                 keyboard.append([InlineKeyboardButton("❌ Пропустить", callback_data="vote_skip")])
