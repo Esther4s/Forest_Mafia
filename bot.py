@@ -2849,51 +2849,6 @@ class ForestWolvesBot:
         # Закрепляем сообщение ночи
         await self._pin_stage_message(context, game, "night", night_message.message_id)
 
-        # ЛС с ролями
-        for player in game.players.values():
-            role_info = self.get_role_info(player.role)
-            try:
-                await context.bot.send_message(chat_id=player.user_id, text=f"🎭 Ваша роль: {role_info['name']}\n\n{role_info['description']}")
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение игроку {player.user_id}: {e}")
-
-        # Wolves intro
-        wolves = game.get_players_by_role(Role.WOLF)
-        if len(wolves) > 1:
-            wolves_text = f"🐺 {', '.join([w.username for w in wolves])}, так-так-так, а вот и наши голодные волки. 🐺 Знакомьтесь, точите зубки (да хоть друг-другу), следующей ночью вы выходите на охоту 😈"
-            for wolf in wolves:
-                try:
-                    await context.bot.send_message(chat_id=wolf.user_id, text=wolves_text)
-                except Exception as e:
-                    logger.error(f"Не удалось отправить сообщение волку {wolf.user_id}: {e}")
-
-        # Mole intro
-        moles = game.get_players_by_role(Role.MOLE)
-        for mole in moles:
-            try:
-                mole_text = "🦫 Вот ты где, дружок <b>Крот</b>! Не устал еще ночью рыть норки, попадая в домики других зверей? А хотя... Знаешь, это может быть очень полезно, ведь так можно узнать кто они на самом деле!"
-                await context.bot.send_message(chat_id=mole.user_id, text=mole_text, parse_mode='HTML')
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение кроту {mole.user_id}: {e}")
-
-        # Beaver intro
-        beavers = game.get_players_by_role(Role.BEAVER)
-        for beaver in beavers:
-            try:
-                beaver_text = "🦦 Наш <b>Бобёр</b> весьма хитёр – всё добро несёт в шатёр. У <b>бобра</b> в шатре добра – бочка, кадка, два ведра!"
-                await context.bot.send_message(chat_id=beaver.user_id, text=beaver_text, parse_mode='HTML')
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение бобру {beaver.user_id}: {e}")
-
-        # Fox intro
-        foxes = game.get_players_by_role(Role.FOX)
-        for fox in foxes:
-            try:
-                fox_text = "🦊 Жила-была <b>Лиса</b>-воровка, да не подвела ее сноровка! 🦊"
-                await context.bot.send_message(chat_id=fox.user_id, text=fox_text, parse_mode='HTML')
-            except Exception as e:
-                logger.error(f"Не удалось отправить сообщение лисе {fox.user_id}: {e}")
-
         # Отправляем роли всем игрокам (только в первой ночи)
         if game.current_round == 1:
             await self.send_roles_to_players(context, game)
@@ -3056,8 +3011,9 @@ class ForestWolvesBot:
             # Добавляем кнопку "Пропустить голосование"
             keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
             # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
-            if game.chat_id != voter.user_id:
-                keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
+            # В данном случае сообщение всегда отправляется в личные сообщения, поэтому кнопка не нужна
+            # if game.chat_id != voter.user_id:
+            #     keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             try:
@@ -6409,22 +6365,23 @@ class ForestWolvesBot:
                     
                     # Ищем последнюю игру пользователя в базе данных
                     query = """
-                        SELECT chat_id, thread_id, game_data, created_at, updated_at
-                        FROM active_games_state 
-                        WHERE (game_data->>'phase' = 'finished' OR game_data->>'phase' = 'GAME_OVER')
-                        AND game_data->'players' ? %s
-                        ORDER BY updated_at DESC 
+                        SELECT g.chat_id, g.thread_id, g.finished_at, g.updated_at
+                        FROM games g
+                        JOIN players p ON g.id = p.game_id
+                        WHERE p.user_id = %s
+                        AND (g.phase = 'finished' OR g.phase = 'GAME_OVER')
+                        ORDER BY g.updated_at DESC 
                         LIMIT 1
                     """
                     
-                    result = fetch_query(query, (str(user_id),))
+                    result = fetch_query(query, (user_id,))
                     if result:
                         game_data = result[0]
                         last_game_chat_id = game_data['chat_id']
                         last_game = {
                             'chat_id': game_data['chat_id'],
                             'thread_id': game_data['thread_id'],
-                            'updated_at': game_data['updated_at']
+                            'updated_at': game_data['finished_at'] or game_data['updated_at']
                         }
                         logger.info(f"Найдена завершенная игра в БД для пользователя {user_id} в чате {last_game_chat_id}")
                     else:
@@ -6432,21 +6389,22 @@ class ForestWolvesBot:
                         
                         # Дополнительная проверка: ищем любую игру с этим пользователем
                         query_any = """
-                            SELECT chat_id, thread_id, game_data, created_at, updated_at
-                            FROM active_games_state 
-                            WHERE game_data->'players' ? %s
-                            ORDER BY updated_at DESC 
+                            SELECT g.chat_id, g.thread_id, g.finished_at, g.updated_at
+                            FROM games g
+                            JOIN players p ON g.id = p.game_id
+                            WHERE p.user_id = %s
+                            ORDER BY g.updated_at DESC 
                             LIMIT 1
                         """
                         
-                        result_any = fetch_query(query_any, (str(user_id),))
+                        result_any = fetch_query(query_any, (user_id,))
                         if result_any:
                             game_data = result_any[0]
                             last_game_chat_id = game_data['chat_id']
                             last_game = {
                                 'chat_id': game_data['chat_id'],
                                 'thread_id': game_data['thread_id'],
-                                'updated_at': game_data['updated_at']
+                                'updated_at': game_data['finished_at'] or game_data['updated_at']
                             }
                             logger.info(f"Найдена любая игра в БД для пользователя {user_id} в чате {last_game_chat_id}")
                         
@@ -6464,6 +6422,19 @@ class ForestWolvesBot:
                 logger.warning(f"Прощальное сообщение: игра не найдена для пользователя {user_id}")
                 return False, "❌ Игра не найдена! Прощальное сообщение можно отправить только после участия в игре.", {}
             
+            # Проверяем, не началась ли уже новая игра в том же чате
+            if last_game_chat_id in self.games:
+                current_game = self.games[last_game_chat_id]
+                if current_game.phase != 'finished' and user_id not in [player.user_id for player in current_game.players.values()]:
+                    return False, "❌ В чате уже началась новая игра! Прощальное сообщение можно отправить только после окончания игры.", {}
+            
+            # Проверяем время (не позже чем через 24 часа после окончания)
+            game_end_time = None
+            if hasattr(last_game, 'updated_at'):
+                game_end_time = last_game.updated_at
+            elif isinstance(last_game, dict):
+                game_end_time = last_game.get('updated_at')
+            
             # Если игра найдена, но время не удается определить, разрешаем прощальное сообщение
             if not game_end_time:
                 logger.info(f"Время окончания игры не определено для пользователя {user_id}, разрешаем прощальное сообщение")
@@ -6477,19 +6448,6 @@ class ForestWolvesBot:
                 else:
                     game_dict = last_game
                 return True, "", game_dict
-            
-            # Проверяем, не началась ли уже новая игра в том же чате
-            if last_game_chat_id in self.games:
-                current_game = self.games[last_game_chat_id]
-                if current_game.phase != 'finished' and user_id not in [player.user_id for player in current_game.players.values()]:
-                    return False, "❌ В чате уже началась новая игра! Прощальное сообщение можно отправить только после окончания игры.", {}
-            
-            # Проверяем время (не позже чем через 24 часа после окончания)
-            game_end_time = None
-            if hasattr(last_game, 'updated_at'):
-                game_end_time = last_game.updated_at
-            elif isinstance(last_game, dict):
-                game_end_time = last_game.get('updated_at')
             
             if game_end_time:
                 try:
@@ -7290,8 +7248,9 @@ class ForestWolvesBot:
             if keyboard:
                 keyboard.append([InlineKeyboardButton("❌ Пропустить", callback_data="vote_skip")])
                 # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
-                if game.chat_id != player.user_id:
-                    keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
+                # В данном случае сообщение всегда отправляется в личные сообщения, поэтому кнопка не нужна
+                # if game.chat_id != player.user_id:
+                #     keyboard.append([InlineKeyboardButton("💬 Перейти в ЛС с ботом", url=f"https://t.me/{context.bot.username}")])
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
             else:
