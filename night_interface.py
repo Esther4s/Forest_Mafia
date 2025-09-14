@@ -12,13 +12,17 @@ class NightInterface:
 
     async def send_night_actions_menu(self, context: ContextTypes.DEFAULT_TYPE, player_id: int):
         """Отправляет меню ночных действий для игрока"""
+        print(f"🌙 send_night_actions_menu вызван для игрока {player_id}")
         actions = self.night_actions.get_player_actions(player_id)
+        print(f"🌙 Действия для игрока {player_id}: {actions}")
 
         if not actions:
+            print(f"❌ Нет действий для игрока {player_id}")
             return
 
         player = self.game.players.get(player_id)
         if not player:
+            print(f"❌ Игрок {player_id} не найден в игре")
             return
 
         # Создаем заголовок в зависимости от роли
@@ -80,13 +84,16 @@ class NightInterface:
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         try:
+            print(f"🌙 Отправка меню игроку {player_id}: {header}")
+            print(f"🌙 Клавиатура: {len(keyboard)} кнопок")
             await context.bot.send_message(
                 chat_id=player_id,
                 text=header,
                 reply_markup=reply_markup
             )
+            print(f"✅ Меню успешно отправлено игроку {player_id}")
         except Exception as e:
-            print(f"Не удалось отправить меню ночных действий игроку {player_id}: {e}")
+            print(f"❌ Не удалось отправить меню ночных действий игроку {player_id}: {e}")
 
     async def handle_night_action(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает выбор ночного действия"""
@@ -362,9 +369,11 @@ class NightInterface:
     async def send_role_reminders(self, context: ContextTypes.DEFAULT_TYPE):
         """Отправляет напоминания о ролях игрокам с ночными действиями"""
         night_roles = [Role.WOLF, Role.FOX, Role.BEAVER, Role.MOLE]
+        print(f"🌙 Отправка напоминаний о ролях. Игроки: {list(self.game.players.keys())}")
 
         for player in self.game.players.values():
             if player.is_alive and player.role in night_roles:
+                print(f"🌙 Отправка напоминания игроку {player.user_id} с ролью {player.role}")
                 role_info = self.get_role_info(player.role)
 
                 reminder_text = (
@@ -381,10 +390,11 @@ class NightInterface:
                     )
 
                     # Отправляем меню действий
+                    print(f"🌙 Отправка меню действий игроку {player.user_id}")
                     await self.send_night_actions_menu(context, player.user_id)
 
                 except Exception as e:
-                    print(f"Не удалось отправить напоминание игроку {player.user_id}: {e}")
+                    print(f"❌ Не удалось отправить напоминание игроку {player.user_id}: {e}")
 
     def get_role_info(self, role: Role) -> Dict[str, str]:
         """Возвращает информацию о роли"""

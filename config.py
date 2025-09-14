@@ -24,7 +24,7 @@ class DatabaseConfig:
 @dataclass(frozen=True)
 class GameConfig:
     """Конфигурация игровых параметров"""
-    min_players_normal: int = 6
+    min_players_normal: int = 3  # Изменено с 6 на 3
     min_players_test: int = 3
     max_players: int = 12
     

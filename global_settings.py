@@ -8,7 +8,7 @@ class GlobalSettings:
         self.settings_file = settings_file
         self.default_settings = {
             "test_mode": False,
-            "min_players_normal": 6,
+            "min_players_normal": 3,  # Изменено с 6 на 3
             "min_players_test": 3,
             "max_players": 12,
             "night_duration": 60,
@@ -82,10 +82,8 @@ class GlobalSettings:
     
     def get_min_players(self) -> int:
         """Возвращает минимальное количество игроков в зависимости от режима"""
-        if self.is_test_mode():
-            return self.get("min_players_test", 3)
-        else:
-            return self.get("min_players_normal", 6)
+        # Принудительно устанавливаем 3 игрока для всех режимов
+        return 3
     
     def update_role_distribution(self, role: str, percentage: float) -> bool:
         """Обновляет распределение ролей"""

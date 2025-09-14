@@ -4604,8 +4604,14 @@ class ForestWolvesBot:
     # ---------------- night actions processing ----------------
     async def send_night_actions_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
         chat_id = game.chat_id
+        logger.info(f"🌙 Отправка ночных действий для игры {chat_id}")
+        logger.info(f"🌙 night_interfaces содержит: {list(self.night_interfaces.keys())}")
+        
         if chat_id in self.night_interfaces:
+            logger.info(f"🌙 Найден night_interface для {chat_id}, отправляем напоминания")
             await self.night_interfaces[chat_id].send_role_reminders(context)
+        else:
+            logger.error(f"❌ night_interface не найден для {chat_id}!")
 
     async def send_squirrel_message(self, context: ContextTypes.DEFAULT_TYPE, player: Player):
         """Отправляет сообщение белочки изгнанному игроку (только при голосовании)"""
