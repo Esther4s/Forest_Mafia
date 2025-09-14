@@ -354,12 +354,22 @@ class ForestWolvesBot:
     def get_display_name(self, user_id: int, username: str = None, first_name: str = None) -> str:
         """Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)"""
         try:
-            from database_psycopg2 import get_user_nickname
+            from database_psycopg2 import get_user_nickname, get_user_by_telegram_id
             nickname = get_user_nickname(user_id)
             if nickname:
                 return nickname
         except Exception as e:
             logger.warning(f"⚠️ Ошибка получения никнейма для пользователя {user_id}: {e}")
+        
+        # Если никнейма нет, пытаемся получить first_name из БД
+        if not first_name:
+            try:
+                from database_psycopg2 import get_user_by_telegram_id
+                user_data = get_user_by_telegram_id(user_id)
+                if user_data and user_data.get('first_name'):
+                    first_name = user_data['first_name']
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка получения first_name для пользователя {user_id}: {e}")
         
         # Если никнейма нет, используем username или first_name
         if username and not username.isdigit():
@@ -1838,7 +1848,8 @@ class ForestWolvesBot:
                             chat_id=chat_id,
                             message_id=game.pinned_message_id,
                             text=message,
-                            reply_markup=reply_markup
+                            reply_markup=reply_markup,
+                            parse_mode='HTML'
                         )
                         logger.info(f"Отредактировано сообщение о присоединении: {game.pinned_message_id}")
                     except Exception as e:
@@ -1951,7 +1962,8 @@ class ForestWolvesBot:
                             chat_id=chat_id,
                             message_id=game.pinned_message_id,
                             text=message,
-                            reply_markup=reply_markup
+                            reply_markup=reply_markup,
+                            parse_mode='HTML'
                         )
                         logger.info(f"Отредактировано сообщение о присоединении: {game.pinned_message_id}")
                     except Exception as e:
@@ -2939,7 +2951,7 @@ class ForestWolvesBot:
         for voter in alive_players:
             # Исключаем самого голосующего из списка целей
             voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
-            keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, p.first_name)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
+            keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, None)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
             # Добавляем кнопку "Пропустить голосование"
             keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
             # Добавляем кнопку "Перейти в ЛС с ботом" (если это не личные сообщения)
@@ -3028,10 +3040,11 @@ class ForestWolvesBot:
         # Формируем сообщение с результатами
         if exiled_player:
             role_name = self.get_role_info(exiled_player.role)['name']
+            display_name = self.get_display_name(exiled_player.user_id, exiled_player.username, None)
             if is_early_completion:
-                result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
+                result_text = f"⚡ Все игроки проголосовали! Голосование за изгнание завершено досрочно.\n\n🌲 {display_name} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
             else:
-                result_text = f"🌲 {exiled_player.username} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
+                result_text = f"🌲 {display_name} покидает лес навсегда...\n🦌 Оказалось, что это был {role_name}!"
         else:
             # Если никто не изгнан, выбираем случайное сообщение
             random_message = random.choice(self.no_exile_messages)
@@ -3188,10 +3201,11 @@ class ForestWolvesBot:
             # Формируем список тегов участников
             player_tags = []
             for player in game.players.values():
-                if player.username:
-                    player_tags.append(f"@{player.username}")
+                display_name = self.get_display_name(player.user_id, player.username, None)
+                if player.username and not player.username.isdigit():
+                    player_tags.append(f"@{display_name}")
                 else:
-                    player_tags.append(f"[{player.first_name or 'Игрок'}](tg://user?id={player.user_id})")
+                    player_tags.append(f"[{display_name}](tg://user?id={player.user_id})")
             
             # Создаем сообщение с тегами в лесном стиле
             tag_message = (
@@ -3399,10 +3413,11 @@ class ForestWolvesBot:
             target_player = game.players[target_id]
             # Проверяем, голосовал ли игрок ранее
             already_voted = user_id in game.votes
+            display_name = self.get_display_name(target_player.user_id, target_player.username, None)
             if already_voted:
-                await query.edit_message_text(f"🔄 Ваш голос изменен!\nТеперь вы голосуете за изгнание: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
+                await query.edit_message_text(f"🔄 Ваш голос изменен!\nТеперь вы голосуете за изгнание: {display_name}\n\n🕐 Ожидайте результатов голосования...")
             else:
-                await query.edit_message_text(f"✅ Ваш голос зарегистрирован!\nВы проголосовали за изгнание: {target_player.username}\n\n🕐 Ожидайте результатов голосования...")
+                await query.edit_message_text(f"✅ Ваш голос зарегистрирован!\nВы проголосовали за изгнание: {display_name}\n\n🕐 Ожидайте результатов голосования...")
             
             # Проверяем, все ли проголосовали (только для обычного голосования)
             if hasattr(game, 'total_voters') and hasattr(game, 'voting_type') and game.voting_type == "exile":
@@ -3724,7 +3739,7 @@ class ForestWolvesBot:
                 for voter in alive_players:
                     # Исключаем самого голосующего из списка целей
                     voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
-                    keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, p.first_name)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
+                    keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, None)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
                     # Добавляем кнопку "Пропустить голосование"
                     keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
                     reply_markup_voting = InlineKeyboardMarkup(keyboard)
@@ -4522,7 +4537,7 @@ class ForestWolvesBot:
             role_name = get_role_name_russian(player.role)
             
             # Формируем имя игрока
-            player_name = player.username or player.first_name or "Игрок"
+            player_name = self.get_display_name(player.user_id, player.username, None)
             
             squirrel_message = (
                 f"🍂 Осенний лист упал 🍂\n\n"
@@ -4915,10 +4930,11 @@ class ForestWolvesBot:
         # Формируем теги участников
         player_tags = []
         for player in game.players.values():
-            if player.username:
-                player_tags.append(f"@{player.username}")
+            display_name = self.get_display_name(player.user_id, player.username, None)
+            if player.username and not player.username.isdigit():
+                player_tags.append(f"@{display_name}")
             else:
-                player_tags.append(f"[{player.first_name or 'Игрок'}](tg://user?id={player.user_id})")
+                player_tags.append(f"[{display_name}](tg://user?id={player.user_id})")
         
         # Отправляем сообщение о начале игры в сказочном стиле
         start_message = (
@@ -5220,8 +5236,13 @@ class ForestWolvesBot:
         
         # Проверяем, ожидает ли пользователь ввода кастомного прощального сообщения
         if f'waiting_custom_farewell_{user_id}' in context.user_data:
-            await self.handle_custom_farewell_text(update, context, user_id, username)
-            return
+            try:
+                await self.handle_custom_farewell_text(update, context, user_id, username)
+                return
+            except Exception as e:
+                logger.error(f"❌ Ошибка обработки кастомного прощального сообщения: {e}")
+                await update.message.reply_text("❌ Произошла ошибка при обработке сообщения.")
+                return
         
         # Создаем пользователя в БД с начальным балансом 100 орешков
         try:
@@ -6350,11 +6371,14 @@ class ForestWolvesBot:
                 return
             
             # Проверяем на нецензурную лексику (базовая проверка)
-            bad_words = ['дурак', 'идиот', 'тупой', 'глупый', 'лох', 'придурок']
+            bad_words = ['дурак', 'идиот', 'тупой', 'глупый', 'лох', 'придурок', 'гады', 'гад', 'сволочи', 'сволочь', 'ублюдки', 'ублюдок', 'мразь', 'мрази', 'твари', 'тварь']
             if any(word in message_text.lower() for word in bad_words):
                 await update.message.reply_text(
                     "❌ Сообщение содержит недопустимые слова!\n\n"
-                    "Пожалуйста, напишите сообщение в духе игры без оскорблений."
+                    "Пожалуйста, напишите сообщение в духе игры без оскорблений.\n\n"
+                    "💡 Попробуйте что-то вроде:\n"
+                    "• \"Спасибо за игру, друзья! Было весело! 🌿\"\n"
+                    "• \"До свидания, лес! Увидимся в следующей игре! 🐺\""
                 )
                 return
             
@@ -6771,7 +6795,7 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.role != Role.WOLF:
-                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        display_name = self.get_display_name(p.user_id, p.username, None)
                         keyboard.append([InlineKeyboardButton(f"🎯 {display_name}", callback_data=f"wolf_kill_{player_id}")])
                 
                 if keyboard:
@@ -6793,7 +6817,7 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.team == Team.HERBIVORES:
-                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        display_name = self.get_display_name(p.user_id, p.username, None)
                         keyboard.append([InlineKeyboardButton(f"💰 {display_name}", callback_data=f"fox_steal_{player_id}")])
                 
                 if keyboard:
@@ -6815,7 +6839,7 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.role != Role.MOLE:
-                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        display_name = self.get_display_name(p.user_id, p.username, None)
                         keyboard.append([InlineKeyboardButton(f"🔍 {display_name}", callback_data=f"mole_check_{player_id}")])
                 
                 if keyboard:
@@ -6837,7 +6861,7 @@ class ForestWolvesBot:
                 keyboard = []
                 for player_id, p in game.players.items():
                     if p.is_alive and p.team == Team.HERBIVORES and p.role != Role.BEAVER:
-                        display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                        display_name = self.get_display_name(p.user_id, p.username, None)
                         keyboard.append([InlineKeyboardButton(f"🛡️ {display_name}", callback_data=f"beaver_protect_{player_id}")])
                 
                 if keyboard:
@@ -6892,7 +6916,7 @@ class ForestWolvesBot:
             keyboard = []
             for player_id, p in game.players.items():
                 if p.is_alive and p.user_id != player.user_id:
-                    display_name = self.get_display_name(p.user_id, p.username, p.first_name)
+                    display_name = self.get_display_name(p.user_id, p.username, None)
                     keyboard.append([InlineKeyboardButton(f"🗳️ {display_name}", callback_data=f"vote_{player_id}")])
             
             if keyboard:
