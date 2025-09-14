@@ -5,9 +5,10 @@ from game_logic import Game, Role
 from night_actions import NightActions
 
 class NightInterface:
-    def __init__(self, game: Game, night_actions: NightActions):
+    def __init__(self, game: Game, night_actions: NightActions, get_display_name_func=None):
         self.game = game
         self.night_actions = night_actions
+        self.get_display_name = get_display_name_func
 
     async def send_night_actions_menu(self, context: ContextTypes.DEFAULT_TYPE, player_id: int):
         """Отправляет меню ночных действий для игрока"""
@@ -133,7 +134,12 @@ class NightInterface:
                 success = self.night_actions.set_wolf_target(user_id, int(target_id))
                 if success:
                     target = self.game.players[int(target_id)]
-                    message = f"🐺 Вы выбрали цель: {target.username}"
+                    # Получаем отображаемое имя через get_display_name
+                    if self.get_display_name:
+                        display_name = self.get_display_name(target.user_id, target.username, None)
+                    else:
+                        display_name = target.username or f"ID:{target.user_id}"
+                    message = f"🐺 Вы выбрали цель: {display_name}"
                 else:
                     message = "❌ Не удалось установить цель"
 
@@ -145,7 +151,12 @@ class NightInterface:
                 success = self.night_actions.set_fox_target(user_id, int(target_id))
                 if success:
                     target = self.game.players[int(target_id)]
-                    message = f"🦊 Вы выбрали цель для кражи: {target.username}"
+                    # Получаем отображаемое имя через get_display_name
+                    if self.get_display_name:
+                        display_name = self.get_display_name(target.user_id, target.username, None)
+                    else:
+                        display_name = target.username or f"ID:{target.user_id}"
+                    message = f"🦊 Вы выбрали цель для кражи: {display_name}"
                 else:
                     message = "❌ Не удалось установить цель"
 
@@ -157,7 +168,12 @@ class NightInterface:
                 success = self.night_actions.set_beaver_target(user_id, int(target_id))
                 if success:
                     target = self.game.players[int(target_id)]
-                    message = f"🦦 Вы выбрали зверя для помощи: {target.username}"
+                    # Получаем отображаемое имя через get_display_name
+                    if self.get_display_name:
+                        display_name = self.get_display_name(target.user_id, target.username, None)
+                    else:
+                        display_name = target.username or f"ID:{target.user_id}"
+                    message = f"🦦 Вы выбрали зверя для помощи: {display_name}"
                 else:
                     message = "❌ Не удалось установить цель"
 
@@ -169,7 +185,12 @@ class NightInterface:
                 success = self.night_actions.set_mole_target(user_id, int(target_id))
                 if success:
                     target = self.game.players[int(target_id)]
-                    message = f"🦫 Вы выбрали зверя для проверки: {target.username}"
+                    # Получаем отображаемое имя через get_display_name
+                    if self.get_display_name:
+                        display_name = self.get_display_name(target.user_id, target.username, None)
+                    else:
+                        display_name = target.username or f"ID:{target.user_id}"
+                    message = f"🦫 Вы выбрали зверя для проверки: {display_name}"
                 else:
                     message = "❌ Не удалось установить цель"
 

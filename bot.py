@@ -150,7 +150,7 @@ class ForestWolvesBot:
                     
                     # Восстанавливаем ночные действия и интерфейсы
                     self.night_actions[game.chat_id] = NightActions(game)
-                    self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id])
+                    self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id], self.get_display_name)
                     
                     logger.info(f"✅ Восстановлена игра в чате {game.chat_id} (фаза: {game.phase.value})")
                     
@@ -463,7 +463,7 @@ class ForestWolvesBot:
             thread_id = self.get_thread_id(update)
             self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
             
             # Создаем игру в базе данных
             import uuid
@@ -1333,7 +1333,7 @@ class ForestWolvesBot:
         if chat_id not in self.games:
             self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
 
         game = self.games[chat_id]
 
@@ -2485,7 +2485,7 @@ class ForestWolvesBot:
             # Создаем новую игру
             self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id])
+            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
             
             # Создаем клавиатуру с быстрыми действиями
             keyboard = [
@@ -6402,8 +6402,8 @@ class ForestWolvesBot:
             
             # Отправляем кастомное прощальное сообщение
             game_data = waiting_data['game_data']
-            chat_id = game_data.get('chat_id')
-            thread_id = game_data.get('thread_id')
+            chat_id = game_data.chat_id
+            thread_id = game_data.thread_id
             
             if not chat_id:
                 await update.message.reply_text("❌ Не удалось определить чат для отправки прощального сообщения.")
