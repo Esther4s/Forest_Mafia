@@ -183,6 +183,7 @@ class NightActions:
         results = []
         
         if not self.wolf_targets:
+            logger.warning("⚠️ У волков нет выбранных целей для атаки")
             return results
         
         # Подсчитываем голоса за каждую цель

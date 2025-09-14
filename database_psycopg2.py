@@ -2485,6 +2485,50 @@ def get_user_inventory_detailed(user_id: int) -> dict:
             'total_items': 0
         }
 
+
+def update_user_inventory(user_id: int, item_name: str, count: int, flags: Dict[str, Any] = None) -> bool:
+    """
+    Обновляет количество предмета в инвентаре пользователя
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        count: Новое количество
+        flags: Дополнительные флаги
+        
+    Returns:
+        bool: True если обновление успешно, False иначе
+    """
+    try:
+        with db_connection.get_connection() as conn:
+            with conn.cursor() as cursor:
+                if count <= 0:
+                    # Если количество <= 0, удаляем предмет
+                    cursor.execute("""
+                        DELETE FROM inventory 
+                        WHERE user_id = %s AND item_name = %s
+                    """, (user_id, item_name))
+                else:
+                    # Обновляем количество
+                    flags_json = json.dumps(flags) if flags else '{}'
+                    cursor.execute("""
+                        INSERT INTO inventory (user_id, item_name, count, flags, updated_at)
+                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
+                        ON CONFLICT (user_id, item_name) 
+                        DO UPDATE SET 
+                            count = EXCLUDED.count,
+                            flags = EXCLUDED.flags,
+                            updated_at = CURRENT_TIMESTAMP
+                    """, (user_id, item_name, count, flags_json))
+                
+                conn.commit()
+                logger.info(f"✅ Инвентарь пользователя {user_id} обновлен: {item_name} = {count}")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка обновления инвентаря: {e}")
+        return False
+
 # Пример использования
 if __name__ == "__main__":
     try:
@@ -2569,7 +2613,7 @@ def save_game_state(game_data: Dict[str, Any]) -> bool:
                             winner_team = %s,
                             settings = %s
                         WHERE id = %s
-                    """, (str(chat_id), str(thread_id) if thread_id else None, status, phase, round_number, 
+                    """, (int(chat_id), int(thread_id) if thread_id else None, status, phase, round_number, 
                           started_at, finished_at, winner_team, settings_json, game_id))
                 else:
                     # Создаем новую игру
@@ -2578,7 +2622,7 @@ def save_game_state(game_data: Dict[str, Any]) -> bool:
                                          round_number, started_at, finished_at, 
                                          winner_team, settings)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (game_id, str(chat_id), str(thread_id) if thread_id else None, status, phase, 
+                    """, (game_id, int(chat_id), int(thread_id) if thread_id else None, status, phase, 
                           round_number, started_at, finished_at, winner_team, settings_json))
                 
                 conn.commit()

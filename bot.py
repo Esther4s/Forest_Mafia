@@ -2738,7 +2738,7 @@ class ForestWolvesBot:
             
         except ImportError:
             # Fallback на старую логику
-            message_text = f"🏁 Игра завершена!\n\n📋 Причина: {reason}\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}\nФаза: {game.phase.value}"
+            message_text = f"🏁 Игра завершена!\n\n📋 Причина: {reason}\n📊 <b>Статистика игры:</b>\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}\nФаза: {game.phase.value}"
 
         # Отправляем сообщение
         try:
@@ -3397,7 +3397,7 @@ class ForestWolvesBot:
             # Fallback на старую логику
             if winner:
                 winner_text = "🏆 Травоядные победили!" if winner == Team.HERBIVORES else "🏆 Хищники победили!"
-                message_text = f"🎉 Игра окончена! {winner_text}\n\n📊 Статистика игры:\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}"
+                message_text = f"🎉 Игра окончена! {winner_text}\n\n📊 <b>Статистика игры:</b>\nВсего игроков: {len(game.players)}\nРаундов сыграно: {game.current_round}"
             else:
                 message_text = "🏁 Игра окончена!\nНедостаточно игроков для продолжения."
         
@@ -4359,7 +4359,8 @@ class ForestWolvesBot:
         
         await query.edit_message_text(
             self.global_settings.get_settings_summary(),
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode='HTML'
         )
 
     async def handle_timer_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -4571,7 +4572,7 @@ class ForestWolvesBot:
         game.current_round = 0
         game.game_start_time = None
         game.phase_end_time = None
-        await query.edit_message_text("📊 Статистика игры сброшена!\n\n✅ Раунд: 0\n✅ Время начала: сброшено\n✅ Таймеры: сброшены")
+        await query.edit_message_text("📊 <b>Статистика игры сброшена!</b>\n\n✅ Раунд: 0\n✅ Время начала: сброшено\n✅ Таймеры: сброшены", parse_mode='HTML')
 
     async def handle_timer_values(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает установку конкретных значений таймеров"""
