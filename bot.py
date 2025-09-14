@@ -5436,9 +5436,9 @@ class ForestWolvesBot:
                 logger.info("✅ Подключение к базе данных закрыто")
 
     async def unpin_all_messages_on_startup(self):
-        """Открепляет все сообщения бота при старте"""
+        """Открепляет только сообщения, закрепленные ботом при старте"""
         try:
-            logger.info("🔄 Начинаем открепление всех сообщений бота...")
+            logger.info("🔄 Начинаем открепление зависших сообщений бота...")
             
             # Получаем список всех авторизованных чатов
             from state_persistence import load_authorized_chats
@@ -5470,13 +5470,22 @@ class ForestWolvesBot:
                         logger.warning(f"⚠️ Не удалось проверить статус бота в чате {chat_id}: {e}")
                         continue
                     
-                    # Открепляем все сообщения в чате
+                    # Получаем информацию о закрепленном сообщении
                     try:
-                        await bot.unpin_all_chat_messages(chat_id)
-                        unpinned_count += 1
-                        logger.info(f"✅ Откреплены все сообщения в чате {chat_id}")
+                        pinned_message = await bot.get_chat(chat_id)
+                        if pinned_message.pinned_message:
+                            # Проверяем, что закрепленное сообщение отправил бот
+                            if pinned_message.pinned_message.from_user and pinned_message.pinned_message.from_user.id == bot.id:
+                                # Открепляем только сообщение бота
+                                await bot.unpin_chat_message(chat_id, pinned_message.pinned_message.message_id)
+                                unpinned_count += 1
+                                logger.info(f"✅ Откреплено зависшее сообщение бота в чате {chat_id}")
+                            else:
+                                logger.info(f"ℹ️ В чате {chat_id} закреплено сообщение не от бота, пропускаем")
+                        else:
+                            logger.info(f"ℹ️ В чате {chat_id} нет закрепленных сообщений")
                     except Exception as e:
-                        logger.warning(f"⚠️ Не удалось открепить сообщения в чате {chat_id}: {e}")
+                        logger.warning(f"⚠️ Не удалось открепить сообщение в чате {chat_id}: {e}")
                         continue
                         
                 except Exception as e:
@@ -6483,26 +6492,26 @@ class ForestWolvesBot:
             
             if game_end_time:
                 try:
-                if isinstance(game_end_time, str):
+                    if isinstance(game_end_time, str):
                         # Пробуем разные форматы даты
-                    try:
-                        game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
-                    except:
+                        try:
+                            game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                        except:
                             try:
                                 game_end_time = datetime.fromisoformat(game_end_time)
                             except:
                                 # Если не удается распарсить, используем текущее время
-                        game_end_time = datetime.now()
-                
+                                game_end_time = datetime.now()
+                    
                     # Нормализуем время
                     if game_end_time.tzinfo is None:
                         game_end_time = game_end_time.replace(tzinfo=None)
                     
                     current_time = datetime.now()
-                time_diff = current_time - game_end_time
-                
+                    time_diff = current_time - game_end_time
+                    
                     if time_diff > timedelta(hours=24):
-                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+                        return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
                 except Exception as time_error:
                     logger.warning(f"Ошибка проверки времени: {time_error}")
                     # Если не удается проверить время, разрешаем прощальное сообщение
@@ -6535,8 +6544,8 @@ class ForestWolvesBot:
             
             # Используем данные игры
             if isinstance(game_data, dict):
-            chat_id = game_data.get('chat_id')
-            thread_id = game_data.get('thread_id')
+                chat_id = game_data.get('chat_id')
+                thread_id = game_data.get('thread_id')
             else:
                 # Если это объект Game
                 chat_id = getattr(game_data, 'chat_id', None)
