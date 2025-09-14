@@ -209,11 +209,20 @@ class ForestWolvesBot:
             # Сохраняем игроков
             players_data = []
             for player in game.players.values():
+                # Получаем first_name из базы данных
+                try:
+                    from database_psycopg2 import get_user_by_telegram_id
+                    user_data = get_user_by_telegram_id(player.user_id)
+                    first_name = user_data.get('first_name') if user_data else None
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка получения first_name для пользователя {player.user_id}: {e}")
+                    first_name = None
+                
                 players_data.append({
                     'id': f"{chat_id}_{player.user_id}",
                     'user_id': player.user_id,
                     'username': player.username,
-                    'first_name': player.first_name,
+                    'first_name': first_name,
                     'role': player.role.value if player.role else None,
                     'is_alive': player.is_alive,
                     'team': player.team.value if player.team else None
@@ -2194,12 +2203,21 @@ class ForestWolvesBot:
             # Добавляем всех игроков в БД
             for player in game.players.values():
                 player_id = str(uuid.uuid4())
+                # Получаем first_name из базы данных
+                try:
+                    from database_psycopg2 import get_user_by_telegram_id
+                    user_data = get_user_by_telegram_id(player.user_id)
+                    first_name = user_data.get('first_name') if user_data else None
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка получения first_name для пользователя {player.user_id}: {e}")
+                    first_name = None
+                
                 save_player_to_db(
                     player_id=player_id,
                     game_id=db_game_id,
                     user_id=player.user_id,
                     username=player.username,
-                    first_name=player.first_name,
+                    first_name=first_name,
                     last_name=player.last_name,
                     role=player.role.value if player.role else None,
                     team=player.team.value if player.team else None,
