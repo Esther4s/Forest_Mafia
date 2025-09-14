@@ -251,7 +251,7 @@ class StatePersistence:
                 night_interface_data = json.dumps(night_interfaces.get(chat_id, {}), default=str)
                 
                 execute_query(query, (
-                    chat_id, thread_id,
+                    str(chat_id), str(thread_id) if thread_id else None,
                     json.dumps(game_data, default=str),
                     json.dumps(players_data, default=str),
                     night_actions_data,
@@ -270,7 +270,7 @@ class StatePersistence:
                 if game_chat_id in games:
                     thread_id = getattr(games[game_chat_id], 'thread_id', None)
                 
-                execute_query(query, (user_id, game_chat_id, thread_id))
+                execute_query(query, (user_id, str(game_chat_id), str(thread_id) if thread_id else None))
             
             self.logger.info(f"✅ StatePersistence: Сохранено {len(games)} активных игр")
             return True
@@ -315,9 +315,23 @@ class StatePersistence:
             
             authorized_chats_data = fetch_query(authorized_chats_query)
             
+            # Обрабатываем данные игр, преобразуя строковые chat_id обратно в int
+            processed_games = []
+            for game in games_data:
+                game['chat_id'] = int(game['chat_id']) if game['chat_id'] else None
+                game['thread_id'] = int(game['thread_id']) if game['thread_id'] else None
+                processed_games.append(game)
+            
+            # Обрабатываем данные игроков
+            processed_player_games = []
+            for player_game in player_games_data:
+                player_game['chat_id'] = int(player_game['chat_id']) if player_game['chat_id'] else None
+                player_game['thread_id'] = int(player_game['thread_id']) if player_game['thread_id'] else None
+                processed_player_games.append(player_game)
+            
             result = {
-                'games': games_data,
-                'player_games': player_games_data,
+                'games': processed_games,
+                'player_games': processed_player_games,
                 'authorized_chats': authorized_chats_data
             }
             
@@ -352,7 +366,7 @@ class StatePersistence:
                     VALUES (%s, %s, %s)
                 """
                 
-                execute_query(query, (chat_id, thread_id, f"Chat {chat_id}"))
+                execute_query(query, (str(chat_id), str(thread_id) if thread_id else None, f"Chat {chat_id}"))
             
             self.logger.info(f"✅ StatePersistence: Сохранено {len(authorized_chats)} авторизованных чатов")
             return True
@@ -377,7 +391,9 @@ class StatePersistence:
             
             authorized_chats = set()
             for row in result:
-                authorized_chats.add((row['chat_id'], row['thread_id']))
+                chat_id = int(row['chat_id']) if row['chat_id'] else None
+                thread_id = int(row['thread_id']) if row['thread_id'] else None
+                authorized_chats.add((chat_id, thread_id))
             
             self.logger.info(f"✅ StatePersistence: Загружено {len(authorized_chats)} авторизованных чатов")
             return authorized_chats

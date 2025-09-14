@@ -36,7 +36,11 @@ class NightInterface:
         for target in actions["targets"]:
             # Добавляем отметку, если это текущая цель
             current_mark = "✅ " if actions.get("current_target") == target.user_id else ""
-            button_text = f"{current_mark}{target.username}"
+            if self.get_display_name:
+                display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+            else:
+                display_name = target.username or target.first_name or f"ID:{target.user_id}"
+            button_text = f"{current_mark}{display_name}"
 
             keyboard.append([InlineKeyboardButton(
                 button_text,
@@ -330,7 +334,10 @@ class NightInterface:
             role_name = get_role_name_russian(player.role)
             
             # Формируем имя игрока
-            player_name = player.username or player.first_name or "Игрок"
+            if self.get_display_name:
+                player_name = self.get_display_name(player.user_id, player.username, player.first_name)
+            else:
+                player_name = player.username or player.first_name or "Игрок"
             
             squirrel_message = (
                 f"🍂 Осенний лист упал 🍂\n\n"

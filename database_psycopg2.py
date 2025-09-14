@@ -2554,7 +2554,7 @@ def save_game_state(game_data: Dict[str, Any]) -> bool:
                             winner_team = %s,
                             settings = %s
                         WHERE id = %s
-                    """, (chat_id, thread_id, status, phase, round_number, 
+                    """, (str(chat_id), str(thread_id) if thread_id else None, status, phase, round_number, 
                           started_at, finished_at, winner_team, settings_json, game_id))
                 else:
                     # Создаем новую игру
@@ -2563,7 +2563,7 @@ def save_game_state(game_data: Dict[str, Any]) -> bool:
                                          round_number, started_at, finished_at, 
                                          winner_team, settings)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (game_id, chat_id, thread_id, status, phase, 
+                    """, (game_id, str(chat_id), str(thread_id) if thread_id else None, status, phase, 
                           round_number, started_at, finished_at, winner_team, settings_json))
                 
                 conn.commit()

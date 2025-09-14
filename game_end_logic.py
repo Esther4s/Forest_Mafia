@@ -11,6 +11,27 @@ class GameEndLogic:
     def __init__(self, game: Game):
         self.game = game
     
+    def get_display_name(self, user_id: int, username: str = None, first_name: str = None) -> str:
+        """Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)"""
+        try:
+            from database_psycopg2 import get_user_nickname
+            nickname = get_user_nickname(user_id)
+            if nickname:
+                return nickname
+            elif username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+        except Exception as e:
+            if username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+    
     def check_all_win_conditions(self) -> Optional[Dict]:
         """
         Проверяет все возможные условия победы
@@ -241,7 +262,8 @@ class GameEndLogic:
             role_emoji = self._get_role_emoji(player.role)
             team_emoji = "🐺" if player.team == Team.PREDATORS else "🌿"
             role_name = self._get_role_name_ru(player.role)
-            players_list += f"{status} {role_emoji} {player.username} ({role_name}) {team_emoji}\n"
+            display_name = self.get_display_name(player.user_id, player.username, None)
+            players_list += f"{status} {role_emoji} {display_name} ({role_name}) {team_emoji}\n"
         
         # Формируем статистику по ролям
         role_stats = ""

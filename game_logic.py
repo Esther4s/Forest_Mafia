@@ -613,7 +613,11 @@ class Game:
             max_vote_players = [pid for pid, votes in vote_counts.items() if votes == max_votes]
             if len(max_vote_players) == 1:
                 exiled_player = self.players[max_vote_players[0]]
-                voting_summary = f"Изгнан {exiled_player.username} ({max_votes} голосов)"
+                if get_display_name_func:
+                    display_name = get_display_name_func(exiled_player.user_id, exiled_player.username, None)
+                else:
+                    display_name = exiled_player.username or f"ID:{exiled_player.user_id}"
+                voting_summary = f"Изгнан {display_name} ({max_votes} голосов)"
             else:
                 voting_summary = f"Ничья между {len(max_vote_players)} игроками"
         

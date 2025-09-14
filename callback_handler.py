@@ -27,6 +27,28 @@ class CallbackHandler:
         self.callback_handlers: Dict[str, Callable] = {}
         self._setup_handlers()
     
+    def get_display_name(self, user_id: int, username: str = None, first_name: str = None) -> str:
+        """Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)"""
+        try:
+            from database_psycopg2 import get_user_nickname
+            nickname = get_user_nickname(user_id)
+            if nickname:
+                return nickname
+            elif username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+        except Exception as e:
+            self.logger.warning(f"⚠️ Ошибка получения никнейма для пользователя {user_id}: {e}")
+            if username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+    
     def _setup_handlers(self):
         """Настраивает обработчики callback'ов"""
         self.callback_handlers = {
@@ -525,7 +547,8 @@ class CallbackHandler:
         """Отправляет результаты голосования"""
         try:
             if exiled_player:
-                message = f"🗳️ <b>Результаты голосования</b> 🗳️\n\n❌ {exiled_player.username} изгнан из леса!"
+                display_name = self.get_display_name(exiled_player.user_id, exiled_player.username, None)
+                message = f"🗳️ <b>Результаты голосования</b> 🗳️\n\n❌ {display_name} изгнан из леса!"
             else:
                 import random
                 no_exile_messages = [

@@ -942,9 +942,10 @@ class ForestWolvesBot:
             # Получаем актуальный баланс
             balance = balance_manager.get_user_balance(user_id)
             
-            logger.info(f"✅ Баланс пользователя {username}: {balance}")
+            display_name = self.get_display_name(user_id, username, update.effective_user.first_name)
+            logger.info(f"✅ Баланс пользователя {display_name}: {balance}")
             await update.message.reply_text(
-                f"🌰 <b>Баланс игрока {username}:</b>\n\n"
+                f"🌰 <b>Баланс игрока {display_name}:</b>\n\n"
                 f"💳 Текущий баланс: {int(balance)} орешков\n\n"
                 f"💡 Используйте команду /join чтобы присоединиться к игре!",
                 parse_mode='HTML'
@@ -1177,12 +1178,12 @@ class ForestWolvesBot:
             
             for player in game.players.values():
                 user_id = player.user_id
-                username = player.username or f"Player_{user_id}"
+                display_name = self.get_display_name(user_id, player.username, player.first_name)
                 
-                logger.info(f"👤 Обрабатываем игрока: {username} (ID: {user_id}), Жив: {player.is_alive}, Команда: {player.team}, Роль: {player.role}")
+                logger.info(f"👤 Обрабатываем игрока: {display_name} (ID: {user_id}), Жив: {player.is_alive}, Команда: {player.team}, Роль: {player.role}")
                 
                 # Создаем пользователя в БД, если его нет
-                create_user(user_id, username)
+                create_user(user_id, player.username)
                 
                 # Определяем количество орешков в зависимости от статуса игрока
                 nuts_amount = 0
@@ -1199,21 +1200,21 @@ class ForestWolvesBot:
                         
                         if player_won:
                             nuts_amount = 100  # Победитель получает 100 орешков
-                            logger.info(f"🏆 Игрок {username} - победитель, получает 100 орешков")
+                            logger.info(f"🏆 Игрок {display_name} - победитель, получает 100 орешков")
                         else:
                             nuts_amount = 50   # Проигравший получает 50 орешков
-                            logger.info(f"😔 Игрок {username} - проигравший, получает 50 орешков")
+                            logger.info(f"😔 Игрок {display_name} - проигравший, получает 50 орешков")
                     else:
                         nuts_amount = 50  # Если нет победителя, все живые получают 50
-                        logger.info(f"🤷 Игрок {username} - живой, но нет победителя, получает 50 орешков")
+                        logger.info(f"🤷 Игрок {display_name} - живой, но нет победителя, получает 50 орешков")
                 else:
                     # Мертвый игрок получает 25 орешков (если награды умершим включены)
                     if dead_rewards_enabled:
                         nuts_amount = 25
-                        logger.info(f"💀 Игрок {username} - мертвый, получает 25 орешков")
+                        logger.info(f"💀 Игрок {display_name} - мертвый, получает 25 орешков")
                     else:
                         nuts_amount = 0
-                        logger.info(f"💀 Игрок {username} - мертвый, но награды умершим отключены")
+                        logger.info(f"💀 Игрок {display_name} - мертвый, но награды умершим отключены")
                 
                 # Если награды проигравшим отключены, не начисляем орешки проигравшим
                 if not loser_rewards_enabled and winner:
@@ -1226,20 +1227,20 @@ class ForestWolvesBot:
                     
                     if player_lost:
                         nuts_amount = 0  # Проигравшие не получают орешки
-                        logger.info(f"🏆 Игрок {username} проиграл, но награды проигравшим отключены")
+                        logger.info(f"🏆 Игрок {display_name} проиграл, но награды проигравшим отключены")
                 
                 # Начисляем орешки через новую систему баланса
                 if nuts_amount > 0:
-                    logger.info(f"💰 Начисляем {nuts_amount} орешков игроку {username} (ID: {user_id})")
+                    logger.info(f"💰 Начисляем {nuts_amount} орешков игроку {display_name} (ID: {user_id})")
                     from database_balance_manager import balance_manager
                     success = balance_manager.add_to_balance(user_id, nuts_amount)
                     if success:
-                        logger.info(f"✅ Начислено {nuts_amount} орешков игроку {username} (ID: {user_id})")
-                        nuts_awards.append(f"🌰 {username}: +{nuts_amount} орешков")
+                        logger.info(f"✅ Начислено {nuts_amount} орешков игроку {display_name} (ID: {user_id})")
+                        nuts_awards.append(f"🌰 {display_name}: +{nuts_amount} орешков")
                     else:
-                        logger.error(f"❌ Не удалось начислить орешки игроку {username} (ID: {user_id})")
+                        logger.error(f"❌ Не удалось начислить орешки игроку {display_name} (ID: {user_id})")
                 else:
-                    logger.warning(f"⚠️ Игрок {username} не получил орешки (amount=0)")
+                    logger.warning(f"⚠️ Игрок {display_name} не получил орешки (amount=0)")
             
             # Формируем информацию об орешках для сообщения
             if nuts_awards:
@@ -5601,7 +5602,8 @@ class ForestWolvesBot:
                 )
                 
                 await query.answer(success_message, show_alert=True)
-                logger.info(f"✅ Пользователь {username} (ID: {user_id}) купил {result['item_name']} за {item_price} орешков. Новый баланс: {result['balance']}")
+                display_name = self.get_display_name(user_id, username, None)
+                logger.info(f"✅ Пользователь {display_name} (ID: {user_id}) купил {result['item_name']} за {item_price} орешков. Новый баланс: {result['balance']}")
                 
                 # Обновляем сообщение магазина
                 await self.update_shop_message(query, context)
@@ -5612,7 +5614,8 @@ class ForestWolvesBot:
                     error_message += f"\n🌰 Баланс: {result['balance']}"
                 
                 await query.answer(error_message, show_alert=True)
-                logger.warning(f"❌ Покупка не удалась для пользователя {username} (ID: {user_id}): {result['error']}")
+                display_name = self.get_display_name(user_id, username, None)
+                logger.warning(f"❌ Покупка не удалась для пользователя {display_name} (ID: {user_id}): {result['error']}")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка при покупке товара: {e}")
@@ -6032,25 +6035,48 @@ class ForestWolvesBot:
             can_send, error_message, game_data = await self.can_send_farewell_message(user_id)
             
             logger.info(f"Прощальное сообщение для пользователя {user_id}: can_send={can_send}, error={error_message}")
+            logger.info(f"Данные игры: {game_data}")
+            
+            # Дополнительная отладочная информация
+            if not can_send:
+                logger.warning(f"Прощальное сообщение заблокировано для пользователя {user_id}: {error_message}")
+                # Проверяем, есть ли пользователь в активных играх
+                active_games = []
+                for chat_id, game in self.games.items():
+                    if user_id in [player.user_id for player in game.players.values()]:
+                        active_games.append(f"чат {chat_id}, фаза {game.phase}")
+                logger.info(f"Активные игры пользователя {user_id}: {active_games}")
             
             if not can_send:
-                # Показываем ошибку вместо меню
-                error_text = (
-                    f"❌ <b>Прощальное сообщение недоступно</b>\n\n"
-                    f"{error_message}\n\n"
-                    f"💡 Прощальное сообщение можно отправить только:\n"
-                    f"• После участия в игре\n"
-                    f"• В течение суток после окончания игры\n"
-                    f"• Если в чате не началась новая игра"
-                )
+                # Проверяем, есть ли пользователь в активных играх (временное решение)
+                user_in_active_game = False
+                for chat_id, game in self.games.items():
+                    if user_id in [player.user_id for player in game.players.values()]:
+                        user_in_active_game = True
+                        break
                 
-                keyboard = [
-                    [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
-                ]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-                
-                await query.edit_message_text(error_text, reply_markup=reply_markup, parse_mode='HTML')
-                return
+                if user_in_active_game:
+                    logger.info(f"Пользователь {user_id} в активной игре, разрешаем прощальное сообщение")
+                    can_send = True
+                    error_message = ""
+                else:
+                    # Показываем ошибку вместо меню
+                    error_text = (
+                        f"❌ <b>Прощальное сообщение недоступно</b>\n\n"
+                        f"{error_message}\n\n"
+                        f"💡 Прощальное сообщение можно отправить только:\n"
+                        f"• После участия в игре\n"
+                        f"• В течение суток после окончания игры\n"
+                        f"• Если в чате не началась новая игра"
+                    )
+                    
+                    keyboard = [
+                        [InlineKeyboardButton("⬅️ Назад", callback_data=f"farewell_back_{user_id}")]
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    
+                    await query.edit_message_text(error_text, reply_markup=reply_markup, parse_mode='HTML')
+                    return
             
             # Создаем клавиатуру с вариантами прощальных сообщений
             keyboard = [
@@ -6126,7 +6152,7 @@ class ForestWolvesBot:
                     query = """
                         SELECT chat_id, thread_id, game_data, created_at, updated_at
                         FROM active_games_state 
-                        WHERE game_data->>'phase' = 'finished'
+                        WHERE (game_data->>'phase' = 'finished' OR game_data->>'phase' = 'GAME_OVER')
                         AND game_data->'players' ? %s
                         ORDER BY updated_at DESC 
                         LIMIT 1
@@ -6144,6 +6170,27 @@ class ForestWolvesBot:
                         logger.info(f"Найдена завершенная игра в БД для пользователя {user_id} в чате {last_game_chat_id}")
                     else:
                         logger.info(f"Завершенная игра в БД не найдена для пользователя {user_id}")
+                        
+                        # Дополнительная проверка: ищем любую игру с этим пользователем
+                        query_any = """
+                            SELECT chat_id, thread_id, game_data, created_at, updated_at
+                            FROM active_games_state 
+                            WHERE game_data->'players' ? %s
+                            ORDER BY updated_at DESC 
+                            LIMIT 1
+                        """
+                        
+                        result_any = fetch_query(query_any, (str(user_id),))
+                        if result_any:
+                            game_data = result_any[0]
+                            last_game_chat_id = game_data['chat_id']
+                            last_game = {
+                                'chat_id': game_data['chat_id'],
+                                'thread_id': game_data['thread_id'],
+                                'updated_at': game_data['updated_at']
+                            }
+                            logger.info(f"Найдена любая игра в БД для пользователя {user_id} в чате {last_game_chat_id}")
+                        
                 except Exception as db_error:
                     logger.warning(f"Ошибка поиска в БД: {db_error}")
                     # Если БД недоступна, разрешаем прощальное сообщение для активных игр
@@ -6158,13 +6205,27 @@ class ForestWolvesBot:
                 logger.warning(f"Прощальное сообщение: игра не найдена для пользователя {user_id}")
                 return False, "❌ Игра не найдена! Прощальное сообщение можно отправить только после участия в игре.", {}
             
+            # Если игра найдена, но время не удается определить, разрешаем прощальное сообщение
+            if not game_end_time:
+                logger.info(f"Время окончания игры не определено для пользователя {user_id}, разрешаем прощальное сообщение")
+                # Преобразуем last_game в словарь, если это объект Game
+                if hasattr(last_game, 'chat_id'):
+                    game_dict = {
+                        'chat_id': last_game.chat_id,
+                        'thread_id': getattr(last_game, 'thread_id', None),
+                        'updated_at': getattr(last_game, 'updated_at', None)
+                    }
+                else:
+                    game_dict = last_game
+                return True, "", game_dict
+            
             # Проверяем, не началась ли уже новая игра в том же чате
             if last_game_chat_id in self.games:
                 current_game = self.games[last_game_chat_id]
                 if current_game.phase != 'finished' and user_id not in [player.user_id for player in current_game.players.values()]:
                     return False, "❌ В чате уже началась новая игра! Прощальное сообщение можно отправить только после окончания игры.", {}
             
-            # Проверяем время (не позже чем через час после окончания)
+            # Проверяем время (не позже чем через 24 часа после окончания)
             game_end_time = None
             if hasattr(last_game, 'updated_at'):
                 game_end_time = last_game.updated_at
@@ -6172,19 +6233,42 @@ class ForestWolvesBot:
                 game_end_time = last_game.get('updated_at')
             
             if game_end_time:
-                if isinstance(game_end_time, str):
-                    try:
-                        game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
-                    except:
-                        game_end_time = datetime.now()
-                
-                current_time = datetime.now(game_end_time.tzinfo) if game_end_time.tzinfo else datetime.now()
-                time_diff = current_time - game_end_time
-                
-                if time_diff > timedelta(hours=24):  # Увеличиваем время до 24 часов
-                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+                try:
+                    if isinstance(game_end_time, str):
+                        # Пробуем разные форматы даты
+                        try:
+                            game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                        except:
+                            try:
+                                game_end_time = datetime.fromisoformat(game_end_time)
+                            except:
+                                # Если не удается распарсить, используем текущее время
+                                game_end_time = datetime.now()
+                    
+                    # Нормализуем время
+                    if game_end_time.tzinfo is None:
+                        game_end_time = game_end_time.replace(tzinfo=None)
+                    
+                    current_time = datetime.now()
+                    time_diff = current_time - game_end_time
+                    
+                    if time_diff > timedelta(hours=24):
+                        return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+                except Exception as time_error:
+                    logger.warning(f"Ошибка проверки времени: {time_error}")
+                    # Если не удается проверить время, разрешаем прощальное сообщение
             
-            return True, "", last_game
+            # Преобразуем last_game в словарь, если это объект Game
+            if hasattr(last_game, 'chat_id'):
+                game_dict = {
+                    'chat_id': last_game.chat_id,
+                    'thread_id': getattr(last_game, 'thread_id', None),
+                    'updated_at': getattr(last_game, 'updated_at', None)
+                }
+            else:
+                game_dict = last_game
+            
+            return True, "", game_dict
             
         except Exception as e:
             logger.error(f"❌ Ошибка проверки возможности прощального сообщения: {e}")
@@ -6201,8 +6285,13 @@ class ForestWolvesBot:
                 return False, error_message
             
             # Используем данные игры
-            chat_id = game_data.get('chat_id')
-            thread_id = game_data.get('thread_id')
+            if isinstance(game_data, dict):
+                chat_id = game_data.get('chat_id')
+                thread_id = game_data.get('thread_id')
+            else:
+                # Если это объект Game
+                chat_id = getattr(game_data, 'chat_id', None)
+                thread_id = getattr(game_data, 'thread_id', None)
             
             logger.info(f"Прощальное сообщение: chat_id={chat_id}, thread_id={thread_id}, game_data={game_data}")
             
@@ -6237,7 +6326,8 @@ class ForestWolvesBot:
                     text=message
                 )
             
-            logger.info(f"✅ Отправлено прощальное сообщение от {username} в чат {chat_id}")
+            display_name = self.get_display_name(user_id, username, None)
+            logger.info(f"✅ Отправлено прощальное сообщение от {display_name} в чат {chat_id}")
             return True, "✅ Прощальное сообщение отправлено!"
             
         except Exception as e:
@@ -6443,7 +6533,8 @@ class ForestWolvesBot:
                 
                 await update.message.reply_text(confirmation_text, parse_mode='HTML')
                 
-                logger.info(f"✅ Отправлено кастомное прощальное сообщение от {username} в чат {chat_id}")
+                display_name = self.get_display_name(user_id, username, None)
+                logger.info(f"✅ Отправлено кастомное прощальное сообщение от {display_name} в чат {chat_id}")
                 
             except Exception as e:
                 logger.error(f"❌ Ошибка отправки кастомного прощального сообщения: {e}")

@@ -14,6 +14,27 @@ class NightActions:
         self.mole_targets = {}  # user_id -> target_user_id
         self.skipped_actions = set()  # user_id игроков, которые пропустили ход
     
+    def get_display_name(self, user_id: int, username: str = None, first_name: str = None) -> str:
+        """Получает отображаемое имя пользователя (приоритет: никнейм > username > first_name)"""
+        try:
+            from database_psycopg2 import get_user_nickname
+            nickname = get_user_nickname(user_id)
+            if nickname:
+                return nickname
+            elif username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+        except Exception as e:
+            if username and not username.isdigit():
+                return f"@{username}"
+            elif first_name:
+                return first_name
+            else:
+                return f"ID:{user_id}"
+    
     def set_wolf_target(self, wolf_id: int, target_id: int) -> bool:
         """Устанавливает цель для волка"""
         wolf = self.game.players.get(wolf_id)
@@ -311,7 +332,8 @@ class NightActions:
                 # Сбрасываем счетчик выживания
                 player.consecutive_nights_survived = 0
                 
-                deaths.append(f"🦊 {player.username} ушел жить в соседний лес из-за кражи запасов!")
+                display_name = self.get_display_name(player.user_id, player.username, None)
+                deaths.append(f"🦊 {display_name} ушел жить в соседний лес из-за кражи запасов!")
         
         return deaths
     
