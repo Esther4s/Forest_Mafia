@@ -2849,6 +2849,12 @@ class ForestWolvesBot:
         # Закрепляем сообщение ночи
         await self._pin_stage_message(context, game, "night", night_message.message_id)
 
+        # Создаем night_actions и night_interfaces для игры
+        if game.chat_id not in self.night_actions:
+            self.night_actions[game.chat_id] = NightActions(game)
+        if game.chat_id not in self.night_interfaces:
+            self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id], self.get_display_name)
+
         # Отправляем роли всем игрокам (только в первой ночи)
         if game.current_round == 1:
             await self.send_roles_to_players(context, game)

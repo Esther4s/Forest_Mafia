@@ -76,11 +76,6 @@ class NightInterface:
             callback_data=skip_callback
         )])
 
-        # Добавляем кнопку "Посмотреть роль"
-        keyboard.append([InlineKeyboardButton(
-            "🎭 Посмотреть мою роль",
-            callback_data=f"night_view_role_{player_id}"
-        )])
 
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -116,27 +111,6 @@ class NightInterface:
             await query.answer("❌ Вы мертвы и не можете совершать действия!", show_alert=True)
             return
 
-        # Проверяем, если это просмотр роли
-        if len(data) >= 3 and data[1] == "view" and data[2] == "role":
-            role_info = self.get_role_info(player.role)
-            team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
-
-            role_modal_text = (
-                f"🎭 Ваша роль в игре:\n\n"
-                f"👤 {role_info['name']}\n"
-                f"🏴 Команда: {team_name}\n\n"
-                f"📝 Описание:\n{role_info['description']}\n\n"
-                f"🌙 Раунд: {self.game.current_round}\n"
-                f"💚 Статус: {'Живой' if player.is_alive else 'Мертвый'}"
-            )
-
-            # Отправляем роль в личные сообщения вместо замены текущего сообщения
-            try:
-                await context.bot.send_message(chat_id=user_id, text=role_modal_text)
-                await query.answer("✅ Информация о вашей роли отправлена в личные сообщения!", show_alert=True)
-            except Exception as e:
-                await query.answer("❌ Не удалось отправить сообщение в личку!", show_alert=True)
-            return
 
         # Проверяем возврат к действиям
         if len(data) >= 4 and data[1] == "back" and data[2] == "to" and data[3] == "actions":
