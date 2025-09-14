@@ -3050,7 +3050,7 @@ class ForestWolvesBot:
         exiled_player = game.process_voting()
         
         # Получаем детальную информацию о голосовании
-        voting_details = game.get_voting_details()
+        voting_details = game.get_voting_details(self.get_display_name)
         
         # Проверяем, было ли голосование завершено досрочно
         is_early_completion = hasattr(game, 'exile_voting_completed') and game.exile_voting_completed

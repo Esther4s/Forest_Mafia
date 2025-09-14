@@ -560,7 +560,7 @@ class Game:
         exiled_id = max_vote_players[0]
         return self.players.get(exiled_id)
 
-    def get_voting_details(self) -> Dict[str, any]:
+    def get_voting_details(self, get_display_name_func=None) -> Dict[str, any]:
         """Возвращает детальную информацию о голосовании"""
         # Используем сохраненные результаты голосования, если они есть
         votes_to_analyze = getattr(self, 'last_voting_results', self.votes)
@@ -582,11 +582,17 @@ class Game:
         
         for voter_id, target_id in votes_to_analyze.items():
             voter = self.players.get(voter_id)
-            voter_name = voter.username if voter else f"Игрок {voter_id}"
+            if voter and get_display_name_func:
+                voter_name = get_display_name_func(voter.user_id, voter.username, None)
+            else:
+                voter_name = voter.username if voter else f"Игрок {voter_id}"
             
             if target_id is not None:  # Голос за конкретного игрока
                 target = self.players.get(target_id)
-                target_name = target.username if target else f"Игрок {target_id}"
+                if target and get_display_name_func:
+                    target_name = get_display_name_func(target.user_id, target.username, None)
+                else:
+                    target_name = target.username if target else f"Игрок {target_id}"
                 vote_counts[target_id] = vote_counts.get(target_id, 0) + 1
                 vote_breakdown[voter_name] = f"за {target_name}"
             else:  # Голос за пропуск
