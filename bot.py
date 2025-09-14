@@ -5411,6 +5411,8 @@ class ForestWolvesBot:
         # Установка команд после старта бота
         async def post_init(application):
             await self.setup_bot_commands(application)
+            # Открепляем все сообщения при старте
+            await self.unpin_all_messages_on_startup()
 
         application.post_init = post_init
 
@@ -5432,6 +5434,61 @@ class ForestWolvesBot:
             if self.db:
                 close_db()
                 logger.info("✅ Подключение к базе данных закрыто")
+
+    async def unpin_all_messages_on_startup(self):
+        """Открепляет все сообщения бота при старте"""
+        try:
+            logger.info("🔄 Начинаем открепление всех сообщений бота...")
+            
+            # Получаем список всех авторизованных чатов
+            from state_persistence import load_authorized_chats
+            authorized_chats = load_authorized_chats()
+            
+            if not authorized_chats:
+                logger.info("ℹ️ Нет авторизованных чатов для открепления сообщений")
+                return
+            
+            # Создаем экземпляр бота для API вызовов
+            from telegram import Bot
+            bot = Bot(token=BOT_TOKEN)
+            
+            unpinned_count = 0
+            total_chats = len(authorized_chats)
+            
+            for chat_id in authorized_chats:
+                try:
+                    # Получаем информацию о чате
+                    chat = await bot.get_chat(chat_id)
+                    
+                    # Проверяем, что бот является администратором
+                    try:
+                        bot_member = await bot.get_chat_member(chat_id, bot.id)
+                        if bot_member.status not in ['administrator', 'creator']:
+                            logger.warning(f"⚠️ Бот не является администратором в чате {chat_id}, пропускаем")
+                            continue
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось проверить статус бота в чате {chat_id}: {e}")
+                        continue
+                    
+                    # Открепляем все сообщения в чате
+                    try:
+                        await bot.unpin_all_chat_messages(chat_id)
+                        unpinned_count += 1
+                        logger.info(f"✅ Откреплены все сообщения в чате {chat_id}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось открепить сообщения в чате {chat_id}: {e}")
+                        continue
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка обработки чата {chat_id}: {e}")
+                    continue
+            
+            logger.info(f"✅ Открепление завершено: {unpinned_count}/{total_chats} чатов обработано")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при откреплении сообщений: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
 
     async def handle_private_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает личные сообщения боту"""
@@ -6426,26 +6483,26 @@ class ForestWolvesBot:
             
             if game_end_time:
                 try:
-                    if isinstance(game_end_time, str):
+                if isinstance(game_end_time, str):
                         # Пробуем разные форматы даты
-                        try:
-                            game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
-                        except:
+                    try:
+                        game_end_time = datetime.fromisoformat(game_end_time.replace('Z', '+00:00'))
+                    except:
                             try:
                                 game_end_time = datetime.fromisoformat(game_end_time)
                             except:
                                 # Если не удается распарсить, используем текущее время
-                                game_end_time = datetime.now()
-                    
+                        game_end_time = datetime.now()
+                
                     # Нормализуем время
                     if game_end_time.tzinfo is None:
                         game_end_time = game_end_time.replace(tzinfo=None)
                     
                     current_time = datetime.now()
-                    time_diff = current_time - game_end_time
-                    
+                time_diff = current_time - game_end_time
+                
                     if time_diff > timedelta(hours=24):
-                        return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
+                    return False, f"❌ Прошло слишком много времени! Прощальное сообщение можно отправить только в течение суток после окончания игры. (Прошло: {time_diff.total_seconds()/3600:.1f} часов)", {}
                 except Exception as time_error:
                     logger.warning(f"Ошибка проверки времени: {time_error}")
                     # Если не удается проверить время, разрешаем прощальное сообщение
@@ -6478,8 +6535,8 @@ class ForestWolvesBot:
             
             # Используем данные игры
             if isinstance(game_data, dict):
-                chat_id = game_data.get('chat_id')
-                thread_id = game_data.get('thread_id')
+            chat_id = game_data.get('chat_id')
+            thread_id = game_data.get('thread_id')
             else:
                 # Если это объект Game
                 chat_id = getattr(game_data, 'chat_id', None)
