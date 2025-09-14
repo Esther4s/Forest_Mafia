@@ -7,10 +7,13 @@
 """
 
 import random
+import logging
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 class GamePhase(Enum):
     WAITING = "waiting"
@@ -45,6 +48,7 @@ class Player:
     is_beaver_protected: bool = False
     consecutive_nights_survived: int = 0
     last_action_round: int = 0
+    extra_lives: int = 0  # Дополнительные жизни от предметов
     
     def __post_init__(self):
         """Валидация данных игрока после инициализации"""
@@ -78,6 +82,17 @@ class Player:
         old_supplies = self.supplies
         self.supplies = min(self.supplies + amount, self.max_supplies)
         return self.supplies - old_supplies
+    
+    def apply_extra_lives(self, lives: int) -> None:
+        """Применяет дополнительные жизни от предметов"""
+        self.extra_lives += lives
+    
+    def use_extra_life(self) -> bool:
+        """Использует дополнительную жизнь, возвращает True если есть жизни"""
+        if self.extra_lives > 0:
+            self.extra_lives -= 1
+            return True
+        return False
     
     def steal_supplies(self) -> bool:
         """Крадет припас у игрока, возвращает True если успешно"""
@@ -219,6 +234,9 @@ class Game:
         # Создаем список ролей для распределения
         all_roles = self._create_role_list(role_counts)
         
+        # Применяем эффекты предметов для распределения ролей
+        all_roles = self._apply_role_effects(player_list, all_roles)
+        
         # Перемешиваем и назначаем роли
         random.shuffle(all_roles)
         self._assign_roles_to_players(player_list, all_roles)
@@ -242,6 +260,40 @@ class Game:
             all_roles.append((Role.HARE, Team.HERBIVORES))
         
         return all_roles
+    
+    def _apply_role_effects(self, players: List[Player], all_roles: List[Tuple[Role, Team]]) -> List[Tuple[Role, Team]]:
+        """Применяет эффекты предметов при распределении ролей"""
+        try:
+            from item_effects import check_role_boost_effect
+            
+            # Создаем копию списка ролей
+            modified_roles = all_roles.copy()
+            
+            # Находим активные роли (волк, лиса, крот, бобр)
+            active_roles = [(Role.WOLF, Team.PREDATORS), (Role.FOX, Team.PREDATORS), 
+                           (Role.MOLE, Team.HERBIVORES), (Role.BEAVER, Team.HERBIVORES)]
+            
+            # Проверяем каждого игрока на эффект "Активная роль"
+            for player in players:
+                boost_chance = check_role_boost_effect(player.user_id)
+                if boost_chance > 1.0:  # Есть эффект усиления
+                    # С вероятностью boost_chance даем активную роль
+                    if random.random() < boost_chance:
+                        # Находим доступную активную роль
+                        for role, team in active_roles:
+                            if (role, team) in modified_roles:
+                                # Убираем эту роль из общего списка
+                                modified_roles.remove((role, team))
+                                # Добавляем в начало списка для гарантированного получения
+                                modified_roles.insert(0, (role, team))
+                                break
+                        break  # Применяем эффект только к одному игроку за раз
+            
+            return modified_roles
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка применения эффектов ролей: {e}")
+            return all_roles
     
     def _assign_roles_to_players(self, players: List[Player], roles: List[Tuple[Role, Team]]):
         """Назначает роли игрокам"""
@@ -307,12 +359,31 @@ class Game:
             return False
 
         self.assign_roles()
+        
+        # Применяем эффекты предметов при старте игры
+        self._apply_start_game_effects()
+        
         self.phase = GamePhase.NIGHT
         self.current_round = 1
         self.day_number = 1
         self.game_start_time = datetime.now()
         self.phase_end_time = datetime.now() + timedelta(seconds=60)  # Первая ночь короче
         return True
+
+    def _apply_start_game_effects(self):
+        """Применяет эффекты предметов при старте игры"""
+        try:
+            from item_effects import check_extra_lives_effect
+            
+            # Применяем дополнительные жизни для всех игроков
+            for player in self.players.values():
+                extra_lives = check_extra_lives_effect(player.user_id)
+                if extra_lives > 0:
+                    player.apply_extra_lives(extra_lives)
+                    logger.info(f"✅ Игрок {player.user_id} получил {extra_lives} дополнительных жизней")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка применения эффектов при старте игры: {e}")
 
     def get_alive_players(self) -> List[Player]:
         """Возвращает список живых игроков"""

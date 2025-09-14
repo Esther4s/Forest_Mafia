@@ -45,7 +45,10 @@ logger = logging.getLogger(__name__)
 
 
 class ForestWolvesBot:
+    _instance = None
+    
     def __init__(self):
+        ForestWolvesBot._instance = self
         # chat_id -> Game
         self.games: Dict[int, Game] = {}
         # user_id -> chat_id
@@ -180,6 +183,11 @@ class ForestWolvesBot:
         if hasattr(self, 'auto_save_manager') and self.auto_save_manager:
             self.auto_save_manager.force_save()
             logger.info("✅ Состояние принудительно сохранено")
+    
+    @classmethod
+    def get_instance(cls):
+        """Получает экземпляр бота"""
+        return cls._instance
     
     def save_game_state(self, chat_id: int) -> bool:
         """
@@ -762,6 +770,80 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка получения инвентаря для пользователя {user_id}: {e}")
             await update.message.reply_text("❌ Произошла ошибка при получении инвентаря!")
+
+    async def use_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает команду /use для использования предметов"""
+        # Проверяем права пользователя
+        has_permission, error_msg = await self.check_user_permissions(update, context, "member")
+        if not has_permission:
+            await self.send_permission_error(update, context, error_msg)
+            return
+        
+        # Проверяем права бота в чате
+        if not await self.check_bot_permissions_decorator(update, context):
+            return
+        
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        try:
+            # Получаем аргументы команды
+            if not context.args:
+                await update.message.reply_text(
+                    "❌ Укажите название предмета!\n\n"
+                    "Пример: /use 🎭 Активная роль\n\n"
+                    "💡 Используйте /inventory чтобы посмотреть доступные предметы"
+                )
+                return
+            
+            # Объединяем аргументы в название предмета
+            item_name = " ".join(context.args)
+            
+            # Импортируем модуль эффектов предметов
+            from item_effects import apply_item_effect, get_item_info
+            
+            # Проверяем, существует ли предмет
+            item_info = get_item_info(item_name)
+            if not item_info:
+                await update.message.reply_text(
+                    f"❌ Предмет '{item_name}' не найден!\n\n"
+                    "💡 Используйте /inventory чтобы посмотреть доступные предметы"
+                )
+                return
+            
+            # Определяем текущую фазу игры для пользователя
+            game_phase = None
+            game_id = None
+            chat_id = None
+            
+            # Проверяем, участвует ли пользователь в игре
+            if user_id in self.player_games:
+                game_chat_id = self.player_games[user_id]
+                if game_chat_id in self.games:
+                    game = self.games[game_chat_id]
+                    game_phase = game.phase.value if hasattr(game.phase, 'value') else str(game.phase)
+                    game_id = game.id
+                    chat_id = game_chat_id
+            
+            # Применяем эффект предмета
+            success, message = apply_item_effect(user_id, item_name, game_id, chat_id)
+            
+            if success:
+                # Отправляем подтверждение
+                await update.message.reply_text(
+                    f"✅ {message}\n\n"
+                    f"👤 Пользователь: {username}\n"
+                    f"🎮 Игра: {'Активна' if game_id else 'Не активна'}"
+                )
+                
+                # Логируем использование
+                logger.info(f"✅ Пользователь {user_id} ({username}) использовал предмет: {item_name}")
+            else:
+                await update.message.reply_text(f"❌ {message}")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка использования предмета пользователем {user_id}: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при использовании предмета!")
 
     async def stats_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показывает статистику игрока, топ игроков или общую статистику"""
@@ -3861,6 +3943,20 @@ class ForestWolvesBot:
 
         await update.message.reply_text(settings_text, reply_markup=InlineKeyboardMarkup(keyboard))
 
+    async def handle_night_action_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает callback'и ночных действий"""
+        query = update.callback_query
+        if not query:
+            return
+        
+        try:
+            # Импортируем обработчик callback'ов
+            from callback_handler import callback_handler
+            await callback_handler.handle_callback(update, context)
+        except Exception as e:
+            logger.error(f"❌ Ошибка обработки ночного действия: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
     async def handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update or not update.callback_query:
             return
@@ -4729,11 +4825,66 @@ class ForestWolvesBot:
                 await self.send_mole_check_pm(context, game.last_mole_check)
                 game.last_mole_check = None  # Очищаем после отправки
             
+            # Отправляем лог ночи игрокам с ночным зрением
+            await self.send_night_vision_logs(context, game, results)
+            
         # Проверяем условия автоматического завершения игры после ночных действий
         winner = game.check_game_end()
         if winner:
             await self.end_game_winner(context, game, winner)
             return
+
+    async def send_night_vision_logs(self, context: ContextTypes.DEFAULT_TYPE, game: Game, results: Dict):
+        """Отправляет лог ночи игрокам с ночным зрением"""
+        try:
+            from item_effects import check_night_vision_effect
+            
+            # Формируем лог ночи
+            night_log = "🌙 <b>Лог ночных действий:</b>\n\n"
+            
+            # Добавляем действия волков
+            if results.get("wolves"):
+                night_log += "🐺 <b>Действия волков:</b>\n"
+                for action in results["wolves"]:
+                    night_log += f"• {action}\n"
+                night_log += "\n"
+            
+            # Добавляем действия лисы
+            if results.get("foxes"):
+                night_log += "🦊 <b>Действия лисы:</b>\n"
+                for action in results["foxes"]:
+                    night_log += f"• {action}\n"
+                night_log += "\n"
+            
+            # Добавляем действия крота
+            if results.get("moles"):
+                night_log += "🦡 <b>Действия крота:</b>\n"
+                for action in results["moles"]:
+                    night_log += f"• {action}\n"
+                night_log += "\n"
+            
+            # Добавляем действия бобра
+            if results.get("beavers"):
+                night_log += "🦫 <b>Действия бобра:</b\n"
+                for action in results["beavers"]:
+                    night_log += f"• {action}\n"
+                night_log += "\n"
+            
+            # Отправляем лог игрокам с ночным зрением
+            for player in game.players.values():
+                if player.is_alive and check_night_vision_effect(player.user_id):
+                    try:
+                        await context.bot.send_message(
+                            chat_id=player.user_id,
+                            text=night_log,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Лог ночи отправлен игроку {player.user_id} с ночным зрением")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка отправки лога ночи игроку {player.user_id}: {e}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки логов ночного зрения: {e}")
 
 
     async def complete_exile_voting_early(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -4996,6 +5147,40 @@ class ForestWolvesBot:
                 await context.bot.send_message(chat_id=player.user_id, text=role_message)
             except Exception as e:
                 logger.error(f"Не удалось отправить роль игроку {player.user_id}: {e}")
+        
+        # Отправляем раскрытие ролей игрокам с острым нюхом
+        await self.send_role_reveal_to_players(context, game)
+
+    async def send_role_reveal_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
+        """Отправляет раскрытие ролей игрокам с острым нюхом"""
+        try:
+            from item_effects import check_role_reveal_effect
+            
+            # Формируем список всех ролей
+            roles_reveal = "🔍 <b>Раскрытие ролей (Острый нюх):</b>\n\n"
+            
+            for player in game.players.values():
+                if player.is_alive:
+                    role_info = self.get_role_info(player.role)
+                    team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
+                    display_name = self.get_display_name(player.user_id, player.username, player.first_name)
+                    roles_reveal += f"👤 {display_name}: {role_info['name']} ({team_name})\n"
+            
+            # Отправляем раскрытие игрокам с острым нюхом
+            for player in game.players.values():
+                if player.is_alive and check_role_reveal_effect(player.user_id):
+                    try:
+                        await context.bot.send_message(
+                            chat_id=player.user_id,
+                            text=roles_reveal,
+                            parse_mode='HTML'
+                        )
+                        logger.info(f"✅ Раскрытие ролей отправлено игроку {player.user_id} с острым нюхом")
+                    except Exception as e:
+                        logger.error(f"❌ Ошибка отправки раскрытия ролей игроку {player.user_id}: {e}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки раскрытия ролей: {e}")
 
     # ---------------- helper ----------------
     async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
@@ -5143,6 +5328,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("start", self.start_command))
         application.add_handler(CommandHandler("help", self.help_command))
         application.add_handler(CommandHandler("inventory", self.inventory_command))
+        application.add_handler(CommandHandler("use", self.use_command))
         application.add_handler(CommandHandler("stats", self.stats_command))
         application.add_handler(CommandHandler("rules", self.rules))
         application.add_handler(CommandHandler("join", self.join))
@@ -5215,6 +5401,12 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^show_rules_pm"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^back_to_start"))
         application.add_handler(CallbackQueryHandler(self.handle_settings, pattern=r"^repeat_role_actions"))
+        
+        # Обработчики ночных действий
+        application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^wolf_"))
+        application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^fox_"))
+        application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^mole_"))
+        application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^beaver_"))
 
         # Установка команд после старта бота
         async def post_init(application):

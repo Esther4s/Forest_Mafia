@@ -139,6 +139,17 @@ class RewardsSystem:
             amount = custom_amount if custom_amount is not None else config.get("amount", 0)
             description = custom_description or config.get("description", f"Награда: {reason.value}")
             
+            # Проверяем эффект удвоения награды
+            try:
+                from item_effects import check_reward_multiplier_effect
+                multiplier = check_reward_multiplier_effect(user_id)
+                if multiplier > 1.0:
+                    amount = int(amount * multiplier)
+                    description += f" (x{multiplier:.1f})"
+                    self.logger.info(f"✅ Награда удвоена для пользователя {user_id}: {amount} орешков")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Ошибка проверки эффекта удвоения награды: {e}")
+            
             if amount <= 0:
                 self.logger.warning(f"⚠️ Попытка выдать награду с нулевой или отрицательной суммой: {amount}")
                 return False

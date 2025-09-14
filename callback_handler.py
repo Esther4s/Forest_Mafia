@@ -63,6 +63,10 @@ class CallbackHandler:
             "game_stats": self._handle_game_stats,
             "balance_info": self._handle_balance_info,
             "rewards_info": self._handle_rewards_info,
+            "wolf": self._handle_wolf_action,
+            "fox": self._handle_fox_action,
+            "mole": self._handle_mole_action,
+            "beaver": self._handle_beaver_action,
         }
     
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -568,6 +572,190 @@ class CallbackHandler:
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка отправки результатов голосования: {e}")
+
+    async def _handle_wolf_action(self, query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, parts: list):
+        """Обрабатывает действия волка"""
+        try:
+            user_id = query.from_user.id
+            
+            # Находим игру пользователя
+            game = self._find_user_game(user_id)
+            if not game:
+                await query.answer("❌ Игра не найдена!", show_alert=True)
+                return
+            
+            # Проверяем, что пользователь волк
+            player = game.players.get(user_id)
+            if not player or player.role != Role.WOLF:
+                await query.answer("❌ Вы не волк!", show_alert=True)
+                return
+            
+            # Проверяем фазу игры
+            if game.phase != GamePhase.NIGHT:
+                await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
+                return
+            
+            # Обрабатываем действие
+            if len(parts) >= 3 and parts[1] == "kill":
+                target_id = int(parts[2])
+                
+                # Получаем ночные действия
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.set_wolf_target(user_id, target_id)
+                    
+                    if success:
+                        target = game.players[target_id]
+                        display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+                        await query.edit_message_text(f"🐺 Вы выбрали цель: {display_name}")
+                    else:
+                        await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обработки действия волка: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _handle_fox_action(self, query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, parts: list):
+        """Обрабатывает действия лисы"""
+        try:
+            user_id = query.from_user.id
+            
+            # Находим игру пользователя
+            game = self._find_user_game(user_id)
+            if not game:
+                await query.answer("❌ Игра не найдена!", show_alert=True)
+                return
+            
+            # Проверяем, что пользователь лиса
+            player = game.players.get(user_id)
+            if not player or player.role != Role.FOX:
+                await query.answer("❌ Вы не лиса!", show_alert=True)
+                return
+            
+            # Проверяем фазу игры
+            if game.phase != GamePhase.NIGHT:
+                await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
+                return
+            
+            # Обрабатываем действие
+            if len(parts) >= 3 and parts[1] == "steal":
+                target_id = int(parts[2])
+                
+                # Получаем ночные действия
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.set_fox_target(user_id, target_id)
+                    
+                    if success:
+                        target = game.players[target_id]
+                        display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+                        await query.edit_message_text(f"🦊 Вы выбрали цель для кражи: {display_name}")
+                    else:
+                        await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обработки действия лисы: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _handle_mole_action(self, query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, parts: list):
+        """Обрабатывает действия крота"""
+        try:
+            user_id = query.from_user.id
+            
+            # Находим игру пользователя
+            game = self._find_user_game(user_id)
+            if not game:
+                await query.answer("❌ Игра не найдена!", show_alert=True)
+                return
+            
+            # Проверяем, что пользователь крот
+            player = game.players.get(user_id)
+            if not player or player.role != Role.MOLE:
+                await query.answer("❌ Вы не крот!", show_alert=True)
+                return
+            
+            # Проверяем фазу игры
+            if game.phase != GamePhase.NIGHT:
+                await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
+                return
+            
+            # Обрабатываем действие
+            if len(parts) >= 3 and parts[1] == "dig":
+                target_id = int(parts[2])
+                
+                # Получаем ночные действия
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.set_mole_target(user_id, target_id)
+                    
+                    if success:
+                        target = game.players[target_id]
+                        display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+                        await query.edit_message_text(f"🕳️ Вы выбрали цель для копания: {display_name}")
+                    else:
+                        await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обработки действия крота: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _handle_beaver_action(self, query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, parts: list):
+        """Обрабатывает действия бобра"""
+        try:
+            user_id = query.from_user.id
+            
+            # Находим игру пользователя
+            game = self._find_user_game(user_id)
+            if not game:
+                await query.answer("❌ Игра не найдена!", show_alert=True)
+                return
+            
+            # Проверяем, что пользователь бобр
+            player = game.players.get(user_id)
+            if not player or player.role != Role.BEAVER:
+                await query.answer("❌ Вы не бобр!", show_alert=True)
+                return
+            
+            # Проверяем фазу игры
+            if game.phase != GamePhase.NIGHT:
+                await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
+                return
+            
+            # Обрабатываем действие
+            if len(parts) >= 3 and parts[1] == "protect":
+                target_id = int(parts[2])
+                
+                # Получаем ночные действия
+                from bot import ForestWolvesBot
+                bot_instance = ForestWolvesBot.get_instance()
+                if bot_instance and game.chat_id in bot_instance.night_actions:
+                    night_actions = bot_instance.night_actions[game.chat_id]
+                    success = night_actions.set_beaver_target(user_id, target_id)
+                    
+                    if success:
+                        target = game.players[target_id]
+                        display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+                        await query.edit_message_text(f"🦫 Вы выбрали цель для защиты: {display_name}")
+                    else:
+                        await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                else:
+                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка обработки действия бобра: {e}")
+            await query.answer("❌ Произошла ошибка!", show_alert=True)
 
 
 # Глобальный экземпляр обработчика callback'ов

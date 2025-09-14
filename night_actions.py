@@ -201,12 +201,35 @@ class NightActions:
             else:
                 target_id = max_vote_targets[0]
             
-            # Убиваем цель
+            # Проверяем защиту от волков
             target = self.game.players[target_id]
-            target.is_alive = False
             
-            # Обновляем статистику
-            self.game.game_stats.predator_kills += 1
+            # Проверяем эффект защиты от волков
+            from item_effects import check_wolf_protection_effect
+            is_protected = check_wolf_protection_effect(target_id)
+            
+            if is_protected:
+                # Цель защищена, не убиваем
+                results.append(f"🛡️ {self.get_display_name(target_id, target.username, target.first_name)} был защищен от атаки волков!")
+            else:
+                # Проверяем эффект воскрешения перед убийством
+                from item_effects import check_resurrection_effect
+                has_resurrection = check_resurrection_effect(target_id)
+                
+                if has_resurrection:
+                    # Игрок воскрешается, не убиваем
+                    results.append(f"🍄 {self.get_display_name(target_id, target.username, target.first_name)} был воскрешен эликсиром!")
+                else:
+                    # Проверяем дополнительные жизни
+                    if target.use_extra_life():
+                        # Игрок использует дополнительную жизнь
+                        results.append(f"🌲 {self.get_display_name(target_id, target.username, target.first_name)} использовал дополнительную жизнь!")
+                    else:
+                        # Убиваем цель
+                        target.is_alive = False
+                        
+                        # Обновляем статистику
+                        self.game.game_stats.predator_kills += 1
             
             # Сбрасываем счетчик выживания для убитого игрока
             target.consecutive_nights_survived = 0
@@ -305,9 +328,18 @@ class NightActions:
                 # Обновляем время последнего действия крота
                 mole.last_action_round = self.game.current_round
 
-                # Используем новую логику проверки крота
-                check_result = Mole.check_player(target, self.game.current_round)
-                results.append(check_result)
+                # Проверяем защиту от проверки крота
+                from item_effects import check_mole_protection_effect
+                is_protected = check_mole_protection_effect(target_id)
+                
+                if is_protected:
+                    # Цель защищена от проверки крота
+                    check_result = f"🌿 {self.get_display_name(target_id, target.username, target.first_name)} скрыт от проверки крота!"
+                    results.append(check_result)
+                else:
+                    # Используем новую логику проверки крота
+                    check_result = Mole.check_player(target, self.game.current_round)
+                    results.append(check_result)
                 
                 # Сохраняем информацию о проверке крота для отправки ЛС
                 self.game.last_mole_check = {
@@ -327,13 +359,27 @@ class NightActions:
         
         for player in self.game.players.values():
             if player.is_alive and player.is_fox_stolen >= 2 and not player.is_beaver_protected:
-                player.is_alive = False
-                
-                # Сбрасываем счетчик выживания
-                player.consecutive_nights_survived = 0
+                # Проверяем эффект воскрешения перед смертью
+                from item_effects import check_resurrection_effect
+                has_resurrection = check_resurrection_effect(player.user_id)
                 
                 display_name = self.get_display_name(player.user_id, player.username, None)
-                deaths.append(f"🦊 {display_name} ушел жить в соседний лес из-за кражи запасов!")
+                
+                if has_resurrection:
+                    # Игрок воскрешается, не убиваем
+                    deaths.append(f"🍄 {display_name} был воскрешен эликсиром!")
+                else:
+                    # Проверяем дополнительные жизни
+                    if player.use_extra_life():
+                        # Игрок использует дополнительную жизнь
+                        deaths.append(f"🌲 {display_name} использовал дополнительную жизнь!")
+                    else:
+                        player.is_alive = False
+                        
+                        # Сбрасываем счетчик выживания
+                        player.consecutive_nights_survived = 0
+                        
+                        deaths.append(f"🦊 {display_name} ушел жить в соседний лес из-за кражи запасов!")
         
         return deaths
     

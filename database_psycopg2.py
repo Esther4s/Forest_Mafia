@@ -1571,6 +1571,21 @@ def create_tables():
             UNIQUE(user_id, item_name)
         );
         
+        -- Таблица активных эффектов предметов
+        CREATE TABLE IF NOT EXISTS active_effects (
+            id SERIAL PRIMARY KEY,
+            user_id BIGINT NOT NULL,
+            item_name VARCHAR(255) NOT NULL,
+            effect_type VARCHAR(100) NOT NULL,
+            effect_data JSONB DEFAULT '{}'::jsonb,
+            game_id VARCHAR,
+            chat_id BIGINT,
+            expires_at TIMESTAMP,
+            is_used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+        );
+        
         -- Создаем индексы
         CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
         CREATE INDEX IF NOT EXISTS idx_games_chat_id ON games(chat_id);
@@ -2772,3 +2787,166 @@ def delete_game_state(game_id: str) -> bool:
     except Exception as e:
         logger.error(f"❌ Ошибка удаления состояния игры {game_id}: {e}")
         return False
+
+
+def add_active_effect(user_id: int, item_name: str, effect_type: str, effect_data: dict = None, game_id: str = None, chat_id: int = None, expires_at: str = None) -> bool:
+    """
+    Добавляет активный эффект предмета
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+        effect_type: Тип эффекта
+        effect_data: Данные эффекта (JSON)
+        game_id: ID игры (если привязан к игре)
+        chat_id: ID чата (если привязан к чату)
+        expires_at: Время истечения эффекта
+    
+    Returns:
+        bool: True если успешно добавлен
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO active_effects 
+                    (user_id, item_name, effect_type, effect_data, game_id, chat_id, expires_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (str(user_id), item_name, effect_type, json.dumps(effect_data or {}), game_id, str(chat_id) if chat_id else None, expires_at))
+                
+                conn.commit()
+                logger.info(f"✅ Активный эффект {item_name} добавлен для пользователя {user_id}")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка добавления активного эффекта: {e}")
+        return False
+
+
+def get_active_effects(user_id: int, game_id: str = None, chat_id: int = None) -> List[Dict]:
+    """
+    Получает активные эффекты пользователя
+    
+    Args:
+        user_id: ID пользователя
+        game_id: ID игры (опционально)
+        chat_id: ID чата (опционально)
+    
+    Returns:
+        List[Dict]: Список активных эффектов
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                query = """
+                    SELECT * FROM active_effects 
+                    WHERE user_id = %s AND is_used = FALSE
+                """
+                params = [str(user_id)]
+                
+                if game_id:
+                    query += " AND (game_id = %s OR game_id IS NULL)"
+                    params.append(game_id)
+                
+                if chat_id:
+                    query += " AND (chat_id = %s OR chat_id IS NULL)"
+                    params.append(str(chat_id))
+                
+                query += " ORDER BY created_at DESC"
+                
+                cursor.execute(query, params)
+                results = cursor.fetchall()
+                
+                # Конвертируем в обычные словари
+                effects = []
+                for row in results:
+                    effect = dict(row)
+                    if effect['effect_data']:
+                        effect['effect_data'] = json.loads(effect['effect_data'])
+                    effects.append(effect)
+                
+                return effects
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения активных эффектов: {e}")
+        return []
+
+
+def mark_effect_as_used(effect_id: int) -> bool:
+    """
+    Отмечает эффект как использованный
+    
+    Args:
+        effect_id: ID эффекта
+    
+    Returns:
+        bool: True если успешно
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    UPDATE active_effects 
+                    SET is_used = TRUE 
+                    WHERE id = %s
+                """, (effect_id,))
+                
+                conn.commit()
+                logger.info(f"✅ Эффект {effect_id} отмечен как использованный")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка отметки эффекта как использованного: {e}")
+        return False
+
+
+def remove_effect(effect_id: int) -> bool:
+    """
+    Удаляет эффект
+    
+    Args:
+        effect_id: ID эффекта
+    
+    Returns:
+        bool: True если успешно
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("DELETE FROM active_effects WHERE id = %s", (effect_id,))
+                
+                conn.commit()
+                logger.info(f"✅ Эффект {effect_id} удален")
+                return True
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления эффекта: {e}")
+        return False
+
+
+def cleanup_expired_effects() -> int:
+    """
+    Удаляет истекшие эффекты
+    
+    Returns:
+        int: Количество удаленных эффектов
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    DELETE FROM active_effects 
+                    WHERE expires_at IS NOT NULL AND expires_at < NOW()
+                """)
+                
+                deleted_count = cursor.rowcount
+                conn.commit()
+                
+                if deleted_count > 0:
+                    logger.info(f"✅ Удалено {deleted_count} истекших эффектов")
+                
+                return deleted_count
+                
+    except Exception as e:
+        logger.error(f"❌ Ошибка очистки истекших эффектов: {e}")
+        return 0
