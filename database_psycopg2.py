@@ -613,7 +613,7 @@ def get_chat_settings(chat_id: int) -> Dict[str, Any]:
     """
     # Сначала пытаемся получить существующие настройки
     query = "SELECT * FROM chat_settings WHERE chat_id = %s"
-    settings = fetch_one(query, (chat_id,))
+    settings = fetch_one(query, (str(chat_id),))
     
     if settings:
         logger.info(f"✅ Настройки чата {chat_id} найдены")
@@ -705,7 +705,7 @@ def update_chat_settings(chat_id: int, **kwargs) -> bool:
         set_clauses.append(f"{field} = %s")
         values.append(value)
     
-    values.append(chat_id)  # Для WHERE условия
+    values.append(str(chat_id))  # Для WHERE условия
     
     query = f"""
         UPDATE chat_settings 
@@ -771,7 +771,7 @@ def delete_chat_settings(chat_id: int) -> bool:
     query = "DELETE FROM chat_settings WHERE chat_id = %s"
     
     try:
-        execute_query(query, (chat_id,))
+        execute_query(query, (str(chat_id),))
         logger.info(f"✅ Настройки чата {chat_id} удалены")
         return True
         
@@ -979,7 +979,7 @@ def save_game_to_db(game_id: str, chat_id: int, thread_id: int = None,
             round_number = EXCLUDED.round_number,
             settings = EXCLUDED.settings
         """
-        params = (game_id, chat_id, thread_id, status, phase, round_number, 
+        params = (game_id, str(chat_id), str(thread_id) if thread_id else None, status, phase, round_number, 
                  json.dumps(settings) if settings else '{}')
         execute_query(query, params)
         return True
@@ -1298,7 +1298,7 @@ def get_player_chat_stats(user_id: int, chat_id: int) -> Dict[str, Any]:
             WHERE p.user_id = %s AND g.chat_id = %s
         """
         
-        result = fetch_one(query, (user_id, chat_id))
+        result = fetch_one(query, (user_id, str(chat_id)))
         
         if result and result['games_played'] > 0:
             # Получаем статистику по ролям в этом чате
@@ -1312,7 +1312,7 @@ def get_player_chat_stats(user_id: int, chat_id: int) -> Dict[str, Any]:
                 GROUP BY p.role
             """
             
-            role_results = fetch_query(role_query, (user_id, chat_id))
+            role_results = fetch_query(role_query, (user_id, str(chat_id)))
             role_stats = {}
             for role_result in role_results:
                 role_name = role_result['role']
@@ -1337,7 +1337,7 @@ def get_player_chat_stats(user_id: int, chat_id: int) -> Dict[str, Any]:
                 WHERE user_id = %s
             """
             
-            rank_result = fetch_one(rank_query, (chat_id, user_id))
+            rank_result = fetch_one(rank_query, (str(chat_id), user_id))
             chat_rank = rank_result['rank'] if rank_result else None
             
             return {
