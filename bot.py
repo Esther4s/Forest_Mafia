@@ -30,11 +30,11 @@ from database_psycopg2 import (
     execute_query, fetch_one, fetch_query,
     get_chat_settings, update_chat_settings, reset_chat_settings,
     create_tables,
-    save_player_action, save_vote, update_player_stats,
+    save_player_action, save_vote, update_player_stats, update_user_stats,
     get_bot_setting, set_bot_setting,
     save_game_to_db, save_player_to_db, update_game_phase, finish_game_in_db,
     get_team_stats, get_top_players, get_best_predator, get_best_herbivore, get_player_detailed_stats,
-    add_nuts_to_user, get_shop_items
+    get_player_chat_stats, add_nuts_to_user, get_shop_items
 )
 
 logging.basicConfig(
@@ -666,7 +666,7 @@ class ForestWolvesBot:
             "🏆 <b>Победа:</b> уничтожить команду противника\n\n"
             "💡 <b>Команды:</b> /rules, /help, /stats, /settings"
         )
-        await update.message.reply_text(help_text)
+        await update.message.reply_text(help_text, parse_mode='HTML')
 
     async def inventory_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показывает инвентарь игрока"""
@@ -754,7 +754,8 @@ class ForestWolvesBot:
                     "`/stats` - ваша статистика\n"
                     "`/stats top` - топ игроков\n"
                     "`/stats teams` - статистика команд\n"
-                    "`/stats best` - лучшие игроки по ролям"
+                    "`/stats best` - лучшие игроки по ролям",
+                    parse_mode='HTML'
                 )
         else:
             # Показываем статистику текущего игрока
@@ -781,7 +782,7 @@ class ForestWolvesBot:
                 last_played = stats['last_played'].strftime('%d.%m.%Y %H:%M')
                 stats_text += f"🕐 Последняя игра: {last_played}\n"
             
-            await update.message.reply_text(stats_text)
+            await update.message.reply_text(stats_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка получения статистики игрока: {e}")
@@ -804,7 +805,7 @@ class ForestWolvesBot:
                 stats_text += f"{i}. <b>{username}</b>\n"
                 stats_text += f"   🎮 Игр: {player['games_played']} | 🏆 Побед: {player['games_won']} ({win_rate}%)\n\n"
             
-            await update.message.reply_text(stats_text)
+            await update.message.reply_text(stats_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка получения топ игроков: {e}")
@@ -839,7 +840,7 @@ class ForestWolvesBot:
                 stats_text += f"   🐺 Хищники: {predators_percent:.1f}%\n"
                 stats_text += f"   🐰 Травоядные: {herbivores_percent:.1f}%\n"
             
-            await update.message.reply_text(stats_text)
+            await update.message.reply_text(stats_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка получения статистики команд: {e}")
@@ -871,7 +872,7 @@ class ForestWolvesBot:
             else:
                 stats_text += "🐰 <b>Лучший травоядный:</b> пока нет данных\n"
             
-            await update.message.reply_text(stats_text)
+            await update.message.reply_text(stats_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка получения лучших игроков: {e}")
@@ -908,7 +909,8 @@ class ForestWolvesBot:
             await update.message.reply_text(
                 f"🌰 <b>Баланс игрока {username}:</b>\n\n"
                 f"💳 Текущий баланс: {int(balance)} орешков\n\n"
-                f"💡 Используйте команду /join чтобы присоединиться к игре!"
+                f"💡 Используйте команду /join чтобы присоединиться к игре!",
+                parse_mode='HTML'
             )
                 
         except Exception as e:
@@ -981,7 +983,7 @@ class ForestWolvesBot:
                 shop_text += f"📝 {item['description']}\n"
                 shop_text += f"💰 {int(item['price'])} орешков\n\n"
             
-            await update.message.reply_text(shop_text, reply_markup=reply_markup)
+            await update.message.reply_text(shop_text, reply_markup=reply_markup, parse_mode='HTML')
                 
         except Exception as e:
             logger.error(f"❌ Ошибка получения магазина: {e}")
@@ -1030,7 +1032,8 @@ class ForestWolvesBot:
                     f"👤 Игрок: {username}\n"
                     f"🎯 Тип игры: Forest Mafia\n"
                     f"📅 Создана: {created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-                    f"💡 Используйте /start для начала регистрации в игру!"
+                    f"💡 Используйте /start для начала регистрации в игру!",
+                    parse_mode='HTML'
                 )
                 
                 logger.info(f"✅ Игра {game_id} создана для пользователя {user_id}")
@@ -1088,14 +1091,10 @@ class ForestWolvesBot:
                         new_games_won = stats['games_won']
                         new_games_lost = stats['games_lost'] + 1
                     
-                    # Обновляем статистику
-                    update_query = """
-                        UPDATE stats 
-                        SET games_played = %s, games_won = %s, games_lost = %s, 
-                            last_played = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = %s
-                    """
-                    execute_query(update_query, (new_games_played, new_games_won, new_games_lost, user_id))
+                    # Обновляем статистику используя функцию из database_psycopg2
+                    success = update_user_stats(user_id, new_games_played, new_games_won, new_games_lost)
+                    if not success:
+                        logger.error(f"❌ Не удалось обновить статистику для пользователя {user_id}")
                     
                 else:
                     # Создаем новую статистику
@@ -1106,13 +1105,16 @@ class ForestWolvesBot:
                         elif winner == Team.PREDATORS and player.team == Team.PREDATORS:
                             player_won = True
                     
-                    insert_query = """
-                        INSERT INTO stats (user_id, games_played, games_won, games_lost, last_played)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP)
-                    """
-                    execute_query(insert_query, (user_id, 1, 1 if player_won else 0, 0 if player_won else 1))
+                    # Создаем новую статистику используя функцию из database_psycopg2
+                    success = update_user_stats(user_id, 1, 1 if player_won else 0, 0 if player_won else 1)
+                    if not success:
+                        logger.error(f"❌ Не удалось создать статистику для пользователя {user_id}")
                 
-                logger.info(f"✅ Статистика обновлена для игрока {user_id}: игры={new_games_played}, победы={new_games_won if 'new_games_won' in locals() else (1 if player_won else 0)}")
+                # Логируем результат
+                if 'new_games_played' in locals():
+                    logger.info(f"✅ Статистика обновлена для игрока {user_id}: игры={new_games_played}, победы={new_games_won if 'new_games_won' in locals() else (1 if player_won else 0)}")
+                else:
+                    logger.info(f"✅ Статистика создана для игрока {user_id}: игры=1, победы={1 if player_won else 0}")
                 
         except Exception as e:
             logger.error(f"❌ Ошибка обновления статистики: {e}")
@@ -6455,7 +6457,6 @@ class ForestWolvesBot:
             chat_id = query.message.chat.id
             
             # Получаем статистику игрока в этом чате
-            from database_psycopg2 import get_player_chat_stats
             stats = get_player_chat_stats(user_id, chat_id)
             
             keyboard = [

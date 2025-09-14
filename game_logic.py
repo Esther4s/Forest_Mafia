@@ -137,6 +137,7 @@ class Game:
         self.players: Dict[int, Player] = {}
         self.phase = GamePhase.WAITING
         self.current_round = 0
+        self.day_number: Optional[int] = None
         
         # Действия и голосования
         self.night_actions = {}
@@ -308,6 +309,7 @@ class Game:
         self.assign_roles()
         self.phase = GamePhase.NIGHT
         self.current_round = 1
+        self.day_number = 1
         self.game_start_time = datetime.now()
         self.phase_end_time = datetime.now() + timedelta(seconds=60)  # Первая ночь короче
         return True
@@ -459,20 +461,17 @@ class Game:
             delattr(self, 'last_voting_results')
         self.phase_end_time = datetime.now() + timedelta(seconds=120)  # 2 минуты на голосование
 
-    def vote(self, voter_id: int, target_id: Optional[int]) -> Tuple[bool, bool]:
+    def vote(self, voter_id: int, target_id: Optional[int]) -> bool:
         """
         Регистрирует голос игрока
-        Возвращает: (успех, уже_голосовал)
+        Возвращает: успех
         target_id может быть None для пропуска голосования
         """
         if not self._is_voting_valid(voter_id, target_id):
-            return False, False
-
-        # Проверяем, голосовал ли игрок ранее
-        already_voted = voter_id in self.votes
+            return False
         
         self.votes[voter_id] = target_id
-        return True, already_voted
+        return True
     
     def _is_voting_valid(self, voter_id: int, target_id: Optional[int]) -> bool:
         """Проверяет валидность голосования"""

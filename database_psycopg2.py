@@ -379,6 +379,16 @@ def create_user(user_id: int, username: str = None) -> int:
         
         if affected > 0:
             logger.info(f"✅ create_user: пользователь {user_id} создан/обновлен, затронуто строк: {affected}")
+            
+            # Создаем запись в таблице stats, если её нет
+            stats_query = """
+                INSERT INTO stats (user_id, games_played, games_won, games_lost, last_played)
+                VALUES (%s, 0, 0, 0, CURRENT_TIMESTAMP)
+                ON CONFLICT (user_id) DO NOTHING
+            """
+            execute_query(stats_query, (user_id,))
+            logger.info(f"✅ create_user: создана запись статистики для пользователя {user_id}")
+            
             # Получаем ID созданного пользователя
             get_id_query = "SELECT id FROM users WHERE user_id = %s::BIGINT"
             result = fetch_one(get_id_query, (user_id,))
