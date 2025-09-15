@@ -1971,11 +1971,16 @@ class ForestWolvesBot:
         else:
             await query.answer(message)
 
-    async def status_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+    async def status_from_callback(self, query, context: ContextTypes.DEFAULT_TYPE, from_welcome: bool = False):
         chat_id = query.message.chat.id
 
         if chat_id not in self.games:
-            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
+            if from_welcome:
+                keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.", reply_markup=reply_markup)
+            else:
+                await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
             return
 
         game = self.games[chat_id]
@@ -2013,7 +2018,13 @@ class ForestWolvesBot:
                 player_tag = self.format_player_tag(p.username, p.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
 
-        await query.edit_message_text(status_text, parse_mode='HTML')
+        # Добавляем кнопку "Назад" если вызвано из стартового меню
+        if from_welcome:
+            keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(status_text, parse_mode='HTML', reply_markup=reply_markup)
+        else:
+            await query.edit_message_text(status_text, parse_mode='HTML')
 
 
     # ---------------- join / leave / status ----------------
@@ -3651,7 +3662,7 @@ class ForestWolvesBot:
                 reply_markup=reply_markup
             )
         elif query.data == "welcome_status":
-            await self.status_from_callback(query, context)
+            await self.status_from_callback(query, context, from_welcome=True)
         elif query.data == "welcome_cancel_game":
             await self.cancel_game_from_welcome(query, context)
         elif query.data == "welcome_back":
