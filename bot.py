@@ -6517,7 +6517,17 @@ class ForestWolvesBot:
                 search_text = target_text.lstrip('@').lower()
                 logger.info(f"Поиск пользователя: '{search_text}'")
                 
-                # 1. Сначала ищем среди участников игры (самый надежный способ)
+                # 1. Пробуем найти по username через get_chat (самый универсальный способ)
+                if target_text.startswith('@'):
+                    try:
+                        logger.info(f"Пробуем get_chat для: {target_text}")
+                        user = await context.bot.get_chat(target_text)
+                        logger.info(f"Найден через get_chat: {user.username} (ID: {user.id})")
+                        return user.id, user.username or user.full_name or str(user.id)
+                    except Exception as e:
+                        logger.info(f"get_chat не сработал: {e}")
+                
+                # 2. Ищем среди участников игры (если есть активная игра)
                 if update.effective_chat.id in self.games:
                     game = self.games[update.effective_chat.id]
                     logger.info(f"Ищем среди {len(game.players)} участников игры")
@@ -6527,16 +6537,6 @@ class ForestWolvesBot:
                             if username_lower == search_text or search_text in username_lower:
                                 logger.info(f"Найден в игре: {player.username} (ID: {player.user_id})")
                                 return player.user_id, player.username or str(player.user_id)
-                
-                # 2. Пробуем найти по username через get_chat (только если есть @)
-                if target_text.startswith('@'):
-                    try:
-                        logger.info(f"Пробуем get_chat для: {target_text}")
-                        user = await context.bot.get_chat(target_text)
-                        logger.info(f"Найден через get_chat: {user.username} (ID: {user.id})")
-                        return user.id, user.username or user.full_name or str(user.id)
-                    except Exception as e:
-                        logger.info(f"get_chat не сработал: {e}")
                 
                 # 3. Ищем среди администраторов чата
                 try:
@@ -6552,6 +6552,16 @@ class ForestWolvesBot:
                             return user.id, user.username or user.full_name or str(user.id)
                 except Exception as e:
                     logger.info(f"Ошибка поиска среди админов: {e}")
+                
+                # 4. Пробуем найти по username без @ (если еще не пробовали)
+                if not target_text.startswith('@'):
+                    try:
+                        logger.info(f"Пробуем get_chat для: @{search_text}")
+                        user = await context.bot.get_chat(f"@{search_text}")
+                        logger.info(f"Найден через get_chat: {user.username} (ID: {user.id})")
+                        return user.id, user.username or user.full_name or str(user.id)
+                    except Exception as e:
+                        logger.info(f"get_chat без @ не сработал: {e}")
                 
                 logger.info(f"Пользователь '{search_text}' не найден")
                 await update.message.reply_text(f"❌ Пользователь '{search_text}' не найден!")
