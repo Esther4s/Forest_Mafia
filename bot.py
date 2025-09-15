@@ -6421,21 +6421,16 @@ class ForestWolvesBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
-        target_user_id = None
         target_username = None
         
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
-            # Если есть аргументы, ищем пользователя по тегу
-            target_text = ' '.join(context.args)
-            target_user_id, target_username = await self.find_user_by_tag(update, context, target_text)
-            if not target_user_id:
-                return
+            # Если есть аргументы, используем их как тег
+            target_username = ' '.join(context.args)
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
-            target_user_id = target_user.id
-            target_username = target_user.username or target_user.full_name or str(target_user_id)
+            target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             await update.message.reply_text(
                 "❌ Используйте команду /kus в ответ на сообщение игрока или укажите тег!\n"
@@ -6448,7 +6443,7 @@ class ForestWolvesBot:
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
-        target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        target_tag = self.format_player_tag(target_username, None, make_clickable=True)
         
         # Отправляем сообщение
         await update.message.reply_text(
@@ -6461,21 +6456,16 @@ class ForestWolvesBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
-        target_user_id = None
         target_username = None
         
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
-            # Если есть аргументы, ищем пользователя по тегу
-            target_text = ' '.join(context.args)
-            target_user_id, target_username = await self.find_user_by_tag(update, context, target_text)
-            if not target_user_id:
-                return
+            # Если есть аргументы, используем их как тег
+            target_username = ' '.join(context.args)
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
-            target_user_id = target_user.id
-            target_username = target_user.username or target_user.full_name or str(target_user_id)
+            target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             await update.message.reply_text(
                 "❌ Используйте команду /poke в ответ на сообщение игрока или укажите тег!\n"
@@ -6488,7 +6478,7 @@ class ForestWolvesBot:
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
-        target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        target_tag = self.format_player_tag(target_username, None, make_clickable=True)
         
         # Отправляем сообщение
         await update.message.reply_text(
@@ -6496,77 +6486,6 @@ class ForestWolvesBot:
             parse_mode='HTML'
         )
 
-    async def find_user_by_tag(self, update: Update, context: ContextTypes.DEFAULT_TYPE, target_text: str):
-        """Находит пользователя по тегу, имени или ID"""
-        try:
-            # Убираем @ если есть
-            target_text = target_text.lstrip('@')
-            
-            # Если это числовой ID
-            if target_text.isdigit():
-                user_id = int(target_text)
-                try:
-                    user = await context.bot.get_chat(user_id)
-                    return user_id, user.username or user.full_name or str(user_id)
-                except:
-                    await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
-                    return None, None
-            
-            # Ищем по username или имени в чате
-            try:
-                search_text = target_text.lstrip('@').lower()
-                logger.info(f"Поиск пользователя: '{search_text}'")
-                
-                # 1. Сначала пробуем найти через get_chat API (самый универсальный способ)
-                try:
-                    # Пробуем с @ если его нет
-                    username_to_try = target_text if target_text.startswith('@') else f"@{search_text}"
-                    logger.info(f"Пробуем get_chat для: {username_to_try}")
-                    user = await context.bot.get_chat(username_to_try)
-                    logger.info(f"Найден через get_chat: {user.username} (ID: {user.id})")
-                    return user.id, user.username or user.full_name or str(user.id)
-                except Exception as e:
-                    logger.info(f"get_chat не сработал: {e}")
-                
-                # 2. Ищем среди участников игры (если есть активная игра)
-                if update.effective_chat.id in self.games:
-                    game = self.games[update.effective_chat.id]
-                    logger.info(f"Ищем среди {len(game.players)} участников игры")
-                    for player in game.players.values():
-                        if player.username:
-                            username_lower = player.username.lower()
-                            if username_lower == search_text or search_text in username_lower:
-                                logger.info(f"Найден в игре: {player.username} (ID: {player.user_id})")
-                                return player.user_id, player.username or str(player.user_id)
-                
-                # 3. Ищем среди администраторов чата
-                try:
-                    logger.info("Ищем среди администраторов чата")
-                    chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
-                    for member in chat_members:
-                        user = member.user
-                        if user.username and (user.username.lower() == search_text or search_text in user.username.lower()):
-                            logger.info(f"Найден среди админов: {user.username} (ID: {user.id})")
-                            return user.id, user.username or user.full_name or str(user.id)
-                        if user.full_name and search_text in user.full_name.lower():
-                            logger.info(f"Найден среди админов по имени: {user.full_name} (ID: {user.id})")
-                            return user.id, user.username or user.full_name or str(user.id)
-                except Exception as e:
-                    logger.info(f"Ошибка поиска среди админов: {e}")
-                
-                logger.info(f"Пользователь '{search_text}' не найден")
-                await update.message.reply_text(f"❌ Пользователь '{search_text}' не найден!")
-                return None, None
-                
-            except Exception as e:
-                logger.error(f"Ошибка поиска пользователя: {e}")
-                await update.message.reply_text("❌ Ошибка при поиске пользователя!")
-                return None, None
-                
-        except Exception as e:
-            logger.error(f"Ошибка в find_user_by_tag: {e}")
-            await update.message.reply_text("❌ Произошла ошибка при поиске пользователя!")
-            return None, None
 
     async def handle_farewell_message(self, query, context, user_id: int):
         """Обрабатывает запрос на прощальное сообщение"""
