@@ -117,6 +117,103 @@ class GamePhaseManager:
             self.logger.error(f"❌ Ошибка выполнения обработчика этапа {phase.value}: {e}")
             return False
     
+    async def _handle_waiting_to_night(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Обрабатывает переход от ожидания к ночной фазе"""
+        try:
+            # Переводим игру в ночную фазу
+            game.phase = GamePhase.NIGHT
+            game.current_round += 1
+            
+            # Сохраняем состояние игры
+            from bot import ForestWolvesBot
+            bot = ForestWolvesBot.get_instance()
+            if bot:
+                bot.save_game_state(game.chat_id)
+            
+            self.logger.info(f"🌙 Игра {game.chat_id} переведена в ночную фазу (раунд {game.current_round})")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка перехода к ночной фазе: {e}")
+            return False
+    
+    async def _handle_night_to_day(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Обрабатывает переход от ночи к дню"""
+        try:
+            # Переводим игру в дневную фазу
+            game.phase = GamePhase.DAY
+            
+            # Сохраняем состояние игры
+            from bot import ForestWolvesBot
+            bot = ForestWolvesBot.get_instance()
+            if bot:
+                bot.save_game_state(game.chat_id)
+            
+            self.logger.info(f"☀️ Игра {game.chat_id} переведена в дневную фазу")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка перехода к дневной фазе: {e}")
+            return False
+    
+    async def _handle_day_to_voting(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Обрабатывает переход от дня к голосованию"""
+        try:
+            # Переводим игру в фазу голосования
+            game.phase = GamePhase.VOTING
+            
+            # Сохраняем состояние игры
+            from bot import ForestWolvesBot
+            bot = ForestWolvesBot.get_instance()
+            if bot:
+                bot.save_game_state(game.chat_id)
+            
+            self.logger.info(f"🗳️ Игра {game.chat_id} переведена в фазу голосования")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка перехода к голосованию: {e}")
+            return False
+    
+    async def _handle_voting_to_night(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Обрабатывает переход от голосования к ночи"""
+        try:
+            # Переводим игру в ночную фазу
+            game.phase = GamePhase.NIGHT
+            game.current_round += 1
+            
+            # Сохраняем состояние игры
+            from bot import ForestWolvesBot
+            bot = ForestWolvesBot.get_instance()
+            if bot:
+                bot.save_game_state(game.chat_id)
+            
+            self.logger.info(f"🌙 Игра {game.chat_id} переведена в ночную фазу (раунд {game.current_round})")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка перехода к ночной фазе: {e}")
+            return False
+    
+    async def _handle_game_over(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Обрабатывает окончание игры"""
+        try:
+            # Переводим игру в фазу окончания
+            game.phase = GamePhase.GAME_OVER
+            
+            # Сохраняем состояние игры
+            from bot import ForestWolvesBot
+            bot = ForestWolvesBot.get_instance()
+            if bot:
+                bot.save_game_state(game.chat_id)
+            
+            self.logger.info(f"🏁 Игра {game.chat_id} завершена")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка завершения игры: {e}")
+            return False
+    
     async def _handle_night_phase(self, game: Game, context: ContextTypes.DEFAULT_TYPE) -> bool:
         """Обрабатывает ночную фазу"""
         try:

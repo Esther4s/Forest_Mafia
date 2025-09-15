@@ -38,8 +38,10 @@ class Player:
     """Игрок в игре Лес и волки"""
     user_id: int
     username: str
-    role: Role
-    team: Team
+    first_name: str = None
+    last_name: str = None
+    role: Role = None
+    team: Team = None
     is_alive: bool = True
     supplies: int = 2
     max_supplies: int = 2

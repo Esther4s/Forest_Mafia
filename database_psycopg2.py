@@ -2850,7 +2850,7 @@ def add_active_effect(user_id: int, item_name: str, effect_type: str, effect_dat
         bool: True если успешно добавлен
     """
     try:
-        with get_connection() as conn:
+        with db_connection.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     INSERT INTO active_effects 
@@ -2880,7 +2880,7 @@ def get_active_effects(user_id: int, game_id: str = None, chat_id: int = None) -
         List[Dict]: Список активных эффектов
     """
     try:
-        with get_connection() as conn:
+        with db_connection.get_connection() as conn:
             with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
                 query = """
                     SELECT * FROM active_effects 
@@ -2927,7 +2927,7 @@ def mark_effect_as_used(effect_id: int) -> bool:
         bool: True если успешно
     """
     try:
-        with get_connection() as conn:
+        with db_connection.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     UPDATE active_effects 
@@ -2955,7 +2955,7 @@ def remove_effect(effect_id: int) -> bool:
         bool: True если успешно
     """
     try:
-        with get_connection() as conn:
+        with db_connection.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("DELETE FROM active_effects WHERE id = %s", (effect_id,))
                 
@@ -2976,7 +2976,7 @@ def cleanup_expired_effects() -> int:
         int: Количество удаленных эффектов
     """
     try:
-        with get_connection() as conn:
+        with db_connection.get_connection() as conn:
             with conn.cursor() as cursor:
                 cursor.execute("""
                     DELETE FROM active_effects 
