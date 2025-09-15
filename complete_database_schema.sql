@@ -1,0 +1,323 @@
+-- =====================================================
+-- Полная схема базы данных для Лес и волки Bot
+-- PostgreSQL совместимая схема
+-- =====================================================
+
+-- Включаем расширения PostgreSQL
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- =====================================================
+-- СУЩЕСТВУЮЩИЕ ТАБЛИЦЫ ИГРОВОГО БОТА
+-- =====================================================
+
+-- Таблица игр
+CREATE TABLE IF NOT EXISTS games (
+    id VARCHAR PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    thread_id INTEGER,
+    status VARCHAR DEFAULT 'waiting',
+    current_phase VARCHAR,
+    round_number INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    started_at TIMESTAMP,
+    finished_at TIMESTAMP,
+    winner_team VARCHAR,
+    settings JSONB DEFAULT '{}'::jsonb
+);
+
+-- Таблица игроков
+CREATE TABLE IF NOT EXISTS players (
+    id VARCHAR PRIMARY KEY,
+    game_id VARCHAR NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL,
+    username VARCHAR,
+    first_name VARCHAR,
+    last_name VARCHAR,
+    role VARCHAR,
+    team VARCHAR,
+    is_alive BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица событий игры
+CREATE TABLE IF NOT EXISTS game_events (
+    id VARCHAR PRIMARY KEY,
+    game_id VARCHAR NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    event_type VARCHAR NOT NULL,
+    description TEXT,
+    data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица действий игроков
+CREATE TABLE IF NOT EXISTS player_actions (
+    id VARCHAR PRIMARY KEY,
+    game_id VARCHAR NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    player_id VARCHAR NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    action_type VARCHAR NOT NULL,
+    target_id VARCHAR,
+    data JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица голосований
+CREATE TABLE IF NOT EXISTS votes (
+    id VARCHAR PRIMARY KEY,
+    game_id VARCHAR NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+    voter_id VARCHAR NOT NULL REFERENCES players(id) ON DELETE CASCADE,
+    target_id VARCHAR REFERENCES players(id) ON DELETE CASCADE,
+    vote_type VARCHAR NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица статистики игроков (существующая)
+CREATE TABLE IF NOT EXISTS player_stats (
+    id VARCHAR PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    username VARCHAR,
+    total_games INTEGER DEFAULT 0,
+    games_won INTEGER DEFAULT 0,
+    games_lost INTEGER DEFAULT 0,
+    times_wolf INTEGER DEFAULT 0,
+    times_fox INTEGER DEFAULT 0,
+    times_hare INTEGER DEFAULT 0,
+    times_mole INTEGER DEFAULT 0,
+    times_beaver INTEGER DEFAULT 0,
+    kills_made INTEGER DEFAULT 0,
+    votes_received INTEGER DEFAULT 0,
+    last_played TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица настроек бота
+CREATE TABLE IF NOT EXISTS bot_settings (
+    id VARCHAR PRIMARY KEY,
+    chat_id INTEGER NOT NULL,
+    thread_id INTEGER,
+    setting_key VARCHAR NOT NULL,
+    setting_value TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =====================================================
+-- НОВЫЕ ТАБЛИЦЫ ДЛЯ РАСШИРЕННОЙ ФУНКЦИОНАЛЬНОСТИ
+-- =====================================================
+
+-- Таблица пользователей (основная таблица пользователей)
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL UNIQUE,
+    username VARCHAR(255),
+    balance DECIMAL(10,2) DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица игр пользователей (для расширенной статистики)
+CREATE TABLE IF NOT EXISTS user_games (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    game_type VARCHAR(50) NOT NULL DEFAULT 'forest_mafia',
+    status VARCHAR(20) NOT NULL DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица статистики (расширенная версия)
+CREATE TABLE IF NOT EXISTS stats (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    games_played INTEGER DEFAULT 0,
+    games_won INTEGER DEFAULT 0,
+    games_lost INTEGER DEFAULT 0,
+    last_played TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица магазина
+CREATE TABLE IF NOT EXISTS shop (
+    id SERIAL PRIMARY KEY,
+    item_name VARCHAR(255) NOT NULL UNIQUE,
+    price DECIMAL(10,2) NOT NULL,
+    description TEXT,
+    category VARCHAR(100),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Таблица покупок
+CREATE TABLE IF NOT EXISTS purchases (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL REFERENCES shop(id) ON DELETE CASCADE,
+    purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    quantity INTEGER DEFAULT 1,
+    total_price DECIMAL(10,2) NOT NULL
+);
+
+-- =====================================================
+-- ИНДЕКСЫ ДЛЯ ПРОИЗВОДИТЕЛЬНОСТИ
+-- =====================================================
+
+-- Индексы для существующих таблиц
+CREATE INDEX IF NOT EXISTS idx_games_chat_id ON games(chat_id);
+CREATE INDEX IF NOT EXISTS idx_players_game_id ON players(game_id);
+CREATE INDEX IF NOT EXISTS idx_players_user_id ON players(user_id);
+CREATE INDEX IF NOT EXISTS idx_game_events_game_id ON game_events(game_id);
+CREATE INDEX IF NOT EXISTS idx_player_actions_game_id ON player_actions(game_id);
+CREATE INDEX IF NOT EXISTS idx_votes_game_id ON votes(game_id);
+CREATE INDEX IF NOT EXISTS idx_player_stats_user_id ON player_stats(user_id);
+CREATE INDEX IF NOT EXISTS idx_bot_settings_chat_id ON bot_settings(chat_id);
+
+-- Индексы для новых таблиц
+CREATE INDEX IF NOT EXISTS idx_users_user_id ON users(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_user_games_user_id ON user_games(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_games_status ON user_games(status);
+CREATE INDEX IF NOT EXISTS idx_stats_user_id ON stats(user_id);
+CREATE INDEX IF NOT EXISTS idx_shop_category ON shop(category);
+CREATE INDEX IF NOT EXISTS idx_shop_active ON shop(is_active);
+CREATE INDEX IF NOT EXISTS idx_purchases_user_id ON purchases(user_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_item_id ON purchases(item_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(purchased_at);
+
+-- =====================================================
+-- УНИКАЛЬНЫЕ ИНДЕКСЫ
+-- =====================================================
+
+-- Уникальные индексы для существующих таблиц
+CREATE UNIQUE INDEX IF NOT EXISTS idx_players_game_user ON players(game_id, user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_player_stats_user ON player_stats(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_settings_chat_key ON bot_settings(chat_id, thread_id, setting_key);
+
+-- Уникальные индексы для новых таблиц
+CREATE UNIQUE INDEX IF NOT EXISTS idx_stats_user_unique ON stats(user_id);
+
+-- =====================================================
+-- ТРИГГЕРЫ ДЛЯ АВТОМАТИЧЕСКОГО ОБНОВЛЕНИЯ TIMESTAMP
+-- =====================================================
+
+-- Функция для обновления updated_at
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Триггеры для автоматического обновления updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_players_updated_at BEFORE UPDATE ON players
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_user_games_updated_at BEFORE UPDATE ON user_games
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_stats_updated_at BEFORE UPDATE ON stats
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_shop_updated_at BEFORE UPDATE ON shop
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_player_stats_updated_at BEFORE UPDATE ON player_stats
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_bot_settings_updated_at BEFORE UPDATE ON bot_settings
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- =====================================================
+-- НАЧАЛЬНЫЕ ДАННЫЕ ДЛЯ МАГАЗИНА
+-- =====================================================
+
+-- Вставляем базовые товары в магазин
+INSERT INTO shop (item_name, price, description, category) VALUES
+('🎭 Маска волка', 100.00, 'Специальная маска для роли волка', 'cosmetics'),
+('🦊 Хвост лисы', 150.00, 'Пушистый хвост лисы', 'cosmetics'),
+('🐰 Уши зайца', 80.00, 'Мягкие уши зайца', 'cosmetics'),
+('🕳️ Лопата крота', 200.00, 'Инструмент для рытья туннелей', 'tools'),
+('🦫 Бобровый хвост', 120.00, 'Плоский хвост бобра', 'cosmetics'),
+('⭐ Звезда удачи', 500.00, 'Повышает шансы на получение желаемой роли', 'special'),
+('🎯 Точный выстрел', 300.00, 'Гарантированное попадание в цель', 'special'),
+('🛡️ Защита', 400.00, 'Защита от одного убийства', 'special')
+ON CONFLICT (item_name) DO NOTHING;
+
+-- =====================================================
+-- ПРЕДСТАВЛЕНИЯ (VIEWS) ДЛЯ УДОБСТВА
+-- =====================================================
+
+-- Представление для полной статистики пользователя
+CREATE OR REPLACE VIEW user_full_stats AS
+SELECT 
+    u.id,
+    u.user_id,
+    u.username,
+    u.balance,
+    COALESCE(s.games_played, 0) as games_played,
+    COALESCE(s.games_won, 0) as games_won,
+    COALESCE(s.games_lost, 0) as games_lost,
+    CASE 
+        WHEN COALESCE(s.games_played, 0) > 0 
+        THEN ROUND((COALESCE(s.games_won, 0)::DECIMAL / s.games_played::DECIMAL) * 100, 2)
+        ELSE 0 
+    END as win_rate,
+    s.last_played,
+    u.created_at
+FROM users u
+LEFT JOIN stats s ON u.user_id = s.user_id;
+
+-- Представление для топ игроков
+CREATE OR REPLACE VIEW top_players AS
+SELECT 
+    u.user_id,
+    u.username,
+    COALESCE(s.games_won, 0) as games_won,
+    COALESCE(s.games_played, 0) as games_played,
+    CASE 
+        WHEN COALESCE(s.games_played, 0) > 0 
+        THEN ROUND((COALESCE(s.games_won, 0)::DECIMAL / s.games_played::DECIMAL) * 100, 2)
+        ELSE 0 
+    END as win_rate
+FROM users u
+LEFT JOIN stats s ON u.user_id = s.user_id
+WHERE COALESCE(s.games_played, 0) > 0
+ORDER BY games_won DESC, win_rate DESC;
+
+-- =====================================================
+-- КОММЕНТАРИИ К ТАБЛИЦАМ
+-- =====================================================
+
+COMMENT ON TABLE users IS 'Основная таблица пользователей бота';
+COMMENT ON TABLE user_games IS 'Игры пользователей для расширенной статистики';
+COMMENT ON TABLE stats IS 'Расширенная статистика игроков';
+COMMENT ON TABLE shop IS 'Магазин товаров и предметов';
+COMMENT ON TABLE purchases IS 'История покупок пользователей';
+COMMENT ON TABLE games IS 'Активные и завершенные игры';
+COMMENT ON TABLE players IS 'Игроки в конкретных играх';
+COMMENT ON TABLE game_events IS 'События, происходящие в играх';
+COMMENT ON TABLE player_actions IS 'Действия игроков в играх';
+COMMENT ON TABLE votes IS 'Голосования в играх';
+COMMENT ON TABLE player_stats IS 'Статистика игроков (legacy)';
+COMMENT ON TABLE bot_settings IS 'Настройки бота для чатов';
+
+-- =====================================================
+-- ЗАВЕРШЕНИЕ
+-- =====================================================
+
+-- Выводим информацию о созданных таблицах
+DO $$
+BEGIN
+    RAISE NOTICE '✅ Схема базы данных Лес и волки Bot создана успешно!';
+    RAISE NOTICE '📊 Создано таблиц: 11';
+    RAISE NOTICE '🔍 Создано индексов: 20+';
+    RAISE NOTICE '🎯 Создано представлений: 2';
+    RAISE NOTICE '⚡ Создано триггеров: 7';
+    RAISE NOTICE '🛍️ Добавлено товаров в магазин: 8';
+END $$;

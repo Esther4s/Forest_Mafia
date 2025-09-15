@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  forest-mafia-bot:
+    build: .
+    container_name: forest-mafia-bot
+    restart: unless-stopped
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=sqlite:///app/data/forest_mafia.db
+      - ENVIRONMENT=production
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./bot_settings.json:/app/bot_settings.json
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - forest-mafia-network
+
+networks:
+  forest-mafia-network:
+    driver: bridge
