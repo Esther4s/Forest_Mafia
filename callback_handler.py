@@ -96,6 +96,16 @@ class CallbackHandler:
             
             # Получаем основной обработчик
             main_handler = parts[0]
+            
+            # Специальная обработка для wolf_kill, fox_steal, beaver_help, mole_check
+            if len(parts) >= 2:
+                action_type = f"{parts[0]}_{parts[1]}"
+                if action_type in ["wolf_kill", "fox_steal", "beaver_help", "mole_check"]:
+                    handler_func = self.callback_handlers.get(parts[0])
+                    if handler_func:
+                        await handler_func(query, context, parts)
+                        return
+            
             handler_func = self.callback_handlers.get(main_handler)
             
             if handler_func:

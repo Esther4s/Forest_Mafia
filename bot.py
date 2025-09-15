@@ -3555,30 +3555,34 @@ class ForestWolvesBot:
             return
         query = update.callback_query
         await query.answer()
-        
+
         user_id = query.from_user.id
         # Извлекаем user_id из callback_data: hare_skip_{user_id}
         callback_data = query.data
         target_user_id = int(callback_data.split('_')[-1])
-        
+
         # Проверяем, что пользователь нажимает на свою кнопку
         if user_id != target_user_id:
             await query.answer("❌ Это не ваша кнопка!", show_alert=True)
             return
-        
+
         # Ищем игру пользователя
         game = None
         for chat_id, g in self.games.items():
             if user_id in g.players:
                 game = g
                 break
-        
+
         if game:
             if game.chat_id in self.night_actions:
                 # Устанавливаем пропуск действия для зайца
                 success = self.night_actions[game.chat_id].skip_action(user_id)
                 if success:
-                    await query.edit_message_text("Заяц увидел во сне, как идёт по туманному лесу, и вдруг из тумана вышел волк. Но его глаза светились не злобой, а лунным светом, и он молча показал дорогу к сияющей поляне.")
+                    # Редактируем кнопку
+                    await query.edit_message_text("😴 Заяц заснул...")
+                    # Отправляем отдельное сообщение со сном
+                    dream_message = "Заяц увидел во сне, как идёт по туманному лесу, и вдруг из тумана вышел волк. Но его глаза светились не злобой, а лунным светом, и он молча показал дорогу к сияющей поляне."
+                    await query.message.reply_text(dream_message)
                 else:
                     await query.answer("❌ Не удалось заснуть!", show_alert=True)
             else:
