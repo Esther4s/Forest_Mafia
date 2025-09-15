@@ -524,8 +524,8 @@ class ForestWolvesBot:
             if game.phase != GamePhase.WAITING:
                 keyboard.append([InlineKeyboardButton("👁️ Посмотреть свою роль", callback_data="repeat_role_actions")])
             
-            # Кнопка "Магазин"
-            keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
+            # Кнопки "Магазин" и "Корзинка"
+            keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")])
             
             # Кнопка "Быстрый режим" (только для админов)
             if await self.is_user_admin(update, context):
@@ -757,7 +757,7 @@ class ForestWolvesBot:
             
             # Создаем клавиатуру
             keyboard = [
-                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
                 [InlineKeyboardButton("💰 Баланс", callback_data="show_balance")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
             ]
