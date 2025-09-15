@@ -6579,11 +6579,20 @@ class ForestWolvesBot:
                 parse_mode='HTML'
             )
         else:
-            # Обычное текстовое сообщение
-            await update.message.reply_text(
-                f"👆 {user_tag} постукал {target_tag}",
-                parse_mode='HTML'
-            )
+            # Отправляем встроенную гифку mochi-poke-poke-cute-cat.mp4
+            try:
+                with open('mochi-poke-poke-cute-cat.mp4', 'rb') as gif_file:
+                    await update.message.reply_animation(
+                        animation=gif_file,
+                        caption=f"👆 {user_tag} постукал {target_tag}",
+                        parse_mode='HTML'
+                    )
+            except FileNotFoundError:
+                # Если файл не найден, отправляем обычное текстовое сообщение
+                await update.message.reply_text(
+                    f"👆 {user_tag} постукал {target_tag}",
+                    parse_mode='HTML'
+                )
 
 
     async def handle_farewell_message(self, query, context, user_id: int):
