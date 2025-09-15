@@ -251,6 +251,11 @@ class NightInterface:
                 else:
                     message = "❌ Не удалось установить цель"
 
+        elif action_type == "hare" and player.role == Role.HARE:
+            # Зайцы всегда спят (не имеют ночных действий)
+            success = True
+            message = "😴 Заяц спит и набирается сил"
+
         else:
             print(f"DEBUG: Попадание в else - action_type: {action_type}, player.role: {player.role}")
             print(f"DEBUG: Условия не выполнены:")

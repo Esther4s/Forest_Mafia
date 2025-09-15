@@ -458,9 +458,27 @@ class CallbackHandler:
     
     def _find_user_game(self, user_id: int) -> Optional[Game]:
         """Находит игру пользователя"""
-        # Это упрощенная версия - в реальном боте нужно использовать GameStateManager
-        # Пока что возвращаем None, так как у нас нет доступа к менеджеру игр
-        return None
+        try:
+            # Получаем экземпляр бота
+            from bot import ForestWolvesBot
+            bot_instance = ForestWolvesBot.get_instance()
+            
+            if not bot_instance:
+                return None
+            
+            # Проверяем, участвует ли пользователь в игре
+            if user_id not in bot_instance.player_games:
+                return None
+            
+            # Получаем chat_id игры пользователя
+            chat_id = bot_instance.player_games[user_id]
+            
+            # Возвращаем игру, если она существует
+            return bot_instance.games.get(chat_id)
+            
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка поиска игры пользователя {user_id}: {e}")
+            return None
     
     def _is_admin(self, user_id: int, chat_id: int) -> bool:
         """Проверяет, является ли пользователь администратором"""

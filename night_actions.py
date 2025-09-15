@@ -1,9 +1,12 @@
 import random
+import logging
 from typing import Dict, List, Optional
 from game_logic import Game, Player, Role, Team
 from mole_logic import Mole
 from fox_logic import Fox
 from beaver_logic import Beaver
+
+logger = logging.getLogger(__name__)
 
 class NightActions:
     def __init__(self, game: Game):
@@ -463,7 +466,9 @@ class NightActions:
                 # Крот должен выбрать цель или пропустить
                 if player.user_id not in self.mole_targets and player.user_id not in self.skipped_actions:
                     return False
-            # Зайцы не имеют ночных действий
+            elif player.role == Role.HARE:
+                # Зайцы автоматически пропускают ход (не требуют действий)
+                pass
         
         return True
     
