@@ -1,15 +1,16 @@
-# Используем официальный образ Python с Docker Hub
-FROM python:3.11
+# Используем официальный образ Python Alpine с Docker Hub
+FROM python:3.11-alpine
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Устанавливаем системные зависимости для Debian
-RUN apt-get update && apt-get install -y \
+# Устанавливаем системные зависимости для Alpine
+RUN apk add --no-cache \
     gcc \
+    musl-dev \
     libffi-dev \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+    postgresql-dev \
+    && rm -rf /var/cache/apk/*
 
 # Обновляем pip и устанавливаем wheel
 RUN pip install --upgrade pip setuptools wheel
@@ -22,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Создаем пользователя для безопасности
-RUN useradd -m -s /bin/bash bot && \
+RUN adduser -D -s /bin/sh bot && \
     chown -R bot:bot /app
 USER bot
 
