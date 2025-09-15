@@ -1,0 +1,28 @@
+{
+  "test_mode": false,
+  "min_players_normal": 6,
+  "min_players_test": 3,
+  "max_players": 12,
+  "night_duration": 60,
+  "day_duration": 300,
+  "voting_duration": 120,
+  "role_distribution": {
+    "wolves": 0.25,
+    "fox": 0.15,
+    "hares": 0.35,
+    "mole": 0.15,
+    "beaver": 0.1
+  },
+  "auto_end_conditions": {
+    "max_rounds": 25,
+    "max_game_duration_hours": 3,
+    "min_alive_players": 3
+  },
+  "forest_wolves_features": {
+    "fox_death_threshold": 2,
+    "beaver_protection_enabled": true,
+    "mole_revelation_threshold": 0.8,
+    "herbivore_survival_threshold": 0.7,
+    "loser_rewards_enabled": true
+  }
+}
