@@ -398,6 +398,15 @@ class ForestWolvesBot:
         else:
             return f"ID:{user_id}"
 
+    def format_players_needed(self, needed: int) -> str:
+        """Форматирует правильное склонение для количества нужных игроков"""
+        if needed == 1:
+            return f"Нужен ещё {needed} игрок"
+        elif needed in [2, 3, 4]:
+            return f"Нужно ещё {needed} игрока"
+        else:
+            return f"Нужно ещё {needed} игроков"
+
     def format_player_tag(self, username: str, user_id: int, make_clickable: bool = True) -> str:
         """Форматирует тег игрока для отображения с учетом никнейма"""
         try:
@@ -554,7 +563,8 @@ class ForestWolvesBot:
             if game.can_start_game():
                 message += "\n✅ Можно начинать игру! Используйте `/start_game`"
             else:
-                message += f"\n⏳ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+                needed = max(0, self.global_settings.get_min_players() - len(game.players))
+                message += f"\n⏳ {self.format_players_needed(needed)}"
             
             # Автосохранение состояния игры
             self.save_game_state(chat_id)
@@ -1868,7 +1878,8 @@ class ForestWolvesBot:
         if game.can_start_game():
             message += "\n✅ Можно начинать игру!"
         else:
-            message += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
+            needed = max(0, min_players - len(game.players))
+            message += f"\n⏳ {self.format_players_needed(needed)}"
         
         return message
 
@@ -1983,7 +1994,8 @@ class ForestWolvesBot:
             if game.can_start_game():
                 status_text += "\n✅ <b>Можно начинать игру!</b>"
             else:
-                status_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
+                needed = max(0, min_players - len(game.players))
+                status_text += f"\n⏳ {self.format_players_needed(needed)}"
         else:
             phase_names = {
                 GamePhase.NIGHT: "🌙 Ночь",
@@ -2126,7 +2138,8 @@ class ForestWolvesBot:
             )
             
             if not game.can_start_game() and len(game.players) > 0:
-                message += f"\n⚠️ Нужно ещё {max(0, self.global_settings.get_min_players() - len(game.players))} игроков"
+                needed = max(0, self.global_settings.get_min_players() - len(game.players))
+                message += f"\n⚠️ {self.format_players_needed(needed)}"
             elif game.can_start_game():
                 message += "\n✅ Можно начинать игру!"
                 
@@ -2172,7 +2185,8 @@ class ForestWolvesBot:
             if game.can_start_game():
                 status_text += "\n✅ <b>Можно начинать игру!</b>"
             else:
-                status_text += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
+                needed = max(0, min_players - len(game.players))
+                status_text += f"\n⏳ {self.format_players_needed(needed)}"
         else:
             phase_names = {
                 GamePhase.NIGHT: "🌙 Ночь",
@@ -4346,7 +4360,8 @@ class ForestWolvesBot:
         if game.can_start_game():
             message += "\n✅ Можно начинать игру!"
         else:
-            message += f"\n⏳ Нужно ещё {max(0, min_players - len(game.players))} игроков"
+            needed = max(0, min_players - len(game.players))
+            message += f"\n⏳ {self.format_players_needed(needed)}"
         
         # Создаем клавиатуру с обновленными настройками
         keyboard = []
