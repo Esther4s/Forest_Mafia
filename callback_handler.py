@@ -493,7 +493,14 @@ class CallbackHandler:
                 
                 if not bot_instance:
                     self.logger.error(f"❌ Бот не инициализирован для пользователя {user_id}")
-                    return None
+                    # Попробуем создать экземпляр бота, если его нет
+                    try:
+                        from bot import ForestWolvesBot
+                        bot_instance = ForestWolvesBot()
+                        self.logger.info(f"✅ Создан новый экземпляр бота")
+                    except Exception as e:
+                        self.logger.error(f"❌ Не удалось создать экземпляр бота: {e}")
+                        return None
             
             self.logger.info(f"🔍 Поиск игры для пользователя {user_id}")
             self.logger.info(f"🔍 Всего игр: {len(bot_instance.games)}")
@@ -675,6 +682,14 @@ class CallbackHandler:
                         if hasattr(bot, 'bot_instance') and bot.bot_instance:
                             bot_instance = bot.bot_instance
                             self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
                     except Exception as e:
                         self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 
@@ -755,6 +770,14 @@ class CallbackHandler:
                         if hasattr(bot, 'bot_instance') and bot.bot_instance:
                             bot_instance = bot.bot_instance
                             self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
                     except Exception as e:
                         self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
@@ -826,6 +849,14 @@ class CallbackHandler:
                         if hasattr(bot, 'bot_instance') and bot.bot_instance:
                             bot_instance = bot.bot_instance
                             self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
                     except Exception as e:
                         self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
@@ -897,6 +928,14 @@ class CallbackHandler:
                         if hasattr(bot, 'bot_instance') and bot.bot_instance:
                             bot_instance = bot.bot_instance
                             self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
                     except Exception as e:
                         self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
