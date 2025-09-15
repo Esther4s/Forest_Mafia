@@ -2859,8 +2859,13 @@ class ForestWolvesBot:
         # Создаем night_actions и night_interfaces для игры ПЕРЕД отправкой ролей
         if game.chat_id not in self.night_actions:
             self.night_actions[game.chat_id] = NightActions(game)
+            logger.info(f"✅ Созданы night_actions для игры {game.chat_id}")
         if game.chat_id not in self.night_interfaces:
             self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id], self.get_display_name)
+            logger.info(f"✅ Созданы night_interfaces для игры {game.chat_id}")
+        
+        logger.info(f"🔍 Всего night_actions: {len(self.night_actions)}")
+        logger.info(f"🔍 Ключи night_actions: {list(self.night_actions.keys())}")
 
         # Отправляем роли всем игрокам с кнопками действий
         await self.send_roles_to_players(context, game)

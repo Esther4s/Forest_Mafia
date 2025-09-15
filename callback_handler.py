@@ -667,6 +667,24 @@ class CallbackHandler:
                 # Получаем ночные действия
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
+                # Отладочная информация
+                self.logger.info(f"🔍 Проверка ночных действий для игры {game.chat_id}")
+                self.logger.info(f"🔍 bot_instance: {bot_instance is not None}")
+                if bot_instance:
+                    self.logger.info(f"🔍 night_actions: {list(bot_instance.night_actions.keys())}")
+                    self.logger.info(f"🔍 game.chat_id в night_actions: {game.chat_id in bot_instance.night_actions}")
+                
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.set_wolf_target(user_id, target_id)
@@ -678,6 +696,7 @@ class CallbackHandler:
                     else:
                         await query.answer("❌ Не удалось установить цель!", show_alert=True)
                 else:
+                    self.logger.error(f"❌ Ночные действия недоступны! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
                     await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
             elif len(parts) >= 2 and parts[1] == "skip":
@@ -728,6 +747,16 @@ class CallbackHandler:
                 # Получаем ночные действия
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.set_fox_target(user_id, target_id)
@@ -789,6 +818,16 @@ class CallbackHandler:
                 # Получаем ночные действия
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.set_mole_target(user_id, target_id)
@@ -850,6 +889,16 @@ class CallbackHandler:
                 # Получаем ночные действия
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.set_beaver_target(user_id, target_id)
