@@ -2013,7 +2013,7 @@ class ForestWolvesBot:
                 player_tag = self.format_player_tag(p.username, p.user_id, make_clickable=True)
                 status_text += f"• {player_tag}\n"
 
-        await query.edit_message_text(status_text)
+        await query.edit_message_text(status_text, parse_mode='HTML')
 
 
     # ---------------- join / leave / status ----------------
