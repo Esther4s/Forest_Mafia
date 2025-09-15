@@ -124,15 +124,30 @@ class NightInterface:
             await self.send_night_actions_menu(context, user_id)
             return
 
-        if len(data) != 3:
+        if len(data) < 2 or len(data) > 3:
             return
 
-        action_type = data[1]
-        target_id = data[2]
+        # Обрабатываем разные форматы callback_data
+        if len(data) == 2 and data[1] == 'skip':
+            # Формат для пропуска: wolf_skip, fox_skip, etc.
+            action_type = data[0]  # wolf, fox, beaver, mole
+            target_id = "skip"
+        elif len(data) == 3 and data[1] in ['kill', 'steal', 'help', 'check']:
+            # Новый формат: wolf_kill_123, fox_steal_123, etc.
+            action_type = data[0]  # wolf, fox, beaver, mole
+            target_id = data[2]
+        else:
+            # Старый формат: wolf_123, fox_123, etc.
+            action_type = data[1]
+            target_id = data[2]
 
         # Обрабатываем действие в зависимости от типа
         success = False
         message = ""
+        
+        # Отладочная информация
+        print(f"DEBUG: action_type = {action_type}, player.role = {player.role}")
+        print(f"DEBUG: target_id = {target_id}")
 
         if action_type == "wolf" and player.role == Role.WOLF:
             if target_id == "skip":
@@ -203,6 +218,12 @@ class NightInterface:
                     message = "❌ Не удалось установить цель"
 
         else:
+            print(f"DEBUG: Попадание в else - action_type: {action_type}, player.role: {player.role}")
+            print(f"DEBUG: Условия не выполнены:")
+            print(f"  - wolf: {action_type == 'wolf' and player.role == Role.WOLF}")
+            print(f"  - fox: {action_type == 'fox' and player.role == Role.FOX}")
+            print(f"  - beaver: {action_type == 'beaver' and player.role == Role.BEAVER}")
+            print(f"  - mole: {action_type == 'mole' and player.role == Role.MOLE}")
             message = "❌ У вас нет прав для этого действия!"
 
         if success:
