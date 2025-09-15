@@ -1,5 +1,5 @@
-# Используем более стабильный образ Python
-FROM python:3.11-alpine
+# Используем официальный образ Python с Docker Hub
+FROM python:3.11
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
