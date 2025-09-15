@@ -68,6 +68,7 @@ class CallbackHandler:
             "mole": self._handle_mole_action,
             "beaver": self._handle_beaver_action,
             "inventory": self._handle_inventory_menu,
+            "inventory_menu": self._handle_inventory_menu,
         }
     
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -975,6 +976,7 @@ class CallbackHandler:
         """Обрабатывает открытие инвентаря (корзинки)"""
         try:
             user_id = query.from_user.id
+            self.logger.info(f"🧺 Обработка inventory_menu для пользователя {user_id}")
             
             # Получаем экземпляр бота
             from bot import ForestWolvesBot
