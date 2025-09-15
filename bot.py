@@ -550,8 +550,8 @@ class ForestWolvesBot:
             if game.can_start_game():
                 keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
             
-        # Кнопка "Отменить игру" (для админов и создателей)
-        if await self.can_cancel_game(update, context):
+            # Кнопка "Отменить игру" (для админов и создателей)
+            if await self.can_cancel_game(update, context):
                 keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -2021,7 +2021,7 @@ class ForestWolvesBot:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.", reply_markup=reply_markup)
             else:
-            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
+                await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
             return
 
         game = self.games[chat_id]
