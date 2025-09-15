@@ -3668,10 +3668,15 @@ class ForestWolvesBot:
         elif query.data == "welcome_back":
             # Возвращаемся к приветственному сообщению
             keyboard = [
-                [InlineKeyboardButton("🎮 Начать игру", callback_data="welcome_start_game")],
+                [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
             ]
+            
+            # Добавляем кнопку "Отменить игру" для администраторов
+            if await self.is_user_admin(query, context):
+                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
 
