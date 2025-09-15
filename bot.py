@@ -527,10 +527,6 @@ class ForestWolvesBot:
             # Кнопки "Магазин" и "Корзинка"
             keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")])
             
-            # Кнопка "Быстрый режим" (только для админов)
-            if await self.is_user_admin(update, context):
-                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             
             # Кнопка "Начать игру" (если можно)
             if game.can_start_game():
@@ -1435,10 +1431,6 @@ class ForestWolvesBot:
             [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
         ]
         
-        # Добавляем кнопку "Быстрый режим" (только для админов)
-        if await self.is_user_admin(update, context):
-            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
         
         # Добавляем кнопку "Начать игру" если достаточно игроков
         if game.can_start_game():
@@ -1453,7 +1445,7 @@ class ForestWolvesBot:
         # Формируем сообщение о регистрации
         # Получаем настройки чата для правильного отображения минимума игроков
         chat_settings = get_chat_settings(chat_id)
-        min_players = chat_settings.get('min_players', 6)
+        min_players = chat_settings.get('min_players', 3)
         current_players = len(game.players)
         
         registration_text = (
@@ -1864,7 +1856,7 @@ class ForestWolvesBot:
         
         # Получаем настройки чата для правильного отображения минимума игроков
         chat_settings = get_chat_settings(game.chat_id)
-        min_players = chat_settings.get('min_players', 6)
+        min_players = chat_settings.get('min_players', 3)
         
         message = (
             "🌲 <b>Лес и Волки - Регистрация</b> 🌲\n\n"
@@ -1897,10 +1889,6 @@ class ForestWolvesBot:
             # Кнопка "Магазин"
             keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
             
-            # Кнопка "Быстрый режим" (только для админов)
-            # Добавляем кнопку для всех - проверка прав будет в callback
-            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             
             # Кнопка "Начать игру" (если можно)
             if game.can_start_game():
@@ -2586,10 +2574,6 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
             ]
             
-            # Добавляем кнопку "Быстрый режим" (только для админов)
-            if await self.is_user_admin(update, context):
-                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             # Отправляем сообщение об успешной настройке
@@ -3664,10 +3648,6 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
             ]
             
-            # Добавляем кнопку "Быстрый режим" (только для админов)
-            if await self.is_user_admin(query, context):
-                quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-                keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
             reply_markup = InlineKeyboardMarkup(keyboard)
 
             welcome_text = (
@@ -4353,7 +4333,7 @@ class ForestWolvesBot:
         
         # Получаем настройки чата для правильного отображения минимума игроков
         chat_settings = get_chat_settings(chat_id)
-        min_players = chat_settings.get('min_players', 6)
+        min_players = chat_settings.get('min_players', 3)
         
         # Создаем сообщение регистрации
         message = (
@@ -4384,10 +4364,6 @@ class ForestWolvesBot:
         # Кнопка "Магазин"
         keyboard.append([InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop")])
         
-        # Кнопка "Быстрый режим" (только для админов)
-        if await self.is_user_admin(query, context):
-            quick_mode_text = "⚡ Быстрый режим: ВКЛ" if self.global_settings.is_test_mode() else "⚡ Быстрый режим: ВЫКЛ"
-            keyboard.append([InlineKeyboardButton(quick_mode_text, callback_data="toggle_quick_mode_game")])
         
         # Кнопка "Начать игру" (если можно)
         if game.can_start_game():
@@ -5430,7 +5406,6 @@ class ForestWolvesBot:
             
             # ⚙️ Административные команды
             BotCommand("settings", "⚙️ Настройки игры"),
-            BotCommand("quick_mode", "⚡ Быстрый режим"),
             BotCommand("force_end", "⛔ Принудительное завершение"),
             BotCommand("clear_all_games", "🧹 Очистить все игры"),
             BotCommand("setup_channel", "🔧 Настройка канала"),
@@ -6992,7 +6967,7 @@ class ForestWolvesBot:
                 inventory_text += "🛍️ Посетите магазин, чтобы купить товары!\n"
                 inventory_text += "💡 Используйте кнопку 'Магазин' в профиле"
             
-            await query.edit_message_text(inventory_text, reply_markup=reply_markup, parse_mode='HTML')
+            await query.message.reply_text(inventory_text, reply_markup=reply_markup, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка показа инвентаря: {e}")
