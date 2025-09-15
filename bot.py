@@ -5423,6 +5423,8 @@ class ForestWolvesBot:
             BotCommand("global_stats", "🌍 Общая статистика"),
             BotCommand("nickname", "🎭 Установить никнейм"),
             BotCommand("reset_nickname", "🗑️ Сбросить никнейм"),
+            BotCommand("кусь", "😈 Сделать кусь игроку (ответ на сообщение)"),
+            BotCommand("постукать", "👆 Постукать игрока (ответ на сообщение)"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -5476,6 +5478,8 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("reset_nickname", self.reset_nickname_command)) # Команда /reset_nickname
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
+        application.add_handler(CommandHandler("кусь", self.kus_command)) # Команда /кусь
+        application.add_handler(CommandHandler("постукать", self.poke_command)) # Команда /постукать
         
 
         # Обработчик присоединения бота к чату
@@ -6411,6 +6415,56 @@ class ForestWolvesBot:
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при сбросе никнейма. Попробуйте позже.")
+
+    async def kus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /кусь - сделать кусь другому игроку"""
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.full_name or str(user_id)
+        
+        # Проверяем, что команда вызвана в ответ на сообщение
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ Используйте команду /кусь в ответ на сообщение игрока!")
+            return
+        
+        # Получаем информацию о цели
+        target_user = update.message.reply_to_message.from_user
+        target_user_id = target_user.id
+        target_username = target_user.username or target_user.full_name or str(target_user_id)
+        
+        # Форматируем имена с тегами
+        user_tag = self.format_player_tag(username, user_id, make_clickable=True)
+        target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        
+        # Отправляем сообщение
+        await update.message.reply_text(
+            f"😈 {user_tag} сделал кусь {target_tag}",
+            parse_mode='HTML'
+        )
+
+    async def poke_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /постукать - постукать другого игрока"""
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.full_name or str(user_id)
+        
+        # Проверяем, что команда вызвана в ответ на сообщение
+        if not update.message.reply_to_message:
+            await update.message.reply_text("❌ Используйте команду /постукать в ответ на сообщение игрока!")
+            return
+        
+        # Получаем информацию о цели
+        target_user = update.message.reply_to_message.from_user
+        target_user_id = target_user.id
+        target_username = target_user.username or target_user.full_name or str(target_user_id)
+        
+        # Форматируем имена с тегами
+        user_tag = self.format_player_tag(username, user_id, make_clickable=True)
+        target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        
+        # Отправляем сообщение
+        await update.message.reply_text(
+            f"👆 {user_tag} постукал {target_tag}",
+            parse_mode='HTML'
+        )
 
     async def handle_farewell_message(self, query, context, user_id: int):
         """Обрабатывает запрос на прощальное сообщение"""
