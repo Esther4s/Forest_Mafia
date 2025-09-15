@@ -6422,14 +6422,19 @@ class ForestWolvesBot:
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
         target_username = None
+        target_user_id = None
         
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
             # Если есть аргументы, используем их как тег
             target_username = ' '.join(context.args)
+            # Пытаемся извлечь user_id из тега, если это возможно
+            if target_username.startswith('@'):
+                target_username = target_username[1:]
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
             target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             await update.message.reply_text(
@@ -6443,7 +6448,13 @@ class ForestWolvesBot:
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
-        target_tag = self.format_player_tag(target_username, None, make_clickable=True)
+        
+        # Для целевого пользователя используем специальное форматирование
+        if target_user_id:
+            target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        else:
+            # Если нет user_id, просто отображаем имя как есть
+            target_tag = f"@{target_username}" if not target_username.startswith('@') else target_username
         
         # Отправляем сообщение
         await update.message.reply_text(
@@ -6457,14 +6468,19 @@ class ForestWolvesBot:
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
         target_username = None
+        target_user_id = None
         
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
             # Если есть аргументы, используем их как тег
             target_username = ' '.join(context.args)
+            # Пытаемся извлечь user_id из тега, если это возможно
+            if target_username.startswith('@'):
+                target_username = target_username[1:]
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
             target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             await update.message.reply_text(
@@ -6478,7 +6494,13 @@ class ForestWolvesBot:
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
-        target_tag = self.format_player_tag(target_username, None, make_clickable=True)
+        
+        # Для целевого пользователя используем специальное форматирование
+        if target_user_id:
+            target_tag = self.format_player_tag(target_username, target_user_id, make_clickable=True)
+        else:
+            # Если нет user_id, просто отображаем имя как есть
+            target_tag = f"@{target_username}" if not target_username.startswith('@') else target_username
         
         # Отправляем сообщение
         await update.message.reply_text(
