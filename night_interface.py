@@ -148,13 +148,23 @@ class NightInterface:
         # Отладочная информация
         print(f"DEBUG: action_type = {action_type}, player.role = {player.role}")
         print(f"DEBUG: target_id = {target_id}")
+        print(f"DEBUG: night_actions = {self.night_actions}")
+        print(f"DEBUG: game = {self.game}")
 
         if action_type == "wolf" and player.role == Role.WOLF:
             if target_id == "skip":
-                success = self.night_actions.skip_action(user_id)
-                message = "⏭️ Вы пропустили ход"
+                if self.night_actions:
+                    success = self.night_actions.skip_action(user_id)
+                    message = "⏭️ Вы пропустили ход"
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
             else:
-                success = self.night_actions.set_wolf_target(user_id, int(target_id))
+                if self.night_actions:
+                    success = self.night_actions.set_wolf_target(user_id, int(target_id))
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
                 if success:
                     target = self.game.players[int(target_id)]
                     # Получаем отображаемое имя через get_display_name
@@ -168,10 +178,18 @@ class NightInterface:
 
         elif action_type == "fox" and player.role == Role.FOX:
             if target_id == "skip":
-                success = self.night_actions.skip_action(user_id)
-                message = "⏭️ Вы пропустили ход"
+                if self.night_actions:
+                    success = self.night_actions.skip_action(user_id)
+                    message = "⏭️ Вы пропустили ход"
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
             else:
-                success = self.night_actions.set_fox_target(user_id, int(target_id))
+                if self.night_actions:
+                    success = self.night_actions.set_fox_target(user_id, int(target_id))
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
                 if success:
                     target = self.game.players[int(target_id)]
                     # Получаем отображаемое имя через get_display_name
@@ -185,10 +203,18 @@ class NightInterface:
 
         elif action_type == "beaver" and player.role == Role.BEAVER:
             if target_id == "skip":
-                success = self.night_actions.skip_action(user_id)
-                message = "⏭️ Вы пропустили ход"
+                if self.night_actions:
+                    success = self.night_actions.skip_action(user_id)
+                    message = "⏭️ Вы пропустили ход"
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
             else:
-                success = self.night_actions.set_beaver_target(user_id, int(target_id))
+                if self.night_actions:
+                    success = self.night_actions.set_beaver_target(user_id, int(target_id))
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
                 if success:
                     target = self.game.players[int(target_id)]
                     # Получаем отображаемое имя через get_display_name
@@ -202,10 +228,18 @@ class NightInterface:
 
         elif action_type == "mole" and player.role == Role.MOLE:
             if target_id == "skip":
-                success = self.night_actions.skip_action(user_id)
-                message = "⏭️ Вы пропустили ход"
+                if self.night_actions:
+                    success = self.night_actions.skip_action(user_id)
+                    message = "⏭️ Вы пропустили ход"
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
             else:
-                success = self.night_actions.set_mole_target(user_id, int(target_id))
+                if self.night_actions:
+                    success = self.night_actions.set_mole_target(user_id, int(target_id))
+                else:
+                    success = False
+                    message = "❌ Ошибка: ночные действия не инициализированы"
                 if success:
                     target = self.game.players[int(target_id)]
                     # Получаем отображаемое имя через get_display_name
