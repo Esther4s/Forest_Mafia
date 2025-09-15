@@ -5423,8 +5423,8 @@ class ForestWolvesBot:
             BotCommand("global_stats", "🌍 Общая статистика"),
             BotCommand("nickname", "🎭 Установить никнейм"),
             BotCommand("reset_nickname", "🗑️ Сбросить никнейм"),
-            BotCommand("кусь", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
-            BotCommand("постукать", "👆 Постукать игрока (@username или ответ на сообщение)"),
+            BotCommand("kus", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
+            BotCommand("poke", "👆 Постукать игрока (@username или ответ на сообщение)"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -5478,8 +5478,8 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("reset_nickname", self.reset_nickname_command)) # Команда /reset_nickname
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
-        application.add_handler(CommandHandler("кусь", self.kus_command)) # Команда /кусь
-        application.add_handler(CommandHandler("постукать", self.poke_command)) # Команда /постукать
+        application.add_handler(CommandHandler("kus", self.kus_command)) # Команда /kus
+        application.add_handler(CommandHandler("poke", self.poke_command)) # Команда /poke
         
 
         # Обработчик присоединения бота к чату
@@ -6438,11 +6438,11 @@ class ForestWolvesBot:
             target_username = target_user.username or target_user.full_name or str(target_user_id)
         else:
             await update.message.reply_text(
-                "❌ Используйте команду /кусь в ответ на сообщение игрока или укажите тег!\n"
+                "❌ Используйте команду /kus в ответ на сообщение игрока или укажите тег!\n"
                 "Примеры:\n"
-                "• Ответ на сообщение: /кусь\n"
-                "• С тегом: /кусь @username\n"
-                "• С именем: /кусь ИмяПользователя"
+                "• Ответ на сообщение: /kus\n"
+                "• С тегом: /kus @username\n"
+                "• С именем: /kus ИмяПользователя"
             )
             return
         
@@ -6478,11 +6478,11 @@ class ForestWolvesBot:
             target_username = target_user.username or target_user.full_name or str(target_user_id)
         else:
             await update.message.reply_text(
-                "❌ Используйте команду /постукать в ответ на сообщение игрока или укажите тег!\n"
+                "❌ Используйте команду /poke в ответ на сообщение игрока или укажите тег!\n"
                 "Примеры:\n"
-                "• Ответ на сообщение: /постукать\n"
-                "• С тегом: /постукать @username\n"
-                "• С именем: /постукать ИмяПользователя"
+                "• Ответ на сообщение: /poke\n"
+                "• С тегом: /poke @username\n"
+                "• С именем: /poke ИмяПользователя"
             )
             return
         
