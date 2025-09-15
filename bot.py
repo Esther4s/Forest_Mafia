@@ -3529,15 +3529,58 @@ class ForestWolvesBot:
             await query.answer("❌ Это не ваша кнопка!", show_alert=True)
             return
         
-        if user_id in self.player_games:
-            chat_id = self.player_games[user_id]
-            if chat_id in self.night_actions:
+        # Ищем игру пользователя
+        game = None
+        for chat_id, g in self.games.items():
+            if user_id in g.players:
+                game = g
+                break
+        
+        if game:
+            if game.chat_id in self.night_actions:
                 # Устанавливаем пропуск действия для зайца
-                success = self.night_actions[chat_id].skip_action(user_id)
+                success = self.night_actions[game.chat_id].skip_action(user_id)
                 if success:
                     await query.edit_message_text("😴 Вы заснули и пропустили ночь")
                 else:
                     await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+            else:
+                await query.edit_message_text("❌ Игра не найдена!")
+        else:
+            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
+
+    async def handle_hare_skip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает нажатие кнопки 'Спать' для зайцев"""
+        if not update or not update.callback_query:
+            return
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        # Извлекаем user_id из callback_data: hare_skip_{user_id}
+        callback_data = query.data
+        target_user_id = int(callback_data.split('_')[-1])
+        
+        # Проверяем, что пользователь нажимает на свою кнопку
+        if user_id != target_user_id:
+            await query.answer("❌ Это не ваша кнопка!", show_alert=True)
+            return
+        
+        # Ищем игру пользователя
+        game = None
+        for chat_id, g in self.games.items():
+            if user_id in g.players:
+                game = g
+                break
+        
+        if game:
+            if game.chat_id in self.night_actions:
+                # Устанавливаем пропуск действия для зайца
+                success = self.night_actions[game.chat_id].skip_action(user_id)
+                if success:
+                    await query.edit_message_text("Заяц увидел во сне, как идёт по туманному лесу, и вдруг из тумана вышел волк. Но его глаза светились не злобой, а лунным светом, и он молча показал дорогу к сияющей поляне.")
+                else:
+                    await query.answer("❌ Не удалось заснуть!", show_alert=True)
             else:
                 await query.edit_message_text("❌ Игра не найдена!")
         else:
@@ -5144,7 +5187,7 @@ class ForestWolvesBot:
                 # У зайца только кнопка "Спать"
                 keyboard = [[InlineKeyboardButton(
                     "😴 Спать",
-                    callback_data=f"night_skip_{player.user_id}"
+                    callback_data=f"hare_skip_{player.user_id}"
                 )]]
             else:
                 # У остальных ролей - прямые кнопки с целями
@@ -5465,6 +5508,7 @@ class ForestWolvesBot:
         
         # Обработчики новых callback'ов для ролей
         application.add_handler(CallbackQueryHandler(self.handle_night_skip_callback, pattern=r"^night_skip_"))
+        application.add_handler(CallbackQueryHandler(self.handle_hare_skip_callback, pattern=r"^hare_skip_"))
 
         # Установка команд после старта бота
         async def post_init(application):
@@ -7229,7 +7273,7 @@ class ForestWolvesBot:
                 for player_id, p in game.players.items():
                     if p.is_alive and p.role != Role.WOLF:
                         display_name = self.get_display_name(p.user_id, p.username, None)
-                        keyboard.append([InlineKeyboardButton(f"🎯 {display_name}", callback_data=f"wolf_kill_{player_id}")])
+                        keyboard.append([InlineKeyboardButton(f"🎯 {display_name}", callback_data=f"wolf_kill_{p.user_id}")])
                 
                 if keyboard:
                     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="cancel_action")])

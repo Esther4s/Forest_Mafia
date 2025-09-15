@@ -468,6 +468,10 @@ class CallbackHandler:
             
             # Проверяем, участвует ли пользователь в игре
             if user_id not in bot_instance.player_games:
+                # Если игрок не зарегистрирован в player_games, ищем по всем играм
+                for game in bot_instance.games.values():
+                    if user_id in game.players:
+                        return game
                 return None
             
             # Получаем chat_id игры пользователя
