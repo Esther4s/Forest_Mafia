@@ -3511,32 +3511,6 @@ class ForestWolvesBot:
         else:
             await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
 
-    async def handle_night_actions_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обрабатывает нажатие кнопки 'Ночные действия'"""
-        if not update or not update.callback_query:
-            return
-        query = update.callback_query
-        await query.answer()
-        
-        user_id = query.from_user.id
-        # Извлекаем user_id из callback_data: night_actions_{user_id}
-        callback_data = query.data
-        target_user_id = int(callback_data.split('_')[-1])
-        
-        # Проверяем, что пользователь нажимает на свою кнопку
-        if user_id != target_user_id:
-            await query.answer("❌ Это не ваша кнопка!", show_alert=True)
-            return
-        
-        if user_id in self.player_games:
-            chat_id = self.player_games[user_id]
-            if chat_id in self.night_interfaces:
-                # Отправляем меню ночных действий
-                await self.night_interfaces[chat_id].send_night_actions_menu(context, user_id)
-            else:
-                await query.edit_message_text("❌ Игра не найдена!")
-        else:
-            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
 
     async def handle_night_skip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает нажатие кнопки 'Спать' для зайцев"""
@@ -5173,11 +5147,69 @@ class ForestWolvesBot:
                     callback_data=f"night_skip_{player.user_id}"
                 )]]
             else:
-                # У остальных ролей - меню ночных действий
-                keyboard = [[InlineKeyboardButton(
-                    "🌙 Ночные действия",
-                    callback_data=f"night_actions_{player.user_id}"
-                )]]
+                # У остальных ролей - прямые кнопки с целями
+                if game.chat_id in self.night_actions:
+                    night_actions = self.night_actions[game.chat_id]
+                    actions = night_actions.get_player_actions(player.user_id)
+                    
+                    if actions and actions.get("targets"):
+                        # Создаем кнопки для каждой цели
+                        for target in actions["targets"]:
+                            # Добавляем отметку, если это текущая цель
+                            current_mark = "✅ " if actions.get("current_target") == target.user_id else ""
+                            display_name = target.username or target.first_name or f"ID:{target.user_id}"
+                            button_text = f"{current_mark}{display_name}"
+
+                            # Создаем правильный формат callback_data для каждой роли
+                            if actions['type'] == 'wolf':
+                                callback_data = f"wolf_kill_{target.user_id}"
+                            elif actions['type'] == 'fox':
+                                callback_data = f"fox_steal_{target.user_id}"
+                            elif actions['type'] == 'beaver':
+                                callback_data = f"beaver_help_{target.user_id}"
+                            elif actions['type'] == 'mole':
+                                callback_data = f"mole_check_{target.user_id}"
+                            else:
+                                callback_data = f"night_{actions['type']}_{target.user_id}"
+
+                            keyboard.append([InlineKeyboardButton(
+                                button_text,
+                                callback_data=callback_data
+                            )])
+                        
+                        # Добавляем кнопку "Пропустить ход"
+                        if actions['type'] == 'wolf':
+                            skip_callback = "wolf_skip"
+                        elif actions['type'] == 'fox':
+                            skip_callback = "fox_skip"
+                        elif actions['type'] == 'beaver':
+                            skip_callback = "beaver_skip"
+                        elif actions['type'] == 'mole':
+                            skip_callback = "mole_skip"
+                        else:
+                            skip_callback = f"night_{actions['type']}_skip"
+
+                        keyboard.append([InlineKeyboardButton(
+                            "⏭️ Пропустить ход",
+                            callback_data=skip_callback
+                        )])
+                    else:
+                        # Если нет целей, показываем только кнопку пропуска
+                        if player.role == Role.WOLF:
+                            skip_callback = "wolf_skip"
+                        elif player.role == Role.FOX:
+                            skip_callback = "fox_skip"
+                        elif player.role == Role.BEAVER:
+                            skip_callback = "beaver_skip"
+                        elif player.role == Role.MOLE:
+                            skip_callback = "mole_skip"
+                        else:
+                            skip_callback = f"night_{player.role.value}_skip"
+
+                        keyboard = [[InlineKeyboardButton(
+                            "⏭️ Пропустить ход",
+                            callback_data=skip_callback
+                        )]]
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -5431,7 +5463,6 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^beaver_"))
         
         # Обработчики новых callback'ов для ролей
-        application.add_handler(CallbackQueryHandler(self.handle_night_actions_callback, pattern=r"^night_actions_"))
         application.add_handler(CallbackQueryHandler(self.handle_night_skip_callback, pattern=r"^night_skip_"))
 
         # Установка команд после старта бота
