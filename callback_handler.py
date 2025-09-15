@@ -474,8 +474,26 @@ class CallbackHandler:
             bot_instance = ForestWolvesBot.get_instance()
             
             if not bot_instance:
-                self.logger.error(f"❌ Бот не инициализирован для пользователя {user_id}")
-                return None
+                # Попробуем получить экземпляр через глобальную переменную
+                try:
+                    import bot
+                    if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                        bot_instance = bot.bot_instance
+                        self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    else:
+                        # Попробуем получить экземпляр через импорт
+                        import sys
+                        for module_name, module in sys.modules.items():
+                            if hasattr(module, 'bot_instance') and module.bot_instance:
+                                bot_instance = module.bot_instance
+                                self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                break
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
+                if not bot_instance:
+                    self.logger.error(f"❌ Бот не инициализирован для пользователя {user_id}")
+                    return None
             
             self.logger.info(f"🔍 Поиск игры для пользователя {user_id}")
             self.logger.info(f"🔍 Всего игр: {len(bot_instance.games)}")

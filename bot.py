@@ -49,6 +49,8 @@ class ForestWolvesBot:
     
     def __init__(self):
         ForestWolvesBot._instance = self
+        # Также устанавливаем глобальную переменную
+        globals()['bot_instance'] = self
         # chat_id -> Game
         self.games: Dict[int, Game] = {}
         # user_id -> chat_id
