@@ -6514,26 +6514,34 @@ class ForestWolvesBot:
             
             # Ищем по username или имени в чате
             try:
-                # Получаем список участников чата
-                chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
-                for member in chat_members:
-                    user = member.user
-                    if (user.username and user.username.lower() == target_text.lower()) or \
-                       (user.full_name and target_text.lower() in user.full_name.lower()):
-                        return user.id, user.username or user.full_name or str(user.id)
+                # Сначала пробуем найти по username через get_chat
+                if not target_text.startswith('@'):
+                    target_text = f"@{target_text}"
                 
-                # Если не нашли среди админов, пробуем найти по упоминанию
-                if target_text.startswith('@'):
-                    target_text = target_text[1:]
-                
-                # Пробуем найти пользователя по username
                 try:
-                    user = await context.bot.get_chat(f"@{target_text}")
+                    user = await context.bot.get_chat(target_text)
                     return user.id, user.username or user.full_name or str(user.id)
                 except:
-                    pass
+                    # Если не нашли по username, пробуем найти среди участников игры
+                    if update.effective_chat.id in self.games:
+                        game = self.games[update.effective_chat.id]
+                        for player in game.players.values():
+                            if (player.username and player.username.lower() == target_text.lstrip('@').lower()) or \
+                               (player.username and target_text.lstrip('@').lower() in player.username.lower()):
+                                return player.user_id, player.username or str(player.user_id)
+                    
+                    # Если не нашли в игре, пробуем найти среди администраторов
+                    try:
+                        chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
+                        for member in chat_members:
+                            user = member.user
+                            if (user.username and user.username.lower() == target_text.lstrip('@').lower()) or \
+                               (user.full_name and target_text.lstrip('@').lower() in user.full_name.lower()):
+                                return user.id, user.username or user.full_name or str(user.id)
+                    except:
+                        pass
                 
-                await update.message.reply_text(f"❌ Пользователь '{target_text}' не найден в чате!")
+                await update.message.reply_text(f"❌ Пользователь '{target_text.lstrip('@')}' не найден!")
                 return None, None
                 
             except Exception as e:
