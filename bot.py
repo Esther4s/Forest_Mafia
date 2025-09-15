@@ -1962,6 +1962,9 @@ class ForestWolvesBot:
         user_id = query.from_user.id
         username = query.from_user.username or query.from_user.full_name or str(user_id)
         
+        # Отвечаем на callback query
+        await query.answer("🔄 Присоединяемся к игре...")
+        
         # Создаем пользователя в БД
         try:
             if self.db:
