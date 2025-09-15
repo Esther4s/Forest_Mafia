@@ -145,10 +145,11 @@ class GameStatistics:
 class Game:
     """Основной класс игры Лес и волки"""
     
-    def __init__(self, chat_id: int, thread_id: Optional[int] = None, is_test_mode: bool = True):
+    def __init__(self, chat_id: int, thread_id: Optional[int] = None, is_test_mode: bool = True, creator_id: Optional[int] = None):
         self.chat_id = chat_id
         self.thread_id = thread_id
         self.is_test_mode = is_test_mode
+        self.creator_id = creator_id  # ID пользователя, создавшего игру
         
         # Игровое состояние
         self.players: Dict[int, Player] = {}

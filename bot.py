@@ -480,7 +480,7 @@ class ForestWolvesBot:
         # create game if needed
         if chat_id not in self.games:
             thread_id = self.get_thread_id(update)
-            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
+            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
             
@@ -541,9 +541,9 @@ class ForestWolvesBot:
             if game.can_start_game():
                 keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
             
-            # Кнопка "Отменить игру" (только для админов)
-            if await self.is_user_admin(update, context):
-                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
+        # Кнопка "Отменить игру" (для админов и создателей)
+        if await self.can_cancel_game(update, context):
+            keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -1422,7 +1422,7 @@ class ForestWolvesBot:
 
         # Создаем игру, если её нет
         if chat_id not in self.games:
-            self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode())
+            self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
 
@@ -1446,8 +1446,8 @@ class ForestWolvesBot:
         if game.can_start_game():
             keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
         
-        # Добавляем кнопку "Отменить игру" для администраторов
-        if await self.is_user_admin(update, context):
+        # Добавляем кнопку "Отменить игру" для администраторов и создателей
+        if await self.can_cancel_game(update, context):
             keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1498,6 +1498,38 @@ class ForestWolvesBot:
             return member.status in ['creator', 'administrator']
         except Exception as e:
             logger.error(f"Error checking admin status: {e}")
+            return False
+
+    async def can_cancel_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+        """Проверяет, может ли пользователь отменить игру (админ или создатель)"""
+        try:
+            # Получаем chat_id в зависимости от типа update
+            if hasattr(update, 'effective_chat') and update.effective_chat:
+                chat_id = update.effective_chat.id
+            elif hasattr(update, 'callback_query') and update.callback_query and update.callback_query.message:
+                chat_id = update.callback_query.message.chat.id
+            else:
+                return False
+                
+            user_id = update.effective_user.id
+            
+            # Проверяем, есть ли игра в этом чате
+            if chat_id not in self.games:
+                return False
+            
+            game = self.games[chat_id]
+            
+            # Проверяем, является ли пользователь администратором
+            if await self.is_user_admin(update, context):
+                return True
+            
+            # Проверяем, является ли пользователь создателем игры
+            if game.creator_id and game.creator_id == user_id:
+                return True
+            
+            return False
+        except Exception as e:
+            logger.error(f"Error checking cancel game permission: {e}")
             return False
 
     async def show_role_in_private(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1813,9 +1845,9 @@ class ForestWolvesBot:
             await update.message.reply_text("❌ Не удалось выйти из регистрации!")
 
     async def cancel_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Отменяет игру (только для админов)"""
-        if not await self.is_user_admin(update, context):
-            await update.message.reply_text("❌ Только администраторы могут отменить игру!")
+        """Отменяет игру (для админов и создателей)"""
+        if not await self.can_cancel_game(update, context):
+            await update.message.reply_text("❌ Только администраторы или создатель игры могут отменить игру!")
             return
         
         chat_id = update.effective_chat.id
@@ -2587,7 +2619,7 @@ class ForestWolvesBot:
             self.authorize_chat(chat_id, thread_id)
             
             # Создаем новую игру
-            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode())
+            self.games[chat_id] = Game(chat_id, thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
             self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
             
@@ -3674,8 +3706,8 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
             ]
             
-            # Добавляем кнопку "Отменить игру" для администраторов
-            if await self.is_user_admin(query, context):
+            # Добавляем кнопку "Отменить игру" для администраторов и создателей
+            if await self.can_cancel_game(query, context):
                 keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3699,11 +3731,10 @@ class ForestWolvesBot:
         chat_id = query.message.chat.id
         user_id = query.from_user.id
 
-        # Проверяем права администратора
+        # Проверяем права на отмену игры
         try:
-            chat_member = await context.bot.get_chat_member(chat_id, user_id)
-            if chat_member.status not in ['creator', 'administrator']:
-                await query.edit_message_text("❌ Только администраторы могут отменять игру!")
+            if not await self.can_cancel_game(query, context):
+                await query.edit_message_text("❌ Только администраторы или создатель игры могут отменять игру!")
                 return
         except Exception:
             await query.edit_message_text("❌ Ошибка проверки прав!")
@@ -4400,8 +4431,8 @@ class ForestWolvesBot:
         if game.can_start_game():
             keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
         
-        # Кнопка "Отменить игру" (только для админов)
-        if await self.is_user_admin(query, context):
+        # Кнопка "Отменить игру" (для админов и создателей)
+        if await self.can_cancel_game(query, context):
             keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -5091,12 +5122,9 @@ class ForestWolvesBot:
             logger.info(f"Обработка callback cancel_game от пользователя {query.from_user.id}")
             await query.answer()
             
-            # Проверяем права пользователя (только администраторы)
-            has_permission, error_msg = await self.check_user_permissions(
-                update, context, "admin"
-            )
-            if not has_permission:
-                await query.answer(error_msg, show_alert=True)
+            # Проверяем права пользователя (администраторы и создатели)
+            if not await self.can_cancel_game(update, context):
+                await query.answer("❌ Только администраторы или создатель игры могут отменять игру!", show_alert=True)
                 return
             
             chat_id = query.message.chat.id
