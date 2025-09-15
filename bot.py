@@ -1431,7 +1431,8 @@ class ForestWolvesBot:
         keyboard = [
             [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+            [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu")]
         ]
         
         # Добавляем кнопку "Быстрый режим" (только для админов)
@@ -2581,7 +2582,8 @@ class ForestWolvesBot:
             keyboard = [
                 [InlineKeyboardButton("👥 Присоединиться к игре", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")]
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu")]
             ]
             
             # Добавляем кнопку "Быстрый режим" (только для админов)
