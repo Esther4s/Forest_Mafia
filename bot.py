@@ -5157,7 +5157,8 @@ class ForestWolvesBot:
                         for target in actions["targets"]:
                             # Добавляем отметку, если это текущая цель
                             current_mark = "✅ " if actions.get("current_target") == target.user_id else ""
-                            display_name = target.username or target.first_name or f"ID:{target.user_id}"
+                            # Используем функцию get_display_name для корректного отображения
+                            display_name = self.get_display_name(target.user_id, target.username, target.first_name)
                             button_text = f"{current_mark}{display_name}"
 
                             # Создаем правильный формат callback_data для каждой роли
@@ -5483,6 +5484,11 @@ class ForestWolvesBot:
                 logger.error("❌ Ошибка Conflict: Запущено несколько экземпляров бота!")
                 logger.error("❌ Убедитесь, что только один экземпляр бота работает одновременно")
                 logger.error(f"❌ Детали ошибки: {e}")
+                logger.info("🔄 Попытка переподключения через 10 секунд...")
+                import time
+                time.sleep(10)
+                logger.info("🔄 Перезапуск бота...")
+                application.run_polling()
             else:
                 logger.error(f"❌ Неожиданная ошибка: {e}")
                 raise
@@ -5498,8 +5504,9 @@ class ForestWolvesBot:
             logger.info("🔄 Начинаем открепление зависших сообщений бота...")
             
             # Получаем список всех авторизованных чатов
-            from state_persistence import load_authorized_chats
-            authorized_chats = load_authorized_chats()
+            from state_persistence import StatePersistence
+            state_persistence = StatePersistence()
+            authorized_chats = state_persistence.load_authorized_chats()
             
             if not authorized_chats:
                 logger.info("ℹ️ Нет авторизованных чатов для открепления сообщений")
