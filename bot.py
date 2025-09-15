@@ -6514,34 +6514,47 @@ class ForestWolvesBot:
             
             # Ищем по username или имени в чате
             try:
-                # Сначала пробуем найти по username через get_chat
-                if not target_text.startswith('@'):
-                    target_text = f"@{target_text}"
+                search_text = target_text.lstrip('@').lower()
+                logger.info(f"Поиск пользователя: '{search_text}'")
                 
-                try:
-                    user = await context.bot.get_chat(target_text)
-                    return user.id, user.username or user.full_name or str(user.id)
-                except:
-                    # Если не нашли по username, пробуем найти среди участников игры
-                    if update.effective_chat.id in self.games:
-                        game = self.games[update.effective_chat.id]
-                        for player in game.players.values():
-                            if (player.username and player.username.lower() == target_text.lstrip('@').lower()) or \
-                               (player.username and target_text.lstrip('@').lower() in player.username.lower()):
+                # 1. Сначала ищем среди участников игры (самый надежный способ)
+                if update.effective_chat.id in self.games:
+                    game = self.games[update.effective_chat.id]
+                    logger.info(f"Ищем среди {len(game.players)} участников игры")
+                    for player in game.players.values():
+                        if player.username:
+                            username_lower = player.username.lower()
+                            if username_lower == search_text or search_text in username_lower:
+                                logger.info(f"Найден в игре: {player.username} (ID: {player.user_id})")
                                 return player.user_id, player.username or str(player.user_id)
-                    
-                    # Если не нашли в игре, пробуем найти среди администраторов
-                    try:
-                        chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
-                        for member in chat_members:
-                            user = member.user
-                            if (user.username and user.username.lower() == target_text.lstrip('@').lower()) or \
-                               (user.full_name and target_text.lstrip('@').lower() in user.full_name.lower()):
-                                return user.id, user.username or user.full_name or str(user.id)
-                    except:
-                        pass
                 
-                await update.message.reply_text(f"❌ Пользователь '{target_text.lstrip('@')}' не найден!")
+                # 2. Пробуем найти по username через get_chat (только если есть @)
+                if target_text.startswith('@'):
+                    try:
+                        logger.info(f"Пробуем get_chat для: {target_text}")
+                        user = await context.bot.get_chat(target_text)
+                        logger.info(f"Найден через get_chat: {user.username} (ID: {user.id})")
+                        return user.id, user.username or user.full_name or str(user.id)
+                    except Exception as e:
+                        logger.info(f"get_chat не сработал: {e}")
+                
+                # 3. Ищем среди администраторов чата
+                try:
+                    logger.info("Ищем среди администраторов чата")
+                    chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
+                    for member in chat_members:
+                        user = member.user
+                        if user.username and (user.username.lower() == search_text or search_text in user.username.lower()):
+                            logger.info(f"Найден среди админов: {user.username} (ID: {user.id})")
+                            return user.id, user.username or user.full_name or str(user.id)
+                        if user.full_name and search_text in user.full_name.lower():
+                            logger.info(f"Найден среди админов по имени: {user.full_name} (ID: {user.id})")
+                            return user.id, user.username or user.full_name or str(user.id)
+                except Exception as e:
+                    logger.info(f"Ошибка поиска среди админов: {e}")
+                
+                logger.info(f"Пользователь '{search_text}' не найден")
+                await update.message.reply_text(f"❌ Пользователь '{search_text}' не найден!")
                 return None, None
                 
             except Exception as e:
