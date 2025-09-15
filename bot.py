@@ -5423,8 +5423,8 @@ class ForestWolvesBot:
             BotCommand("global_stats", "🌍 Общая статистика"),
             BotCommand("nickname", "🎭 Установить никнейм"),
             BotCommand("reset_nickname", "🗑️ Сбросить никнейм"),
-            BotCommand("кусь", "😈 Сделать кусь игроку (ответ на сообщение)"),
-            BotCommand("постукать", "👆 Постукать игрока (ответ на сообщение)"),
+            BotCommand("кусь", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
+            BotCommand("постукать", "👆 Постукать игрока (@username или ответ на сообщение)"),
             
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
@@ -6421,15 +6421,30 @@ class ForestWolvesBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
-        # Проверяем, что команда вызвана в ответ на сообщение
-        if not update.message.reply_to_message:
-            await update.message.reply_text("❌ Используйте команду /кусь в ответ на сообщение игрока!")
-            return
+        target_user_id = None
+        target_username = None
         
-        # Получаем информацию о цели
-        target_user = update.message.reply_to_message.from_user
-        target_user_id = target_user.id
-        target_username = target_user.username or target_user.full_name or str(target_user_id)
+        # Проверяем, есть ли аргументы команды (тег игрока)
+        if context.args:
+            # Если есть аргументы, ищем пользователя по тегу
+            target_text = ' '.join(context.args)
+            target_user_id, target_username = await self.find_user_by_tag(update, context, target_text)
+            if not target_user_id:
+                return
+        elif update.message.reply_to_message:
+            # Если команда в ответ на сообщение
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            target_username = target_user.username or target_user.full_name or str(target_user_id)
+        else:
+            await update.message.reply_text(
+                "❌ Используйте команду /кусь в ответ на сообщение игрока или укажите тег!\n"
+                "Примеры:\n"
+                "• Ответ на сообщение: /кусь\n"
+                "• С тегом: /кусь @username\n"
+                "• С именем: /кусь ИмяПользователя"
+            )
+            return
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
@@ -6446,15 +6461,30 @@ class ForestWolvesBot:
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
-        # Проверяем, что команда вызвана в ответ на сообщение
-        if not update.message.reply_to_message:
-            await update.message.reply_text("❌ Используйте команду /постукать в ответ на сообщение игрока!")
-            return
+        target_user_id = None
+        target_username = None
         
-        # Получаем информацию о цели
-        target_user = update.message.reply_to_message.from_user
-        target_user_id = target_user.id
-        target_username = target_user.username or target_user.full_name or str(target_user_id)
+        # Проверяем, есть ли аргументы команды (тег игрока)
+        if context.args:
+            # Если есть аргументы, ищем пользователя по тегу
+            target_text = ' '.join(context.args)
+            target_user_id, target_username = await self.find_user_by_tag(update, context, target_text)
+            if not target_user_id:
+                return
+        elif update.message.reply_to_message:
+            # Если команда в ответ на сообщение
+            target_user = update.message.reply_to_message.from_user
+            target_user_id = target_user.id
+            target_username = target_user.username or target_user.full_name or str(target_user_id)
+        else:
+            await update.message.reply_text(
+                "❌ Используйте команду /постукать в ответ на сообщение игрока или укажите тег!\n"
+                "Примеры:\n"
+                "• Ответ на сообщение: /постукать\n"
+                "• С тегом: /постукать @username\n"
+                "• С именем: /постукать ИмяПользователя"
+            )
+            return
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
@@ -6465,6 +6495,56 @@ class ForestWolvesBot:
             f"👆 {user_tag} постукал {target_tag}",
             parse_mode='HTML'
         )
+
+    async def find_user_by_tag(self, update: Update, context: ContextTypes.DEFAULT_TYPE, target_text: str):
+        """Находит пользователя по тегу, имени или ID"""
+        try:
+            # Убираем @ если есть
+            target_text = target_text.lstrip('@')
+            
+            # Если это числовой ID
+            if target_text.isdigit():
+                user_id = int(target_text)
+                try:
+                    user = await context.bot.get_chat(user_id)
+                    return user_id, user.username or user.full_name or str(user_id)
+                except:
+                    await update.message.reply_text(f"❌ Пользователь с ID {user_id} не найден!")
+                    return None, None
+            
+            # Ищем по username или имени в чате
+            try:
+                # Получаем список участников чата
+                chat_members = await context.bot.get_chat_administrators(update.effective_chat.id)
+                for member in chat_members:
+                    user = member.user
+                    if (user.username and user.username.lower() == target_text.lower()) or \
+                       (user.full_name and target_text.lower() in user.full_name.lower()):
+                        return user.id, user.username or user.full_name or str(user.id)
+                
+                # Если не нашли среди админов, пробуем найти по упоминанию
+                if target_text.startswith('@'):
+                    target_text = target_text[1:]
+                
+                # Пробуем найти пользователя по username
+                try:
+                    user = await context.bot.get_chat(f"@{target_text}")
+                    return user.id, user.username or user.full_name or str(user.id)
+                except:
+                    pass
+                
+                await update.message.reply_text(f"❌ Пользователь '{target_text}' не найден в чате!")
+                return None, None
+                
+            except Exception as e:
+                logger.error(f"Ошибка поиска пользователя: {e}")
+                await update.message.reply_text("❌ Ошибка при поиске пользователя!")
+                return None, None
+                
+        except Exception as e:
+            logger.error(f"Ошибка в find_user_by_tag: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при поиске пользователя!")
+            return None, None
 
     async def handle_farewell_message(self, query, context, user_id: int):
         """Обрабатывает запрос на прощальное сообщение"""
