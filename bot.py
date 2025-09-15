@@ -407,6 +407,15 @@ class ForestWolvesBot:
         else:
             return f"Нужно ещё {needed} игроков"
 
+    def format_min_players(self, count: int) -> str:
+        """Форматирует правильное склонение для минимума игроков"""
+        if count == 1:
+            return f"{count} игрок"
+        elif count in [2, 3, 4]:
+            return f"{count} игрока"
+        else:
+            return f"{count} игроков"
+
     def format_player_tag(self, username: str, user_id: int, make_clickable: bool = True) -> str:
         """Форматирует тег игрока для отображения с учетом никнейма"""
         try:
@@ -591,7 +600,7 @@ class ForestWolvesBot:
             "🌲 <b>Лес и Волки</b> - ролевая игра в стиле 'Мафия'!\n\n"
             "🐺 <b>Хищники:</b> Волк + Лиса\n"
             "🐰 <b>Травоядные:</b> Заяц + Крот + Бобёр\n\n"
-            f"👥 Минимум: {self.global_settings.get_min_players()} игроков\n"
+            f"👥 Минимум: {self.format_min_players(self.global_settings.get_min_players())}\n"
             f"{'⚡ БЫСТРЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
             "🚀 <b>Быстрый старт:</b> нажмите 'Начать игру' или используйте `/join`"
         )
@@ -2053,6 +2062,11 @@ class ForestWolvesBot:
         # Добавляем кнопку "Назад" если вызвано из стартового меню
         if from_welcome:
             keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
+            
+            # Добавляем кнопку "Отменить игру" если есть права
+            if await self.can_cancel_game(query, context):
+                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")])
+            
             reply_markup = InlineKeyboardMarkup(keyboard)
             await query.edit_message_text(status_text, parse_mode='HTML', reply_markup=reply_markup)
         else:
@@ -2298,7 +2312,7 @@ class ForestWolvesBot:
 
         min_players = 3  # Минимум 3 игрока для всех режимов
         if not game.can_start_game():
-            await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {min_players} игроков.")
+            await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {self.format_min_players(min_players)}.")
             return
 
         if game.phase != GamePhase.WAITING:
@@ -3678,6 +3692,11 @@ class ForestWolvesBot:
                 await self.join_from_callback(query, context)
         elif query.data == "welcome_rules":
             keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
+            
+            # Добавляем кнопку "Отменить игру" если есть права
+            if await self.can_cancel_game(query, context):
+                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="welcome_cancel_game")])
+            
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
@@ -3718,7 +3737,7 @@ class ForestWolvesBot:
             "🐺 <b>Хищники:</b> Волк и Лиса\n"
             "🐰 <b>Травоядные:</b> Заяц, Крот и Бобёр\n\n"
                 "🎯 <b>Цель:</b> Уничтожить команду противника!\n\n"
-                f"👥 Для игры нужно минимум {self.global_settings.get_min_players()} игроков\n"
+                f"👥 Для игры нужно минимум {self.format_min_players(self.global_settings.get_min_players())}\n"
                 f"{'⚡ БЫСТРЫЙ РЕЖИМ АКТИВЕН' if self.global_settings.is_test_mode() else ''}\n"
                 "⏰ Игра состоит из ночных и дневных фаз\n\n"
                 "Нажмите кнопку ниже, чтобы начать!"
@@ -4371,7 +4390,7 @@ class ForestWolvesBot:
             # Получаем правильное минимальное количество игроков
             min_players = 3 if new_mode else 6
             
-            await query.answer(f"✅ Быстрый режим: {mode_text} (минимум: {min_players} игроков)", show_alert=True)
+            await query.answer(f"✅ Быстрый режим: {mode_text} (минимум: {self.format_min_players(min_players)})", show_alert=True)
             
             # Обновляем сообщение регистрации с новыми настройками
             await self.update_registration_message(query, context, game)
@@ -5751,7 +5770,7 @@ class ForestWolvesBot:
             "• Ночью хищники охотятся, травоядные защищаются\n"
             "• Днем все обсуждают и голосуют за изгнание\n"
             "• Цель: уничтожить всех противников\n\n"
-            f"👥 Минимум: {self.global_settings.get_min_players()} игроков\n"
+            f"👥 Минимум: {self.format_min_players(self.global_settings.get_min_players())}\n"
             f"{'⚡ БЫСТРЫЙ РЕЖИМ' if self.global_settings.is_test_mode() else ''}\n\n"
             "🚀 <b>Нажмите кнопку ниже, чтобы начать игру!</b>"
         )
