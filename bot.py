@@ -2283,6 +2283,11 @@ class ForestWolvesBot:
             # Обновляем статус игры в БД
             update_game_phase(db_game_id, 'night', 1)
             
+            # Обновляем player_games для всех игроков
+            for player in game.players.values():
+                self.player_games[player.user_id] = chat_id
+                logger.info(f"✅ Игрок {player.user_id} добавлен в player_games для игры {chat_id}")
+            
             # Добавляем всех игроков в БД
             for player in game.players.values():
                 player_id = str(uuid.uuid4())

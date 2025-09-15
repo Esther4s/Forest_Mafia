@@ -477,11 +477,16 @@ class CallbackHandler:
                 self.logger.error(f"❌ Бот не инициализирован для пользователя {user_id}")
                 return None
             
+            self.logger.info(f"🔍 Поиск игры для пользователя {user_id}")
+            self.logger.info(f"🔍 Всего игр: {len(bot_instance.games)}")
+            self.logger.info(f"🔍 player_games: {bot_instance.player_games}")
+            
             # Проверяем, участвует ли пользователь в игре
             if user_id not in bot_instance.player_games:
                 # Если игрок не зарегистрирован в player_games, ищем по всем играм
                 self.logger.info(f"🔍 Пользователь {user_id} не найден в player_games, ищем по всем играм...")
                 for chat_id, game in bot_instance.games.items():
+                    self.logger.info(f"🔍 Проверяем игру {chat_id}, игроки: {list(game.players.keys())}")
                     if user_id in game.players:
                         self.logger.info(f"✅ Найдена игра {chat_id} для пользователя {user_id}")
                         return game
