@@ -474,21 +474,31 @@ class CallbackHandler:
             bot_instance = ForestWolvesBot.get_instance()
             
             if not bot_instance:
+                self.logger.error(f"❌ Бот не инициализирован для пользователя {user_id}")
                 return None
             
             # Проверяем, участвует ли пользователь в игре
             if user_id not in bot_instance.player_games:
                 # Если игрок не зарегистрирован в player_games, ищем по всем играм
-                for game in bot_instance.games.values():
+                self.logger.info(f"🔍 Пользователь {user_id} не найден в player_games, ищем по всем играм...")
+                for chat_id, game in bot_instance.games.items():
                     if user_id in game.players:
+                        self.logger.info(f"✅ Найдена игра {chat_id} для пользователя {user_id}")
                         return game
+                self.logger.warning(f"⚠️ Игра не найдена для пользователя {user_id}")
                 return None
             
             # Получаем chat_id игры пользователя
             chat_id = bot_instance.player_games[user_id]
+            self.logger.info(f"🔍 Ищем игру {chat_id} для пользователя {user_id}")
             
             # Возвращаем игру, если она существует
-            return bot_instance.games.get(chat_id)
+            game = bot_instance.games.get(chat_id)
+            if game:
+                self.logger.info(f"✅ Игра {chat_id} найдена для пользователя {user_id}")
+            else:
+                self.logger.warning(f"⚠️ Игра {chat_id} не найдена в bot_instance.games")
+            return game
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка поиска игры пользователя {user_id}: {e}")

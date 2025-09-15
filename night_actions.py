@@ -56,9 +56,9 @@ class NightActions:
         if target.role == Role.WOLF:
             return False
         
-        # Волки не могут есть лису (союзники)
-        if target.role == Role.FOX:
-            return False
+        # Волки могут есть лису (согласно новым правилам)
+        # if target.role == Role.FOX:
+        #     return False
         
         self.wolf_targets[wolf_id] = target_id
         return True

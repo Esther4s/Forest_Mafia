@@ -2849,7 +2849,7 @@ class ForestWolvesBot:
         # Закрепляем сообщение ночи
         await self._pin_stage_message(context, game, "night", night_message.message_id)
 
-        # Создаем night_actions и night_interfaces для игры
+        # Создаем night_actions и night_interfaces для игры ПЕРЕД отправкой ролей
         if game.chat_id not in self.night_actions:
             self.night_actions[game.chat_id] = NightActions(game)
         if game.chat_id not in self.night_interfaces:
@@ -5198,6 +5198,7 @@ class ForestWolvesBot:
                 if game.chat_id in self.night_actions:
                     night_actions = self.night_actions[game.chat_id]
                     actions = night_actions.get_player_actions(player.user_id)
+                    logger.info(f"🔍 Действия для игрока {player.user_id} ({player.role}): {actions}")
                     
                     if actions and actions.get("targets"):
                         # Создаем кнопки для каждой цели
