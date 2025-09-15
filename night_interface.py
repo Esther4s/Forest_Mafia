@@ -368,20 +368,9 @@ class NightInterface:
 
     async def send_role_reminders(self, context: ContextTypes.DEFAULT_TYPE):
         """Отправляет напоминания о ролях игрокам с ночными действиями"""
-        night_roles = [Role.WOLF, Role.FOX, Role.BEAVER, Role.MOLE]
-        print(f"🌙 Отправка напоминаний о ролях. Игроки: {list(self.game.players.keys())}")
-
-        for player in self.game.players.values():
-            if player.is_alive and player.role in night_roles:
-                print(f"🌙 Отправка напоминания игроку {player.user_id} с ролью {player.role}")
-                
-                try:
-                    # Отправляем меню действий напрямую (без дублирования сообщений о роли)
-                    print(f"🌙 Отправка меню действий игроку {player.user_id}")
-                    await self.send_night_actions_menu(context, player.user_id)
-
-                except Exception as e:
-                    print(f"❌ Не удалось отправить напоминание игроку {player.user_id}: {e}")
+        # Теперь роли отправляются с кнопками в send_roles_to_players
+        # Этот метод больше не нужен, так как роли отправляются сразу с кнопками
+        pass
 
     def get_role_info(self, role: Role) -> Dict[str, str]:
         """Возвращает информацию о роли"""

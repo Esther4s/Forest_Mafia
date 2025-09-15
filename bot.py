@@ -2855,15 +2855,8 @@ class ForestWolvesBot:
         if game.chat_id not in self.night_interfaces:
             self.night_interfaces[game.chat_id] = NightInterface(game, self.night_actions[game.chat_id], self.get_display_name)
 
-        # Отправляем роли всем игрокам (только в первой ночи)
-        if game.current_round == 1:
-            await self.send_roles_to_players(context, game)
-        
-        # меню ночных действий (роли уже отправлены выше, не дублируем)
-        await self.send_night_actions_to_players(context, game)
-
-        # Отправляем кнопку просмотра роли игрокам без ночных действий
-        await self.send_role_button_to_passive_players(context, game)
+        # Отправляем роли всем игрокам с кнопками действий
+        await self.send_roles_to_players(context, game)
 
         # таймер ночи (запускаем как таск)
         asyncio.create_task(self.night_phase_timer(context, game))
@@ -3513,6 +3506,64 @@ class ForestWolvesBot:
             chat_id = self.player_games[user_id]
             if chat_id in self.night_interfaces:
                 await self.night_interfaces[chat_id].handle_night_action(update, context)
+            else:
+                await query.edit_message_text("❌ Игра не найдена!")
+        else:
+            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
+
+    async def handle_night_actions_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает нажатие кнопки 'Ночные действия'"""
+        if not update or not update.callback_query:
+            return
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        # Извлекаем user_id из callback_data: night_actions_{user_id}
+        callback_data = query.data
+        target_user_id = int(callback_data.split('_')[-1])
+        
+        # Проверяем, что пользователь нажимает на свою кнопку
+        if user_id != target_user_id:
+            await query.answer("❌ Это не ваша кнопка!", show_alert=True)
+            return
+        
+        if user_id in self.player_games:
+            chat_id = self.player_games[user_id]
+            if chat_id in self.night_interfaces:
+                # Отправляем меню ночных действий
+                await self.night_interfaces[chat_id].send_night_actions_menu(context, user_id)
+            else:
+                await query.edit_message_text("❌ Игра не найдена!")
+        else:
+            await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
+
+    async def handle_night_skip_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает нажатие кнопки 'Спать' для зайцев"""
+        if not update or not update.callback_query:
+            return
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        # Извлекаем user_id из callback_data: night_skip_{user_id}
+        callback_data = query.data
+        target_user_id = int(callback_data.split('_')[-1])
+        
+        # Проверяем, что пользователь нажимает на свою кнопку
+        if user_id != target_user_id:
+            await query.answer("❌ Это не ваша кнопка!", show_alert=True)
+            return
+        
+        if user_id in self.player_games:
+            chat_id = self.player_games[user_id]
+            if chat_id in self.night_actions:
+                # Устанавливаем пропуск действия для зайца
+                success = self.night_actions[chat_id].skip_action(user_id)
+                if success:
+                    await query.edit_message_text("😴 Вы заснули и пропустили ночь")
+                else:
+                    await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
             else:
                 await query.edit_message_text("❌ Игра не найдена!")
         else:
@@ -5100,7 +5151,7 @@ class ForestWolvesBot:
         self.save_game_state(chat_id)
 
     async def send_roles_to_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Отправляет роли всем игрокам в личные сообщения"""
+        """Отправляет роли всем игрокам в личные сообщения с кнопками действий"""
         for player in game.players.values():
             role_info = self.get_role_info(player.role)
             team_name = "🦁 Хищники" if player.team.name == "PREDATORS" else "🌿 Травоядные"
@@ -5109,11 +5160,33 @@ class ForestWolvesBot:
                 f"🎭 Ваша роль в игре 'Лес и Волки':\n\n"
                 f"👤 {role_info['name']}\n"
                 f"🏴 Команда: {team_name}\n\n"
-                f"📖 Описание:\n{role_info['description']}"
+                f"📖 Описание:\n{role_info['description']}\n\n"
+                f"🌙 Выберите действие:"
             )
             
+            # Создаем кнопки в зависимости от роли
+            keyboard = []
+            if player.role == Role.HARE:
+                # У зайца только кнопка "Спать"
+                keyboard = [[InlineKeyboardButton(
+                    "😴 Спать",
+                    callback_data=f"night_skip_{player.user_id}"
+                )]]
+            else:
+                # У остальных ролей - меню ночных действий
+                keyboard = [[InlineKeyboardButton(
+                    "🌙 Ночные действия",
+                    callback_data=f"night_actions_{player.user_id}"
+                )]]
+            
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
             try:
-                await context.bot.send_message(chat_id=player.user_id, text=role_message)
+                await context.bot.send_message(
+                    chat_id=player.user_id, 
+                    text=role_message,
+                    reply_markup=reply_markup
+                )
             except Exception as e:
                 logger.error(f"Не удалось отправить роль игроку {player.user_id}: {e}")
         
@@ -5152,26 +5225,6 @@ class ForestWolvesBot:
             logger.error(f"❌ Ошибка отправки раскрытия ролей: {e}")
 
     # ---------------- helper ----------------
-    async def send_role_button_to_passive_players(self, context: ContextTypes.DEFAULT_TYPE, game: Game):
-        """Отправляет кнопку просмотра роли игрокам без ночных действий"""
-        passive_roles = [Role.HARE]  # Зайцы не имеют ночных действий
-
-        for player in game.players.values():
-            if player.is_alive and player.role in passive_roles:
-                keyboard = [[InlineKeyboardButton(
-                    "🎭 Посмотреть мою роль",
-                    callback_data=f"night_view_role_{player.user_id}"
-                )]]
-                reply_markup = InlineKeyboardMarkup(keyboard)
-
-                try:
-                    await context.bot.send_message(
-                        chat_id=player.user_id,
-                        text="🌙 Ночь в лесу...\n\nВы спите, но можете посмотреть свою роль:",
-                        reply_markup=reply_markup
-                    )
-                except Exception as e:
-                    logger.error(f"Не удалось отправить кнопку роли игроку {player.user_id}: {e}")
 
     async def handle_view_my_role(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает нажатие кнопки 'Посмотреть свою роль' и отправляет информацию в личку"""
@@ -5376,6 +5429,10 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^fox_"))
         application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^mole_"))
         application.add_handler(CallbackQueryHandler(self.handle_night_action_callback, pattern=r"^beaver_"))
+        
+        # Обработчики новых callback'ов для ролей
+        application.add_handler(CallbackQueryHandler(self.handle_night_actions_callback, pattern=r"^night_actions_"))
+        application.add_handler(CallbackQueryHandler(self.handle_night_skip_callback, pattern=r"^night_skip_"))
 
         # Установка команд после старта бота
         async def post_init(application):

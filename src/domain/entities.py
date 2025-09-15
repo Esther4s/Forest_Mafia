@@ -197,7 +197,7 @@ class Game:
 
     def can_start_game(self) -> bool:
         """Проверяет, можно ли начать игру"""
-        min_players = 3  # Минимум 3 игрока для всех режимов
+ приходит        min_players = 3  # Минимум 3 игрока для всех режимов
         return len(self.players) >= min_players
 
     def get_alive_players(self) -> List[Player]:
