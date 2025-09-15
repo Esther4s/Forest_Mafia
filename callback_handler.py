@@ -67,6 +67,7 @@ class CallbackHandler:
             "fox": self._handle_fox_action,
             "mole": self._handle_mole_action,
             "beaver": self._handle_beaver_action,
+            "inventory": self._handle_inventory_menu,
         }
     
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -969,6 +970,43 @@ class CallbackHandler:
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия бобра: {e}")
             await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    async def _handle_inventory_menu(self, query: CallbackQuery, context: ContextTypes.DEFAULT_TYPE, parts: list):
+        """Обрабатывает открытие инвентаря (корзинки)"""
+        try:
+            user_id = query.from_user.id
+            
+            # Получаем экземпляр бота
+            from bot import ForestWolvesBot
+            bot_instance = ForestWolvesBot.get_instance()
+            
+            # Если не получили экземпляр, пробуем альтернативные способы
+            if not bot_instance:
+                try:
+                    import bot
+                    if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                        bot_instance = bot.bot_instance
+                        self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                    else:
+                        # Попробуем получить экземпляр через sys.modules
+                        import sys
+                        for module_name, module in sys.modules.items():
+                            if hasattr(module, 'bot_instance') and module.bot_instance:
+                                bot_instance = module.bot_instance
+                                self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                break
+                except Exception as e:
+                    self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+            
+            if bot_instance:
+                # Вызываем метод show_inventory из bot.py
+                await bot_instance.show_inventory(query, context)
+            else:
+                await query.answer("❌ Бот не инициализирован!", show_alert=True)
+                
+        except Exception as e:
+            self.logger.error(f"❌ Ошибка открытия инвентаря: {e}")
+            await query.answer("❌ Произошла ошибка при открытии инвентаря!", show_alert=True)
 
 
 # Глобальный экземпляр обработчика callback'ов
