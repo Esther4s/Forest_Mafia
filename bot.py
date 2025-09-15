@@ -4125,6 +4125,8 @@ class ForestWolvesBot:
             await self.show_balance_menu(query, context)
         elif query.data == "show_shop":
             await self.show_shop_menu(query, context)
+        elif query.data == "shop_menu":
+            await self.show_shop_menu(query, context)
         elif query.data == "show_stats":
             await self.show_stats_menu(query, context)
         elif query.data == "close_menu":
@@ -6108,6 +6110,7 @@ class ForestWolvesBot:
     async def show_shop_menu(self, query, context):
         """Показывает меню магазина"""
         try:
+            await query.answer()
             user_id = query.from_user.id
             username = query.from_user.username or query.from_user.first_name or "Unknown"
             
@@ -7180,6 +7183,7 @@ class ForestWolvesBot:
     async def show_inventory(self, query, context):
         """Показывает инвентарь игрока (корзинка)"""
         try:
+            await query.answer()
             user_id = query.from_user.id
             username = query.from_user.username or query.from_user.first_name or "Unknown"
             
