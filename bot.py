@@ -552,7 +552,7 @@ class ForestWolvesBot:
             
         # Кнопка "Отменить игру" (для админов и создателей)
         if await self.can_cancel_game(update, context):
-            keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
+                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
@@ -2021,7 +2021,7 @@ class ForestWolvesBot:
                 reply_markup = InlineKeyboardMarkup(keyboard)
                 await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.", reply_markup=reply_markup)
             else:
-                await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
+            await query.edit_message_text("❌ В этом чате нет активной игры!\nИспользуйте `/join` чтобы присоединиться.")
             return
 
         game = self.games[chat_id]
@@ -3676,20 +3676,9 @@ class ForestWolvesBot:
             return
 
         if query.data == "welcome_start_game":
-            # welcome_start_game может означать как присоединение, так и начало игры
-            # Проверяем контекст - если игра уже есть и можно начать, то начинаем
+            # welcome_start_game - присоединение к игре (создание новой если нужно)
             chat_id = query.message.chat.id
-            if chat_id in self.games:
-                game = self.games[chat_id]
-                if game.phase == GamePhase.WAITING and game.can_start_game():
-                    # Начинаем игру
-                    await self.handle_start_game_callback(query, context)
-                else:
-                    # Присоединяемся к игре
-                    await self.join_from_callback(query, context)
-            else:
-                # Присоединяемся к игре (создаем новую)
-                await self.join_from_callback(query, context)
+            await self.join_from_callback(query, context)
         elif query.data == "welcome_rules":
             keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data="welcome_back")]]
             
