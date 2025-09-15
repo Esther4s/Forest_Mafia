@@ -221,7 +221,7 @@ class AdminHandlers:
         
         if not game.can_start_game():
             player_count = len(game.players)
-            min_players = config.min_players
+            min_players = 3  # Минимум 3 игрока для всех режимов
             await update.message.reply_text(
                 f"❌ Недостаточно игроков для начала игры.\n"
                 f"👥 Игроков: {player_count}/{config.max_players}\n"

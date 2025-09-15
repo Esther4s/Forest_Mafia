@@ -374,22 +374,9 @@ class NightInterface:
         for player in self.game.players.values():
             if player.is_alive and player.role in night_roles:
                 print(f"🌙 Отправка напоминания игроку {player.user_id} с ролью {player.role}")
-                role_info = self.get_role_info(player.role)
-
-                reminder_text = (
-                    f"🌙 Напоминание о вашей роли:\n\n"
-                    f"🎭 {role_info['name']}\n"
-                    f"📝 {role_info['description']}\n\n"
-                    "Используйте меню ниже для выбора действий:"
-                )
-
+                
                 try:
-                    await context.bot.send_message(
-                        chat_id=player.user_id,
-                        text=reminder_text
-                    )
-
-                    # Отправляем меню действий
+                    # Отправляем меню действий напрямую (без дублирования сообщений о роли)
                     print(f"🌙 Отправка меню действий игроку {player.user_id}")
                     await self.send_night_actions_menu(context, player.user_id)
 

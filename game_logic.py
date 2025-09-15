@@ -220,7 +220,7 @@ class Game:
 
     def can_start_game(self) -> bool:
         """Проверяет, можно ли начать игру"""
-        min_players = 3 if self.is_test_mode else 6
+        min_players = 3  # Минимум 3 игрока для всех режимов
         return len(self.players) >= min_players
 
     def assign_roles(self):

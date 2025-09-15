@@ -2248,7 +2248,7 @@ class ForestWolvesBot:
 
         game = self.games[chat_id]
 
-        min_players = self.global_settings.get_min_players()
+        min_players = 3  # Минимум 3 игрока для всех режимов
         if not game.can_start_game():
             await update.message.reply_text(f"❌ Недостаточно игроков! Нужно минимум {min_players} игроков.")
             return
@@ -2859,7 +2859,7 @@ class ForestWolvesBot:
         if game.current_round == 1:
             await self.send_roles_to_players(context, game)
         
-        # меню ночных действий
+        # меню ночных действий (роли уже отправлены выше, не дублируем)
         await self.send_night_actions_to_players(context, game)
 
         # Отправляем кнопку просмотра роли игрокам без ночных действий

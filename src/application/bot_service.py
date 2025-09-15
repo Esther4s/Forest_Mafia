@@ -119,7 +119,7 @@ class BotService:
         
         if success:
             player_count = len(game.players)
-            min_players = 3 if game.is_test_mode else 6
+            min_players = 3  # Минимум 3 игрока для всех режимов
             
             if player_count >= min_players:
                 message = (
@@ -167,7 +167,7 @@ class BotService:
         
         if not game.can_start_game():
             player_count = len(game.players)
-            min_players = 3 if game.is_test_mode else 6
+            min_players = 3  # Минимум 3 игрока для всех режимов
             return {
                 "success": False, 
                 "message": f"❌ Недостаточно игроков для начала игры.\n👥 Игроков: {player_count}/12\n⏳ Нужно минимум {min_players} игроков"
@@ -222,7 +222,7 @@ class BotService:
         """Форматирует статус игры"""
         if game.phase == GamePhase.WAITING:
             player_count = len(game.players)
-            min_players = 3 if game.is_test_mode else 6
+            min_players = 3  # Минимум 3 игрока для всех режимов
             
             status = (
                 f"🌲 **Статус игры** 🌲\n\n"
