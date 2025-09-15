@@ -6456,11 +6456,45 @@ class ForestWolvesBot:
             # Если нет user_id, просто отображаем имя как есть
             target_tag = f"@{target_username}" if not target_username.startswith('@') else target_username
         
-        # Отправляем сообщение
-        await update.message.reply_text(
-            f"😈 {user_tag} сделал кусь {target_tag}",
-            parse_mode='HTML'
-        )
+        # Проверяем, есть ли медиафайл для пересылки
+        if update.message.reply_to_message and update.message.reply_to_message.animation:
+            # Если это гифка, пересылаем её с текстом
+            await update.message.reply_animation(
+                animation=update.message.reply_to_message.animation.file_id,
+                caption=f"😈 {user_tag} сделал кусь {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.sticker:
+            # Если это стикер, пересылаем его с текстом
+            await update.message.reply_sticker(
+                sticker=update.message.reply_to_message.sticker.file_id,
+                reply_to_message_id=update.message.reply_to_message.message_id
+            )
+            await update.message.reply_text(
+                f"😈 {user_tag} сделал кусь {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.photo:
+            # Если это фото, пересылаем его с текстом
+            photo = update.message.reply_to_message.photo[-1]  # Берем фото наивысшего качества
+            await update.message.reply_photo(
+                photo=photo.file_id,
+                caption=f"😈 {user_tag} сделал кусь {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.video:
+            # Если это видео, пересылаем его с текстом
+            await update.message.reply_video(
+                video=update.message.reply_to_message.video.file_id,
+                caption=f"😈 {user_tag} сделал кусь {target_tag}",
+                parse_mode='HTML'
+            )
+        else:
+            # Обычное текстовое сообщение
+            await update.message.reply_text(
+                f"😈 {user_tag} сделал кусь {target_tag}",
+                parse_mode='HTML'
+            )
 
     async def poke_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /постукать - постукать другого игрока"""
@@ -6502,11 +6536,45 @@ class ForestWolvesBot:
             # Если нет user_id, просто отображаем имя как есть
             target_tag = f"@{target_username}" if not target_username.startswith('@') else target_username
         
-        # Отправляем сообщение
-        await update.message.reply_text(
-            f"👆 {user_tag} постукал {target_tag}",
-            parse_mode='HTML'
-        )
+        # Проверяем, есть ли медиафайл для пересылки
+        if update.message.reply_to_message and update.message.reply_to_message.animation:
+            # Если это гифка, пересылаем её с текстом
+            await update.message.reply_animation(
+                animation=update.message.reply_to_message.animation.file_id,
+                caption=f"👆 {user_tag} постукал {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.sticker:
+            # Если это стикер, пересылаем его с текстом
+            await update.message.reply_sticker(
+                sticker=update.message.reply_to_message.sticker.file_id,
+                reply_to_message_id=update.message.reply_to_message.message_id
+            )
+            await update.message.reply_text(
+                f"👆 {user_tag} постукал {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.photo:
+            # Если это фото, пересылаем его с текстом
+            photo = update.message.reply_to_message.photo[-1]  # Берем фото наивысшего качества
+            await update.message.reply_photo(
+                photo=photo.file_id,
+                caption=f"👆 {user_tag} постукал {target_tag}",
+                parse_mode='HTML'
+            )
+        elif update.message.reply_to_message and update.message.reply_to_message.video:
+            # Если это видео, пересылаем его с текстом
+            await update.message.reply_video(
+                video=update.message.reply_to_message.video.file_id,
+                caption=f"👆 {user_tag} постукал {target_tag}",
+                parse_mode='HTML'
+            )
+        else:
+            # Обычное текстовое сообщение
+            await update.message.reply_text(
+                f"👆 {user_tag} постукал {target_tag}",
+                parse_mode='HTML'
+            )
 
 
     async def handle_farewell_message(self, query, context, user_id: int):
