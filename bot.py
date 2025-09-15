@@ -4082,6 +4082,8 @@ class ForestWolvesBot:
             await query.edit_message_text("🌲 Меню закрыто")
         elif query.data == "show_inventory":
             await self.show_inventory(query, context)
+        elif query.data == "inventory_menu":
+            await self.show_inventory(query, context)
         elif query.data == "show_chat_stats":
             await self.show_chat_stats(query, context)
         elif query.data == "close_profile":
