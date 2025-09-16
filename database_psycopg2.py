@@ -437,6 +437,35 @@ def get_user_by_telegram_id(user_id: int) -> Optional[Dict[str, Any]]:
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return None
 
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """
+    Получает пользователя по username
+    
+    Args:
+        username: Username пользователя (без @)
+    
+    Returns:
+        Dict или None: Данные пользователя
+    """
+    try:
+        logger.info(f"🔍 get_user_by_username: username={username}")
+        
+        query = "SELECT * FROM users WHERE username = %s"
+        result = fetch_one(query, (username,))
+        
+        if result:
+            logger.info(f"✅ get_user_by_username: пользователь {username} найден, user_id={result['user_id']}")
+        else:
+            logger.info(f"❌ get_user_by_username: пользователь {username} не найден")
+            
+        return result
+        
+    except Exception as e:
+        logger.error(f"❌ get_user_by_username: ошибка для пользователя {username}: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
+        return None
+
 def get_user_balance(user_id: int) -> Optional[int]:
     """
     Получает баланс пользователя

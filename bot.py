@@ -422,19 +422,34 @@ class ForestWolvesBot:
             # Сначала пытаемся получить информацию о пользователе через get_chat
             try:
                 chat = await context.bot.get_chat(f"@{username}")
+                logger.info(f"Найден пользователь {username} через get_chat: {chat.id}")
                 return chat.id
-            except Exception:
+            except Exception as e:
+                logger.info(f"get_chat не сработал для {username}: {e}")
                 pass
             
             # Если не получилось, ищем среди участников игры
             if hasattr(self, 'current_game') and self.current_game:
                 for player in self.current_game.players:
                     if player.username and player.username.lower() == username.lower():
+                        logger.info(f"Найден пользователь {username} среди игроков: {player.user_id}")
                         return player.user_id
                     if player.full_name and player.full_name.lower() == username.lower():
+                        logger.info(f"Найден пользователь {username} по full_name среди игроков: {player.user_id}")
                         return player.user_id
             
+            # Пытаемся найти в базе данных
+            try:
+                from database_psycopg2 import get_user_by_username
+                user_data = get_user_by_username(username)
+                if user_data:
+                    logger.info(f"Найден пользователь {username} в БД: {user_data['user_id']}")
+                    return user_data['user_id']
+            except Exception as e:
+                logger.info(f"Поиск в БД не сработал для {username}: {e}")
+            
             # Если не нашли, возвращаем None
+            logger.info(f"Пользователь {username} не найден")
             return None
         except Exception as e:
             logger.error(f"Ошибка поиска пользователя {username}: {e}")
