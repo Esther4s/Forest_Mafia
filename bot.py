@@ -6510,23 +6510,30 @@ class ForestWolvesBot:
         target_username = None
         target_user_id = None
         
+        logger.info(f"BITE DEBUG: context.args={context.args}")
+        
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
             # Если есть аргументы, используем их как тег
             target_username = ' '.join(context.args)
+            logger.info(f"BITE DEBUG: target_username={target_username}")
             # Пытаемся извлечь user_id из тега, если это возможно
             if target_username.startswith('@'):
                 target_username = target_username[1:]
+                logger.info(f"BITE DEBUG: убрали @, target_username={target_username}")
             
             # Если аргумент - это имя бота, действие выполняется с самим собой
             if target_username.lower() in ['forest_fuss_bot', 'forest_fuss', 'bot']:
+                logger.info(f"BITE DEBUG: найден бот, target_username={target_username}")
                 target_user_id = user_id
                 target_username = username
             else:
                 # Пытаемся найти пользователя по username
+                logger.info(f"BITE DEBUG: ищем пользователя {target_username}")
                 target_user_id = await self.find_user_by_username(target_username, update, context)
                 if not target_user_id:
                     # Если пользователь не найден, действие выполняется с самим собой
+                    logger.info(f"BITE DEBUG: пользователь не найден, используем себя")
                     target_user_id = user_id
                     target_username = username
         elif update.message.reply_to_message:
