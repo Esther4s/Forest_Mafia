@@ -7926,9 +7926,9 @@ class ForestWolvesBot:
         if context.args:
             # Если есть аргументы, пытаемся найти пользователя по тегу
             target_username = context.args[0].replace('@', '')
-            target_user = await self.find_user_by_username(target_username, update, context)
+            target_user_id = await self.find_user_by_username(target_username, update, context)
             
-            if not target_user:
+            if not target_user_id:
                 await update.message.reply_text(
                     f"❌ Пользователь @{target_username} не найден в чате.\n\n"
                     f"Использование: `/hedgehogs @username` или просто `/hedgehogs`",
@@ -7937,7 +7937,7 @@ class ForestWolvesBot:
                 return
             
             # Проверяем, что не вызываем сами себя
-            if target_user['user_id'] == user_id:
+            if target_user_id == user_id:
                 await update.message.reply_text(
                     "❌ Нельзя вызвать на дуэль самого себя!",
                     parse_mode='Markdown'
@@ -7946,8 +7946,8 @@ class ForestWolvesBot:
             
             # Создаем приглашение на дуэль
             invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
-            invitation['target_user_id'] = target_user['user_id']
-            invitation['target_username'] = target_user['username']
+            invitation['target_user_id'] = target_user_id
+            invitation['target_username'] = target_username
             
             # Создаем клавиатуру для принятия/отклонения
             keyboard = [
@@ -8392,9 +8392,9 @@ class ForestWolvesBot:
         target_username = message_text.replace('@', '').strip()
         
         # Ищем пользователя
-        target_user = await self.find_user_by_username(target_username, update, context)
+        target_user_id = await self.find_user_by_username(target_username, update, context)
         
-        if not target_user:
+        if not target_user_id:
             await update.message.reply_text(
                 f"❌ Пользователь @{target_username} не найден в чате.",
                 parse_mode='Markdown'
@@ -8402,7 +8402,7 @@ class ForestWolvesBot:
             return
         
         # Проверяем, что не вызываем сами себя
-        if target_user['user_id'] == user_id:
+        if target_user_id == user_id:
             await update.message.reply_text(
                 "❌ Нельзя вызвать на дуэль самого себя!",
                 parse_mode='Markdown'
@@ -8410,8 +8410,8 @@ class ForestWolvesBot:
             return
         
         # Обновляем приглашение с целевым пользователем
-        invitation['target_user_id'] = target_user['user_id']
-        invitation['target_username'] = target_user['username']
+        invitation['target_user_id'] = target_user_id
+        invitation['target_username'] = target_username
         
         # Создаем клавиатуру для принятия/отклонения
         keyboard = [
