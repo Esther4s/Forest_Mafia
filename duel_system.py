@@ -59,6 +59,7 @@ class Duel:
     current_round: int = 0
     winner: Optional[int] = None
     created_at: datetime = None
+    quiz_correct_answer: Optional[int] = None
 
 class DuelSystem:
     """Система управления дуэлями"""

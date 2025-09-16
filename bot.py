@@ -8053,6 +8053,8 @@ class ForestWolvesBot:
             await self.handle_duel_continue(query, context)
         elif query.data == "duel_surrender":
             await self.handle_duel_surrender(query, context)
+        elif query.data.startswith("duel_quiz_"):
+            await self.handle_duel_quiz(query, context)
         else:
             logger.warning(f"Неизвестный callback дуэли: {query.data}")
     
@@ -8315,12 +8317,14 @@ class ForestWolvesBot:
             duel.phase = DuelPhase.DAY
             # Обрабатываем фазу дня (викторина)
             result = self.duel_system.process_day_phase(duel)
+            # Сохраняем правильный ответ в дуэли
+            duel.quiz_correct_answer = result['correct_answer']
             
             keyboard = [
-                [InlineKeyboardButton("A", callback_data=f"duel_quiz_{result['correct_answer']}")],
-                [InlineKeyboardButton("B", callback_data=f"duel_quiz_{result['correct_answer']}")],
-                [InlineKeyboardButton("C", callback_data=f"duel_quiz_{result['correct_answer']}")],
-                [InlineKeyboardButton("D", callback_data=f"duel_quiz_{result['correct_answer']}")],
+                [InlineKeyboardButton("A", callback_data="duel_quiz_0")],
+                [InlineKeyboardButton("B", callback_data="duel_quiz_1")],
+                [InlineKeyboardButton("C", callback_data="duel_quiz_2")],
+                [InlineKeyboardButton("D", callback_data="duel_quiz_3")],
                 [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -8407,6 +8411,104 @@ class ForestWolvesBot:
         
         # Очищаем дуэль
         self.duel_system.cleanup_duel(duel.duel_id)
+
+    async def handle_duel_quiz(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик ответов на викторину в дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        
+        logger.info(f"DUEL QUIZ: user_id={user_id}, chat_id={chat_id}, query.data={query.data}")
+        
+        # Находим активную дуэль
+        duel = self.duel_system.get_duel_by_chat(chat_id)
+        if not duel:
+            logger.error(f"DUEL QUIZ: дуэль не найдена для chat_id={chat_id}")
+            await query.edit_message_text(
+                "❌ Активная дуэль не найдена.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Проверяем, что это фаза дня
+        if duel.phase != DuelPhase.DAY:
+            await query.answer("❌ Сейчас не время для викторины!")
+            return
+        
+        # Определяем, какой это игрок
+        if user_id == duel.player1.user_id:
+            player = duel.player1
+            opponent = duel.player2
+        elif user_id == duel.player2.user_id:
+            player = duel.player2
+            opponent = duel.player1
+        else:
+            await query.answer("❌ Вы не участвуете в этой дуэли!")
+            return
+        
+        # Извлекаем выбранный ответ
+        try:
+            selected_answer = int(query.data.split("_")[2])  # "duel_quiz_0" -> 0
+            logger.info(f"DUEL QUIZ: игрок {player.username} выбрал ответ {selected_answer}")
+        except (ValueError, IndexError) as e:
+            logger.error(f"DUEL QUIZ: ошибка извлечения ответа: {e}")
+            await query.answer("❌ Ошибка обработки ответа!")
+            return
+        
+        # Проверяем правильность ответа
+        correct_answer = getattr(duel, 'quiz_correct_answer', None)
+        if correct_answer is None:
+            logger.error(f"DUEL QUIZ: правильный ответ не найден")
+            await query.answer("❌ Ошибка: правильный ответ не найден!")
+            return
+        
+        is_correct = selected_answer == correct_answer
+        logger.info(f"DUEL QUIZ: правильный ответ={correct_answer}, выбранный={selected_answer}, правильно={is_correct}")
+        
+        # Если ответ неправильный, игрок теряет жизнь
+        if not is_correct:
+            player.lives -= 1
+            logger.info(f"DUEL QUIZ: {player.username} потерял жизнь, осталось {player.lives}")
+        
+        # Проверяем, не проиграл ли игрок
+        if player.lives <= 0:
+            duel.winner = opponent.user_id
+            duel.phase = DuelPhase.FINISHED
+            
+            await query.edit_message_text(
+                f"❌ **Неправильный ответ!**\n\n"
+                f"💀 {player.username} потерял последнюю жизнь!\n\n"
+                f"🏆 **Победитель: {opponent.username}**",
+                parse_mode='Markdown'
+            )
+            
+            # Очищаем дуэль
+            self.duel_system.cleanup_duel(duel.duel_id)
+            return
+        
+        # Если ответ правильный или игрок еще жив, показываем результат
+        result_text = f"☀️ **Результат викторины:**\n\n"
+        if is_correct:
+            result_text += f"✅ {player.username} ответил правильно!\n"
+        else:
+            result_text += f"❌ {player.username} ответил неправильно и потерял жизнь!\n"
+        
+        result_text += f"\n❤️ {duel.player1.username}: {duel.player1.lives}\n"
+        result_text += f"❤️ {duel.player2.username}: {duel.player2.lives}"
+        
+        # Создаем клавиатуру для продолжения
+        keyboard = [
+            [InlineKeyboardButton("▶ Продолжить", callback_data="duel_continue")],
+            [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            result_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
     async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик текстовых сообщений в группах для тегов дуэлей"""
