@@ -7948,6 +7948,8 @@ class ForestWolvesBot:
             invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
             invitation['target_user_id'] = target_user_id
             invitation['target_username'] = target_username
+            # Обновляем приглашение в системе
+            self.duel_system.duel_invitations[chat_id] = invitation
             
             # Создаем клавиатуру для принятия/отклонения
             keyboard = [
@@ -8065,8 +8067,11 @@ class ForestWolvesBot:
         user_id = query.from_user.id
         username = query.from_user.username or query.from_user.first_name or "Unknown"
         
+        logger.info(f"DUEL ACCEPT: user_id={user_id}, chat_id={chat_id}")
+        
         # Проверяем, есть ли приглашение
         if chat_id not in self.duel_system.duel_invitations:
+            logger.info(f"DUEL ACCEPT: приглашение не найдено для chat_id={chat_id}")
             await query.edit_message_text(
                 "❌ Приглашение на дуэль не найдено или истекло.",
                 parse_mode='Markdown'
@@ -8077,8 +8082,11 @@ class ForestWolvesBot:
         inviter_id = invitation["inviter_id"]
         inviter_name = invitation["inviter_name"]
         
+        logger.info(f"DUEL ACCEPT: invitation={invitation}")
+        
         # Проверяем, что есть целевой пользователь
         if "target_user_id" not in invitation or "target_username" not in invitation:
+            logger.info(f"DUEL ACCEPT: целевой пользователь не выбран")
             await query.edit_message_text(
                 "❌ Целевой пользователь не выбран.",
                 parse_mode='Markdown'
@@ -8088,8 +8096,11 @@ class ForestWolvesBot:
         target_user_id = invitation["target_user_id"]
         target_username = invitation["target_username"]
         
+        logger.info(f"DUEL ACCEPT: target_user_id={target_user_id}, user_id={user_id}")
+        
         # Проверяем, что принимает правильный пользователь
         if user_id != target_user_id:
+            logger.info(f"DUEL ACCEPT: неправильный пользователь пытается принять")
             await query.answer("❌ Это приглашение не для вас!")
             return
         
@@ -8155,15 +8166,22 @@ class ForestWolvesBot:
         chat_id = query.message.chat_id
         user_id = query.from_user.id
         
+        logger.info(f"DUEL DECLINE: user_id={user_id}, chat_id={chat_id}")
+        
         if chat_id in self.duel_system.duel_invitations:
             invitation = self.duel_system.duel_invitations[chat_id]
+            logger.info(f"DUEL DECLINE: invitation={invitation}")
             
             # Проверяем, что отклоняет правильный пользователь
             if "target_user_id" in invitation and user_id != invitation["target_user_id"]:
+                logger.info(f"DUEL DECLINE: неправильный пользователь пытается отклонить")
                 await query.answer("❌ Это приглашение не для вас!")
                 return
             
             del self.duel_system.duel_invitations[chat_id]
+            logger.info(f"DUEL DECLINE: приглашение удалено")
+        else:
+            logger.info(f"DUEL DECLINE: приглашение не найдено")
         
         await query.edit_message_text(
             "❌ Дуэль отклонена.",
@@ -8412,6 +8430,8 @@ class ForestWolvesBot:
         # Обновляем приглашение с целевым пользователем
         invitation['target_user_id'] = target_user_id
         invitation['target_username'] = target_username
+        # Обновляем приглашение в системе
+        self.duel_system.duel_invitations[chat_id] = invitation
         
         # Создаем клавиатуру для принятия/отклонения
         keyboard = [
