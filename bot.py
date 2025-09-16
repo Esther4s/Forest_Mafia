@@ -6484,14 +6484,9 @@ class ForestWolvesBot:
             target_user_id = target_user.id
             target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
-            await update.message.reply_text(
-                "❌ Используйте команду /kus в ответ на сообщение игрока или укажите тег!\n"
-                "Примеры:\n"
-                "• Ответ на сообщение: /kus\n"
-                "• С тегом: /kus @username\n"
-                "• С именем: /kus ИмяПользователя"
-            )
-            return
+            # Если нет аргументов и нет ответа, действие выполняется с самим собой
+            target_user_id = user_id
+            target_username = username
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
@@ -6573,14 +6568,9 @@ class ForestWolvesBot:
             target_user_id = target_user.id
             target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
-            await update.message.reply_text(
-                "❌ Используйте команду /poke в ответ на сообщение игрока или укажите тег!\n"
-                "Примеры:\n"
-                "• Ответ на сообщение: /poke\n"
-                "• С тегом: /poke @username\n"
-                "• С именем: /poke ИмяПользователя"
-            )
-            return
+            # Если нет аргументов и нет ответа, действие выполняется с самим собой
+            target_user_id = user_id
+            target_username = username
         
         # Форматируем имена с тегами
         user_tag = self.format_player_tag(username, user_id, make_clickable=True)
