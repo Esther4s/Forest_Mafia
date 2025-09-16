@@ -4189,18 +4189,6 @@ class ForestWolvesBot:
             await self.hedgehogs_callback(query, context)
         elif query.data == "casino_menu":
             await self.casino_callback(query, context)
-        elif query.data == "duel_cancel":
-            await self.handle_duel_cancel(query, context)
-        elif query.data == "duel_accept":
-            await self.handle_duel_accept(query, context)
-        elif query.data == "duel_decline":
-            await self.handle_duel_decline(query, context)
-        elif query.data.startswith("duel_action_"):
-            await self.handle_duel_action(query, context)
-        elif query.data == "duel_continue":
-            await self.handle_duel_continue(query, context)
-        elif query.data == "duel_surrender":
-            await self.handle_duel_surrender(query, context)
         elif query.data == "close_menu":
             await query.edit_message_text("🌲 Меню закрыто")
         elif query.data == "show_inventory":
@@ -5628,6 +5616,9 @@ class ForestWolvesBot:
         # Новые callback обработчики
         application.add_handler(CallbackQueryHandler(self.handle_join_game_callback, pattern=r"^join_game$"))
         application.add_handler(CallbackQueryHandler(self.handle_start_game_callback, pattern=r"^start_game$"))
+        
+        # Обработчики дуэлей
+        application.add_handler(CallbackQueryHandler(self.handle_duel_callback, pattern=r"^duel_"))
         application.add_handler(CallbackQueryHandler(self.handle_leave_registration_callback, pattern=r"^leave_registration$"))
         application.add_handler(CallbackQueryHandler(self.handle_cancel_game_callback, pattern=r"^cancel_game$"))
         application.add_handler(CallbackQueryHandler(self.handle_end_game_callback, pattern=r"^end_game$"))
@@ -8044,6 +8035,25 @@ class ForestWolvesBot:
         )
 
     # ================ ОБРАБОТЧИКИ ДУЭЛЕЙ ================
+    
+    async def handle_duel_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик callback для дуэлей"""
+        await query.answer()
+        
+        if query.data == "duel_cancel":
+            await self.handle_duel_cancel(query, context)
+        elif query.data == "duel_accept":
+            await self.handle_duel_accept(query, context)
+        elif query.data == "duel_decline":
+            await self.handle_duel_decline(query, context)
+        elif query.data.startswith("duel_action_"):
+            await self.handle_duel_action(query, context)
+        elif query.data == "duel_continue":
+            await self.handle_duel_continue(query, context)
+        elif query.data == "duel_surrender":
+            await self.handle_duel_surrender(query, context)
+        else:
+            logger.warning(f"Неизвестный callback дуэли: {query.data}")
     
     
     async def handle_duel_cancel(self, query, context: ContextTypes.DEFAULT_TYPE):
