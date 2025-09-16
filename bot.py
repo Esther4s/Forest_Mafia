@@ -6478,6 +6478,11 @@ class ForestWolvesBot:
             # Пытаемся извлечь user_id из тега, если это возможно
             if target_username.startswith('@'):
                 target_username = target_username[1:]
+            
+            # Если аргумент - это имя бота, действие выполняется с самим собой
+            if target_username.lower() in ['forest_fuss_bot', 'forest_fuss', 'bot']:
+                target_user_id = user_id
+                target_username = username
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
@@ -6562,6 +6567,11 @@ class ForestWolvesBot:
             # Пытаемся извлечь user_id из тега, если это возможно
             if target_username.startswith('@'):
                 target_username = target_username[1:]
+            
+            # Если аргумент - это имя бота, действие выполняется с самим собой
+            if target_username.lower() in ['forest_fuss_bot', 'forest_fuss', 'bot']:
+                target_user_id = user_id
+                target_username = username
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
