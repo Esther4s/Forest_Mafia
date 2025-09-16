@@ -7926,7 +7926,7 @@ class ForestWolvesBot:
         if context.args:
             # Если есть аргументы, пытаемся найти пользователя по тегу
             target_username = context.args[0].replace('@', '')
-            target_user = await self.find_user_by_username(target_username)
+            target_user = await self.find_user_by_username(target_username, update, context)
             
             if not target_user:
                 await update.message.reply_text(
@@ -8392,7 +8392,7 @@ class ForestWolvesBot:
         target_username = message_text.replace('@', '').strip()
         
         # Ищем пользователя
-        target_user = await self.find_user_by_username(target_username)
+        target_user = await self.find_user_by_username(target_username, update, context)
         
         if not target_user:
             await update.message.reply_text(
