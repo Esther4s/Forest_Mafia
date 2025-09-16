@@ -6511,6 +6511,7 @@ class ForestWolvesBot:
         target_user_id = None
         
         logger.info(f"BITE DEBUG: context.args={context.args}")
+        logger.info(f"BITE DEBUG: reply_to_message={update.message.reply_to_message is not None}")
         
         # Проверяем, есть ли аргументы команды (тег игрока)
         if context.args:
