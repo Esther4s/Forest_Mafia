@@ -6539,9 +6539,18 @@ class ForestWolvesBot:
                     target_username = username
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
-            target_user = update.message.reply_to_message.from_user
-            target_user_id = target_user.id
-            target_username = target_user.username or target_user.full_name or str(target_user.id)
+            logger.info(f"BITE DEBUG: команда в ответ на сообщение")
+            # Проверяем, не является ли это командой с тегом бота
+            if (update.message.reply_to_message.from_user and 
+                update.message.reply_to_message.from_user.is_bot and
+                'forest_fuss_bot' in update.message.reply_to_message.from_user.username.lower()):
+                logger.info(f"BITE DEBUG: это команда с тегом бота, используем себя")
+                target_user_id = user_id
+                target_username = username
+            else:
+                target_user = update.message.reply_to_message.from_user
+                target_user_id = target_user.id
+                target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             # Если нет аргументов и нет ответа, действие выполняется с самим собой
             logger.info(f"BITE DEBUG: нет аргументов и нет ответа, используем себя")
