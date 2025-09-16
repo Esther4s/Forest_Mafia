@@ -1486,7 +1486,9 @@ class ForestWolvesBot:
             [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
             [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
             [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-            [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
+            [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
+            [InlineKeyboardButton("🐰 Заяц-волк", callback_data="game_mode_hare_wolf"), InlineKeyboardButton("🐺 Волк в овечьей шкуре", callback_data="game_mode_wolf_sheep")],
+            [InlineKeyboardButton("🦔 Ежики", callback_data="game_mode_hedgehogs"), InlineKeyboardButton("🎰 Казино", callback_data="casino_menu")]
         ]
         
         
@@ -2684,7 +2686,9 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("👥 Присоединиться к игре", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
                 [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
+                [InlineKeyboardButton("🐰 Заяц-волк", callback_data="game_mode_hare_wolf"), InlineKeyboardButton("🐺 Волк в овечьей шкуре", callback_data="game_mode_wolf_sheep")],
+                [InlineKeyboardButton("🦔 Ежики", callback_data="game_mode_hedgehogs"), InlineKeyboardButton("🎰 Казино", callback_data="casino_menu")]
             ]
             
             reply_markup = InlineKeyboardMarkup(keyboard)
@@ -3753,7 +3757,9 @@ class ForestWolvesBot:
                 [InlineKeyboardButton("🚀 Начать сбор", callback_data="welcome_start_game")],
                 [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
                 [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")]
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
+                [InlineKeyboardButton("🐰 Заяц-волк", callback_data="game_mode_hare_wolf"), InlineKeyboardButton("🐺 Волк в овечьей шкуре", callback_data="game_mode_wolf_sheep")],
+                [InlineKeyboardButton("🦔 Ежики", callback_data="game_mode_hedgehogs"), InlineKeyboardButton("🎰 Казино", callback_data="casino_menu")]
             ]
             
             # Добавляем кнопку "Отменить игру" для администраторов и создателей
@@ -4171,6 +4177,14 @@ class ForestWolvesBot:
             await self.show_shop_menu(query, context)
         elif query.data == "show_stats":
             await self.show_stats_menu(query, context)
+        elif query.data == "game_mode_hare_wolf":
+            await self.hare_wolf_callback(query, context)
+        elif query.data == "game_mode_wolf_sheep":
+            await self.wolf_sheep_callback(query, context)
+        elif query.data == "game_mode_hedgehogs":
+            await self.hedgehogs_callback(query, context)
+        elif query.data == "casino_menu":
+            await self.casino_callback(query, context)
         elif query.data == "close_menu":
             await query.edit_message_text("🌲 Меню закрыто")
         elif query.data == "show_inventory":
@@ -5511,6 +5525,12 @@ class ForestWolvesBot:
             BotCommand("bite", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
             BotCommand("poke", "👆 Постукать игрока (@username или ответ на сообщение)"),
             
+            # 🎮 Новые режимы игры
+            BotCommand("hare_wolf", "🐰 Режим 'Заяц-волк'"),
+            BotCommand("wolf_sheep", "🐺 Режим 'Волк в овечьей шкуре'"),
+            BotCommand("hedgehogs", "🦔 Режим 'Ежики'"),
+            BotCommand("casino", "🎰 Казино"),
+            
             # 🎯 Команды для управления игрой
             BotCommand("start_game", "🚀 Начать игру"),
             BotCommand("end_game", "🏁 Завершить игру"),
@@ -5565,6 +5585,12 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
         application.add_handler(CommandHandler("bite", self.bite_command)) # Команда /bite
         application.add_handler(CommandHandler("poke", self.poke_command)) # Команда /poke
+        
+        # Новые режимы игры
+        application.add_handler(CommandHandler("hare_wolf", self.hare_wolf_command)) # Команда /hare_wolf
+        application.add_handler(CommandHandler("wolf_sheep", self.wolf_sheep_command)) # Команда /wolf_sheep
+        application.add_handler(CommandHandler("hedgehogs", self.hedgehogs_command)) # Команда /hedgehogs
+        application.add_handler(CommandHandler("casino", self.casino_command)) # Команда /casino
         
 
         # Обработчик присоединения бота к чату
@@ -7837,6 +7863,86 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка показа правил в ЛС: {e}")
             await query.answer("❌ Произошла ошибка!", show_alert=True)
+
+    # ================ НОВЫЕ РЕЖИМЫ ИГРЫ ================
+    
+    async def hare_wolf_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /hare_wolf - режим 'Заяц-волк'"""
+        await update.message.reply_text(
+            "🐰 **Режим 'Заяц-волк'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def wolf_sheep_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /wolf_sheep - режим 'Волк в овечьей шкуре'"""
+        await update.message.reply_text(
+            "🐺 **Режим 'Волк в овечьей шкуре'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def hedgehogs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /hedgehogs - режим 'Ежики'"""
+        await update.message.reply_text(
+            "🦔 **Режим 'Ежики'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def casino_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /casino - казино"""
+        await update.message.reply_text(
+            "🎰 **Казино**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет увлекательное казино с различными играми!",
+            parse_mode='Markdown'
+        )
+    
+    # ================ CALLBACK ОБРАБОТЧИКИ ================
+    
+    async def hare_wolf_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Callback для кнопки 'Заяц-волк'"""
+        await query.answer()
+        await query.edit_message_text(
+            "🐰 **Режим 'Заяц-волк'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def wolf_sheep_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Callback для кнопки 'Волк в овечьей шкуре'"""
+        await query.answer()
+        await query.edit_message_text(
+            "🐺 **Режим 'Волк в овечьей шкуре'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def hedgehogs_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Callback для кнопки 'Ежики'"""
+        await query.answer()
+        await query.edit_message_text(
+            "🦔 **Режим 'Ежики'**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет новый захватывающий режим игры!",
+            parse_mode='Markdown'
+        )
+    
+    async def casino_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Callback для кнопки 'Казино'"""
+        await query.answer()
+        await query.edit_message_text(
+            "🎰 **Казино**\n\n"
+            "🚧 В разработке...\n\n"
+            "Скоро здесь будет увлекательное казино с различными играми!",
+            parse_mode='Markdown'
+        )
 
 
 if __name__ == "__main__":
