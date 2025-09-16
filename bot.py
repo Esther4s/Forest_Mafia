@@ -8203,21 +8203,36 @@ class ForestWolvesBot:
         """Обработчик действий в дуэли"""
         await query.answer()
         
+        logger.info(f"DUEL ACTION: query.data={query.data}")
+        
         # Извлекаем действие из callback_data
-        action_str = query.data.split("_")[2]
-        action = DuelAction(action_str)
+        action_str = query.data.split("_")[2]  # "duel_action_attack" -> "attack"
+        logger.info(f"DUEL ACTION: action_str={action_str}")
+        
+        try:
+            action = DuelAction(action_str)
+            logger.info(f"DUEL ACTION: action={action}")
+        except ValueError as e:
+            logger.error(f"DUEL ACTION: ошибка создания действия {action_str}: {e}")
+            await query.answer("❌ Неизвестное действие!")
+            return
         
         chat_id = query.message.chat_id
         user_id = query.from_user.id
         
+        logger.info(f"DUEL ACTION: chat_id={chat_id}, user_id={user_id}")
+        
         # Находим активную дуэль
         duel = self.duel_system.get_duel_by_chat(chat_id)
         if not duel:
+            logger.error(f"DUEL ACTION: дуэль не найдена для chat_id={chat_id}")
             await query.edit_message_text(
                 "❌ Активная дуэль не найдена.",
                 parse_mode='Markdown'
             )
             return
+        
+        logger.info(f"DUEL ACTION: найдена дуэль {duel.duel_id}, фаза={duel.phase}")
         
         # Определяем, какой это игрок
         if user_id == duel.player1.user_id:
