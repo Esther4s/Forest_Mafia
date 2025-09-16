@@ -6544,6 +6544,7 @@ class ForestWolvesBot:
             target_username = target_user.username or target_user.full_name or str(target_user.id)
         else:
             # Если нет аргументов и нет ответа, действие выполняется с самим собой
+            logger.info(f"BITE DEBUG: нет аргументов и нет ответа, используем себя")
             target_user_id = user_id
             target_username = username
         
