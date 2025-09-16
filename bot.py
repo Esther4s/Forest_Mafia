@@ -8036,8 +8036,9 @@ class ForestWolvesBot:
 
     # ================ ОБРАБОТЧИКИ ДУЭЛЕЙ ================
     
-    async def handle_duel_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+    async def handle_duel_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик callback для дуэлей"""
+        query = update.callback_query
         await query.answer()
         
         if query.data == "duel_cancel":
