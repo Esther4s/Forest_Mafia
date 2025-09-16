@@ -18,6 +18,7 @@ from telegram.ext import (
 )
 
 from game_logic import Game, GamePhase, Role, Team, Player  # ваши реализации
+from duel_system import DuelSystem, DuelRole, DuelPhase, DuelAction
 from config import BOT_TOKEN  # ваши настройки
 from night_actions import NightActions
 from night_interface import NightInterface
@@ -61,6 +62,9 @@ class ForestWolvesBot:
         self.night_interfaces: Dict[int, NightInterface] = {}
         # Global settings instance
         self.global_settings = GlobalSettings()
+        
+        # Система дуэлей
+        self.duel_system = DuelSystem()
         
         # Инициализация базы данных
         try:
@@ -4185,6 +4189,20 @@ class ForestWolvesBot:
             await self.hedgehogs_callback(query, context)
         elif query.data == "casino_menu":
             await self.casino_callback(query, context)
+        elif query.data.startswith("duel_invite_"):
+            await self.handle_duel_invite(query, context)
+        elif query.data == "duel_cancel":
+            await self.handle_duel_cancel(query, context)
+        elif query.data == "duel_accept":
+            await self.handle_duel_accept(query, context)
+        elif query.data == "duel_decline":
+            await self.handle_duel_decline(query, context)
+        elif query.data.startswith("duel_action_"):
+            await self.handle_duel_action(query, context)
+        elif query.data == "duel_continue":
+            await self.handle_duel_continue(query, context)
+        elif query.data == "duel_surrender":
+            await self.handle_duel_surrender(query, context)
         elif query.data == "close_menu":
             await query.edit_message_text("🌲 Меню закрыто")
         elif query.data == "show_inventory":
@@ -7885,11 +7903,56 @@ class ForestWolvesBot:
         )
     
     async def hedgehogs_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Команда /hedgehogs - режим 'Ежики'"""
+        """Команда /hedgehogs - режим 'Ежики' (Дуэль 1v1)"""
+        if not update or not update.message:
+            return
+        
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        
+        # Проверяем, есть ли уже активная дуэль в чате
+        active_duel = self.duel_system.get_duel_by_chat(chat_id)
+        if active_duel:
+            await update.message.reply_text(
+                "⚔️ В этом чате уже идет дуэль!\n"
+                "Дождитесь окончания текущей дуэли.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Создаем приглашение на дуэль
+        invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
+        
+        # Получаем список доступных игроков
+        available_players = self.duel_system.get_available_players(chat_id, user_id)
+        
+        if not available_players:
+            await update.message.reply_text(
+                "🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
+                "❌ Нет доступных игроков для дуэли.\n"
+                "Попробуйте позже, когда в чате будет больше участников.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Создаем клавиатуру с игроками
+        keyboard = []
+        for player in available_players[:10]:  # Ограничиваем до 10 игроков
+            keyboard.append([InlineKeyboardButton(
+                f"⚔️ {player['display_name']}",
+                callback_data=f"duel_invite_{player['user_id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="duel_cancel")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         await update.message.reply_text(
-            "🦔 **Режим 'Ежики'**\n\n"
-            "🚧 В разработке...\n\n"
-            "Скоро здесь будет новый захватывающий режим игры!",
+            f"🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
+            f"⚔️ {username} вызывает на дуэль!\n\n"
+            f"Выберите соперника:",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
     
@@ -7927,10 +7990,53 @@ class ForestWolvesBot:
     async def hedgehogs_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
         """Callback для кнопки 'Ежики'"""
         await query.answer()
+        
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        username = query.from_user.username or query.from_user.first_name or "Unknown"
+        
+        # Проверяем, есть ли уже активная дуэль в чате
+        active_duel = self.duel_system.get_duel_by_chat(chat_id)
+        if active_duel:
+            await query.edit_message_text(
+                "⚔️ В этом чате уже идет дуэль!\n"
+                "Дождитесь окончания текущей дуэли.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Создаем приглашение на дуэль
+        invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
+        
+        # Получаем список доступных игроков
+        available_players = self.duel_system.get_available_players(chat_id, user_id)
+        
+        if not available_players:
+            await query.edit_message_text(
+                "🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
+                "❌ Нет доступных игроков для дуэли.\n"
+                "Попробуйте позже, когда в чате будет больше участников.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Создаем клавиатуру с игроками
+        keyboard = []
+        for player in available_players[:10]:  # Ограничиваем до 10 игроков
+            keyboard.append([InlineKeyboardButton(
+                f"⚔️ {player['display_name']}",
+                callback_data=f"duel_invite_{player['user_id']}"
+            )])
+        
+        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="duel_cancel")])
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
         await query.edit_message_text(
-            "🦔 **Режим 'Ежики'**\n\n"
-            "🚧 В разработке...\n\n"
-            "Скоро здесь будет новый захватывающий режим игры!",
+            f"🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
+            f"⚔️ {username} вызывает на дуэль!\n\n"
+            f"Выберите соперника:",
+            reply_markup=reply_markup,
             parse_mode='Markdown'
         )
     
@@ -7943,6 +8049,335 @@ class ForestWolvesBot:
             "Скоро здесь будет увлекательное казино с различными играми!",
             parse_mode='Markdown'
         )
+
+    # ================ ОБРАБОТЧИКИ ДУЭЛЕЙ ================
+    
+    async def handle_duel_invite(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик приглашения на дуэль"""
+        await query.answer()
+        
+        # Извлекаем user_id из callback_data
+        target_user_id = int(query.data.split("_")[2])
+        inviter_id = query.from_user.id
+        inviter_name = query.from_user.username or query.from_user.first_name or "Unknown"
+        
+        # Проверяем, что пользователь не приглашает сам себя
+        if target_user_id == inviter_id:
+            await query.edit_message_text(
+                "❌ Нельзя вызвать на дуэль самого себя!",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Создаем клавиатуру для принятия/отклонения
+        keyboard = [
+            [InlineKeyboardButton("✅ Принять дуэль", callback_data="duel_accept")],
+            [InlineKeyboardButton("❌ Отклонить", callback_data="duel_decline")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"⚔️ **Вызов на дуэль!**\n\n"
+            f"🦔 {inviter_name} вызывает вас на дуэль в режиме 'Ежики'!\n\n"
+            f"Принять вызов?",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    async def handle_duel_cancel(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик отмены дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        if chat_id in self.duel_system.duel_invitations:
+            del self.duel_system.duel_invitations[chat_id]
+        
+        await query.edit_message_text(
+            "❌ Дуэль отменена.",
+            parse_mode='Markdown'
+        )
+    
+    async def handle_duel_accept(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик принятия дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        username = query.from_user.username or query.from_user.first_name or "Unknown"
+        
+        # Проверяем, есть ли приглашение
+        if chat_id not in self.duel_system.duel_invitations:
+            await query.edit_message_text(
+                "❌ Приглашение на дуэль не найдено или истекло.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        invitation = self.duel_system.duel_invitations[chat_id]
+        inviter_id = invitation["inviter_id"]
+        inviter_name = invitation["inviter_name"]
+        
+        # Создаем дуэль
+        duel = self.duel_system.start_duel(
+            chat_id, inviter_id, inviter_name, user_id, username
+        )
+        
+        # Отправляем информацию о ролях в личные сообщения
+        try:
+            # Роль первого игрока
+            p1_role_info = self.duel_system.get_role_info(duel.player1.role)
+            await context.bot.send_message(
+                chat_id=duel.player1.user_id,
+                text=f"🦔 **Ваша роль в дуэли:**\n\n"
+                     f"{p1_role_info['name']}\n"
+                     f"{p1_role_info['description']}\n\n"
+                     f"**Специальная способность:**\n"
+                     f"{p1_role_info['special']}",
+                parse_mode='Markdown'
+            )
+            
+            # Роль второго игрока
+            p2_role_info = self.duel_system.get_role_info(duel.player2.role)
+            await context.bot.send_message(
+                chat_id=duel.player2.user_id,
+                text=f"🦔 **Ваша роль в дуэли:**\n\n"
+                     f"{p2_role_info['name']}\n"
+                     f"{p2_role_info['description']}\n\n"
+                     f"**Специальная способность:**\n"
+                     f"{p2_role_info['special']}",
+                parse_mode='Markdown'
+            )
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки ролей: {e}")
+        
+        # Начинаем дуэль с фазы ночи
+        duel.phase = DuelPhase.NIGHT
+        duel.current_round = 1
+        
+        # Создаем клавиатуру для действий
+        keyboard = [
+            [InlineKeyboardButton("🗡 Атака", callback_data="duel_action_attack")],
+            [InlineKeyboardButton("🛡 Защита", callback_data="duel_action_defense")],
+            [InlineKeyboardButton("🎭 Обман", callback_data="duel_action_trick")],
+            [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await query.edit_message_text(
+            f"⚔️ **Дуэль началась!**\n\n"
+            f"🦔 {inviter_name} vs {username}\n\n"
+            f"🌑 **Фаза ночи - Раунд {duel.current_round}**\n"
+            f"Выберите действие:",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    async def handle_duel_decline(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик отклонения дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        if chat_id in self.duel_system.duel_invitations:
+            del self.duel_system.duel_invitations[chat_id]
+        
+        await query.edit_message_text(
+            "❌ Дуэль отклонена.",
+            parse_mode='Markdown'
+        )
+    
+    async def handle_duel_action(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик действий в дуэли"""
+        await query.answer()
+        
+        # Извлекаем действие из callback_data
+        action_str = query.data.split("_")[2]
+        action = DuelAction(action_str)
+        
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        
+        # Находим активную дуэль
+        duel = self.duel_system.get_duel_by_chat(chat_id)
+        if not duel:
+            await query.edit_message_text(
+                "❌ Активная дуэль не найдена.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Определяем, какой это игрок
+        if user_id == duel.player1.user_id:
+            player = duel.player1
+            opponent = duel.player2
+        elif user_id == duel.player2.user_id:
+            player = duel.player2
+            opponent = duel.player1
+        else:
+            await query.answer("❌ Вы не участвуете в этой дуэли!")
+            return
+        
+        # Сохраняем действие игрока
+        player.last_action = action
+        
+        # Проверяем, сделали ли оба игрока ход
+        if duel.player1.last_action and duel.player2.last_action:
+            # Обрабатываем фазу
+            if duel.phase == DuelPhase.NIGHT:
+                result = self.duel_system.process_night_phase(
+                    duel, duel.player1.last_action, duel.player2.last_action
+                )
+                
+                # Создаем клавиатуру для продолжения
+                keyboard = []
+                if duel.phase != DuelPhase.FINISHED:
+                    keyboard.append([InlineKeyboardButton("▶ Продолжить", callback_data="duel_continue")])
+                keyboard.append([InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")])
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # Формируем сообщение о результате
+                result_text = f"⚔️ **Результат раунда {duel.current_round}:**\n\n"
+                result_text += f"🗡 {duel.player1.username}: {duel.player1.last_action.value}\n"
+                result_text += f"🗡 {duel.player2.username}: {duel.player2.last_action.value}\n\n"
+                
+                if result["round_result"]:
+                    result_text += f"{result['round_result']}\n\n"
+                
+                if result["special_effects"]:
+                    for effect in result["special_effects"]:
+                        result_text += f"{effect}\n"
+                
+                result_text += f"\n❤️ {duel.player1.username}: {duel.player1.lives}\n"
+                result_text += f"❤️ {duel.player2.username}: {duel.player2.lives}"
+                
+                if duel.phase == DuelPhase.FINISHED:
+                    if duel.winner:
+                        winner = duel.player1 if duel.winner == duel.player1.user_id else duel.player2
+                        result_text += f"\n\n🏆 **Победитель: {winner.username}!**"
+                    else:
+                        result_text += f"\n\n🤝 **Ничья!**"
+                
+                await query.edit_message_text(
+                    result_text,
+                    reply_markup=reply_markup,
+                    parse_mode='Markdown'
+                )
+            else:
+                await query.answer("❌ Неверная фаза для этого действия!")
+        else:
+            # Ждем действия соперника
+            await query.answer(f"✅ Вы выбрали: {action.value}. Ждем соперника...")
+    
+    async def handle_duel_continue(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик продолжения дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        duel = self.duel_system.get_duel_by_chat(chat_id)
+        
+        if not duel:
+            await query.edit_message_text(
+                "❌ Активная дуэль не найдена.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Переходим к следующей фазе
+        if duel.phase == DuelPhase.NIGHT:
+            duel.phase = DuelPhase.DAY
+            # Обрабатываем фазу дня (викторина)
+            result = self.duel_system.process_day_phase(duel)
+            
+            keyboard = [
+                [InlineKeyboardButton("A", callback_data=f"duel_quiz_{result['correct_answer']}")],
+                [InlineKeyboardButton("B", callback_data=f"duel_quiz_{result['correct_answer']}")],
+                [InlineKeyboardButton("C", callback_data=f"duel_quiz_{result['correct_answer']}")],
+                [InlineKeyboardButton("D", callback_data=f"duel_quiz_{result['correct_answer']}")],
+                [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"☀️ **Фаза дня - Раунд {duel.current_round}**\n\n"
+                f"❓ **Викторина:**\n"
+                f"{result['question']}\n\n"
+                f"A) {result['options'][0]}\n"
+                f"B) {result['options'][1]}\n"
+                f"C) {result['options'][2]}\n"
+                f"D) {result['options'][3]}",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif duel.phase == DuelPhase.DAY:
+            duel.phase = DuelPhase.CASINO
+            # Обрабатываем фазу казино
+            result = self.duel_system.process_casino_phase(duel)
+            
+            keyboard = [
+                [InlineKeyboardButton("▶ Продолжить", callback_data="duel_continue")],
+                [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"🎰 **Фаза казино - Раунд {duel.current_round}**\n\n"
+                f"🎲 Результат кубика: {result['dice_result']}\n"
+                f"🌙 Выпало: {result['bonus_type']}\n\n"
+                f"❤️ {duel.player1.username}: {duel.player1.lives}\n"
+                f"❤️ {duel.player2.username}: {duel.player2.lives}",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+        elif duel.phase == DuelPhase.CASINO:
+            duel.phase = DuelPhase.FINAL
+            # Финальная фаза - угадайка
+            keyboard = [
+                [InlineKeyboardButton("🏳️ Сдаться", callback_data="duel_surrender")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await query.edit_message_text(
+                f"🔮 **Финальная фаза - Раунд {duel.current_round}**\n\n"
+                f"🎯 Угадайте число от 1 до 100!\n"
+                f"Отправьте число в чат.",
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+    
+    async def handle_duel_surrender(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик сдачи в дуэли"""
+        await query.answer()
+        
+        chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        
+        duel = self.duel_system.get_duel_by_chat(chat_id)
+        if not duel:
+            await query.edit_message_text(
+                "❌ Активная дуэль не найдена.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Определяем победителя
+        if user_id == duel.player1.user_id:
+            winner = duel.player2
+            loser = duel.player1
+        else:
+            winner = duel.player1
+            loser = duel.player2
+        
+        duel.winner = winner.user_id
+        duel.phase = DuelPhase.FINISHED
+        
+        await query.edit_message_text(
+            f"🏳️ **Сдача!**\n\n"
+            f"🏆 **Победитель: {winner.username}**\n"
+            f"💀 {loser.username} сдался в дуэли!",
+            parse_mode='Markdown'
+        )
+        
+        # Очищаем дуэль
+        self.duel_system.cleanup_duel(duel.duel_id)
 
 
 if __name__ == "__main__":
