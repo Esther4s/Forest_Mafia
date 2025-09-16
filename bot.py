@@ -4189,8 +4189,6 @@ class ForestWolvesBot:
             await self.hedgehogs_callback(query, context)
         elif query.data == "casino_menu":
             await self.casino_callback(query, context)
-        elif query.data.startswith("duel_invite_"):
-            await self.handle_duel_invite(query, context)
         elif query.data == "duel_cancel":
             await self.handle_duel_cancel(query, context)
         elif query.data == "duel_accept":
@@ -5616,6 +5614,9 @@ class ForestWolvesBot:
         
         # Обработчик личных сообщений (для регистрации пользователей)
         application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.handle_private_message))
+        
+        # Обработчик текстовых сообщений в группах (для тегов дуэлей)
+        application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, self.handle_group_message))
 
         # callbacks
         application.add_handler(CallbackQueryHandler(self.handle_vote, pattern=r"^vote_"))
@@ -7921,40 +7922,56 @@ class ForestWolvesBot:
             )
             return
         
-        # Создаем приглашение на дуэль
-        invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
-        
-        # Получаем список доступных игроков
-        available_players = self.duel_system.get_available_players(chat_id, user_id)
-        
-        if not available_players:
+        # Проверяем аргументы команды
+        if context.args:
+            # Если есть аргументы, пытаемся найти пользователя по тегу
+            target_username = context.args[0].replace('@', '')
+            target_user = await self.find_user_by_username(target_username)
+            
+            if not target_user:
+                await update.message.reply_text(
+                    f"❌ Пользователь @{target_username} не найден в чате.\n\n"
+                    f"Использование: `/hedgehogs @username` или просто `/hedgehogs`",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Проверяем, что не вызываем сами себя
+            if target_user['user_id'] == user_id:
+                await update.message.reply_text(
+                    "❌ Нельзя вызвать на дуэль самого себя!",
+                    parse_mode='Markdown'
+                )
+                return
+            
+            # Создаем приглашение на дуэль
+            invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
+            invitation['target_user_id'] = target_user['user_id']
+            invitation['target_username'] = target_user['username']
+            
+            # Создаем клавиатуру для принятия/отклонения
+            keyboard = [
+                [InlineKeyboardButton("✅ Принять дуэль", callback_data="duel_accept")],
+                [InlineKeyboardButton("❌ Отклонить", callback_data="duel_decline")]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
             await update.message.reply_text(
-                "🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
-                "❌ Нет доступных игроков для дуэли.\n"
-                "Попробуйте позже, когда в чате будет больше участников.",
+                f"⚔️ **Вызов на дуэль!**\n\n"
+                f"🦔 {username} вызывает @{target_username} на дуэль в режиме 'Ежики'!\n\n"
+                f"@{target_username}, принять вызов?",
+                reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
-            return
-        
-        # Создаем клавиатуру с игроками
-        keyboard = []
-        for player in available_players[:10]:  # Ограничиваем до 10 игроков
-            keyboard.append([InlineKeyboardButton(
-                f"⚔️ {player['display_name']}",
-                callback_data=f"duel_invite_{player['user_id']}"
-            )])
-        
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="duel_cancel")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.message.reply_text(
-            f"🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
-            f"⚔️ {username} вызывает на дуэль!\n\n"
-            f"Выберите соперника:",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
+        else:
+            # Если нет аргументов, просим отправить тег
+            await update.message.reply_text(
+                f"🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
+                f"⚔️ {username} хочет вызвать на дуэль!\n\n"
+                f"Отправьте тег игрока, которого хотите вызвать:\n"
+                f"Например: `@{username}` или просто username",
+                parse_mode='Markdown'
+            )
     
     async def casino_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда /casino - казино"""
@@ -8005,38 +8022,12 @@ class ForestWolvesBot:
             )
             return
         
-        # Создаем приглашение на дуэль
-        invitation = self.duel_system.create_duel_invitation(chat_id, user_id, username)
-        
-        # Получаем список доступных игроков
-        available_players = self.duel_system.get_available_players(chat_id, user_id)
-        
-        if not available_players:
-            await query.edit_message_text(
-                "🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
-                "❌ Нет доступных игроков для дуэли.\n"
-                "Попробуйте позже, когда в чате будет больше участников.",
-                parse_mode='Markdown'
-            )
-            return
-        
-        # Создаем клавиатуру с игроками
-        keyboard = []
-        for player in available_players[:10]:  # Ограничиваем до 10 игроков
-            keyboard.append([InlineKeyboardButton(
-                f"⚔️ {player['display_name']}",
-                callback_data=f"duel_invite_{player['user_id']}"
-            )])
-        
-        keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="duel_cancel")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
+        # Просим отправить тег игрока
         await query.edit_message_text(
             f"🦔 **Режим 'Ежики' - Дуэль 1v1**\n\n"
-            f"⚔️ {username} вызывает на дуэль!\n\n"
-            f"Выберите соперника:",
-            reply_markup=reply_markup,
+            f"⚔️ {username} хочет вызвать на дуэль!\n\n"
+            f"Отправьте тег игрока, которого хотите вызвать:\n"
+            f"Например: `@{username}` или просто username",
             parse_mode='Markdown'
         )
     
@@ -8052,37 +8043,6 @@ class ForestWolvesBot:
 
     # ================ ОБРАБОТЧИКИ ДУЭЛЕЙ ================
     
-    async def handle_duel_invite(self, query, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик приглашения на дуэль"""
-        await query.answer()
-        
-        # Извлекаем user_id из callback_data
-        target_user_id = int(query.data.split("_")[2])
-        inviter_id = query.from_user.id
-        inviter_name = query.from_user.username or query.from_user.first_name or "Unknown"
-        
-        # Проверяем, что пользователь не приглашает сам себя
-        if target_user_id == inviter_id:
-            await query.edit_message_text(
-                "❌ Нельзя вызвать на дуэль самого себя!",
-                parse_mode='Markdown'
-            )
-            return
-        
-        # Создаем клавиатуру для принятия/отклонения
-        keyboard = [
-            [InlineKeyboardButton("✅ Принять дуэль", callback_data="duel_accept")],
-            [InlineKeyboardButton("❌ Отклонить", callback_data="duel_decline")]
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await query.edit_message_text(
-            f"⚔️ **Вызов на дуэль!**\n\n"
-            f"🦔 {inviter_name} вызывает вас на дуэль в режиме 'Ежики'!\n\n"
-            f"Принять вызов?",
-            reply_markup=reply_markup,
-            parse_mode='Markdown'
-        )
     
     async def handle_duel_cancel(self, query, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик отмены дуэли"""
@@ -8117,9 +8077,25 @@ class ForestWolvesBot:
         inviter_id = invitation["inviter_id"]
         inviter_name = invitation["inviter_name"]
         
+        # Проверяем, что есть целевой пользователь
+        if "target_user_id" not in invitation or "target_username" not in invitation:
+            await query.edit_message_text(
+                "❌ Целевой пользователь не выбран.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        target_user_id = invitation["target_user_id"]
+        target_username = invitation["target_username"]
+        
+        # Проверяем, что принимает правильный пользователь
+        if user_id != target_user_id:
+            await query.answer("❌ Это приглашение не для вас!")
+            return
+        
         # Создаем дуэль
         duel = self.duel_system.start_duel(
-            chat_id, inviter_id, inviter_name, user_id, username
+            chat_id, inviter_id, inviter_name, target_user_id, target_username
         )
         
         # Отправляем информацию о ролях в личные сообщения
@@ -8177,7 +8153,16 @@ class ForestWolvesBot:
         await query.answer()
         
         chat_id = query.message.chat_id
+        user_id = query.from_user.id
+        
         if chat_id in self.duel_system.duel_invitations:
+            invitation = self.duel_system.duel_invitations[chat_id]
+            
+            # Проверяем, что отклоняет правильный пользователь
+            if "target_user_id" in invitation and user_id != invitation["target_user_id"]:
+                await query.answer("❌ Это приглашение не для вас!")
+                return
+            
             del self.duel_system.duel_invitations[chat_id]
         
         await query.edit_message_text(
@@ -8378,6 +8363,70 @@ class ForestWolvesBot:
         
         # Очищаем дуэль
         self.duel_system.cleanup_duel(duel.duel_id)
+
+    async def handle_group_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик текстовых сообщений в группах для тегов дуэлей"""
+        if not update or not update.message:
+            return
+        
+        chat_id = update.effective_chat.id
+        user_id = update.effective_user.id
+        username = update.effective_user.username or update.effective_user.first_name or "Unknown"
+        message_text = update.message.text.strip()
+        
+        # Проверяем, есть ли активное приглашение на дуэль в этом чате
+        if chat_id not in self.duel_system.duel_invitations:
+            return
+        
+        invitation = self.duel_system.duel_invitations[chat_id]
+        
+        # Проверяем, что это не тот, кто создал приглашение
+        if user_id == invitation["inviter_id"]:
+            return
+        
+        # Проверяем, что сообщение содержит тег
+        if not (message_text.startswith('@') or message_text.startswith('username')):
+            return
+        
+        # Извлекаем username из сообщения
+        target_username = message_text.replace('@', '').strip()
+        
+        # Ищем пользователя
+        target_user = await self.find_user_by_username(target_username)
+        
+        if not target_user:
+            await update.message.reply_text(
+                f"❌ Пользователь @{target_username} не найден в чате.",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Проверяем, что не вызываем сами себя
+        if target_user['user_id'] == user_id:
+            await update.message.reply_text(
+                "❌ Нельзя вызвать на дуэль самого себя!",
+                parse_mode='Markdown'
+            )
+            return
+        
+        # Обновляем приглашение с целевым пользователем
+        invitation['target_user_id'] = target_user['user_id']
+        invitation['target_username'] = target_user['username']
+        
+        # Создаем клавиатуру для принятия/отклонения
+        keyboard = [
+            [InlineKeyboardButton("✅ Принять дуэль", callback_data="duel_accept")],
+            [InlineKeyboardButton("❌ Отклонить", callback_data="duel_decline")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            f"⚔️ **Вызов на дуэль!**\n\n"
+            f"🦔 {username} вызывает @{target_username} на дуэль в режиме 'Ежики'!\n\n"
+            f"@{target_username}, принять вызов?",
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
 
 
 if __name__ == "__main__":
