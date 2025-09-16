@@ -6503,6 +6503,10 @@ class ForestWolvesBot:
             # Если нет user_id, просто отображаем имя как есть
             target_tag = f"@{target_username}" if not target_username.startswith('@') else target_username
         
+        # Логируем для отладки
+        logger.info(f"BITE DEBUG: user_id={user_id}, username={username}, target_user_id={target_user_id}, target_username={target_username}")
+        logger.info(f"BITE DEBUG: user_tag={user_tag}, target_tag={target_tag}")
+        
         # Проверяем, есть ли медиафайл для пересылки
         if update.message.reply_to_message and update.message.reply_to_message.animation:
             # Если это гифка, пересылаем её с текстом
