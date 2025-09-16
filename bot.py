@@ -416,6 +416,30 @@ class ForestWolvesBot:
         else:
             return f"{count} игроков"
 
+    async def find_user_by_username(self, username: str, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Находит user_id по username"""
+        try:
+            # Сначала пытаемся получить информацию о пользователе через get_chat
+            try:
+                chat = await context.bot.get_chat(f"@{username}")
+                return chat.id
+            except Exception:
+                pass
+            
+            # Если не получилось, ищем среди участников игры
+            if hasattr(self, 'current_game') and self.current_game:
+                for player in self.current_game.players:
+                    if player.username and player.username.lower() == username.lower():
+                        return player.user_id
+                    if player.full_name and player.full_name.lower() == username.lower():
+                        return player.user_id
+            
+            # Если не нашли, возвращаем None
+            return None
+        except Exception as e:
+            logger.error(f"Ошибка поиска пользователя {username}: {e}")
+            return None
+
     def format_player_tag(self, username: str, user_id: int, make_clickable: bool = True) -> str:
         """Форматирует тег игрока для отображения с учетом никнейма"""
         try:
@@ -6483,6 +6507,13 @@ class ForestWolvesBot:
             if target_username.lower() in ['forest_fuss_bot', 'forest_fuss', 'bot']:
                 target_user_id = user_id
                 target_username = username
+            else:
+                # Пытаемся найти пользователя по username
+                target_user_id = await self.find_user_by_username(target_username, update, context)
+                if not target_user_id:
+                    # Если пользователь не найден, действие выполняется с самим собой
+                    target_user_id = user_id
+                    target_username = username
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
@@ -6576,6 +6607,13 @@ class ForestWolvesBot:
             if target_username.lower() in ['forest_fuss_bot', 'forest_fuss', 'bot']:
                 target_user_id = user_id
                 target_username = username
+            else:
+                # Пытаемся найти пользователя по username
+                target_user_id = await self.find_user_by_username(target_username, update, context)
+                if not target_user_id:
+                    # Если пользователь не найден, действие выполняется с самим собой
+                    target_user_id = user_id
+                    target_username = username
         elif update.message.reply_to_message:
             # Если команда в ответ на сообщение
             target_user = update.message.reply_to_message.from_user
