@@ -5469,7 +5469,7 @@ class ForestWolvesBot:
             BotCommand("global_stats", "🌍 Общая статистика"),
             BotCommand("nickname", "🎭 Установить никнейм"),
             BotCommand("reset_nickname", "🗑️ Сбросить никнейм"),
-            BotCommand("kus", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
+            BotCommand("bite", "😈 Сделать кусь игроку (@username или ответ на сообщение)"),
             BotCommand("poke", "👆 Постукать игрока (@username или ответ на сообщение)"),
             
             # 🎯 Команды для управления игрой
@@ -5524,7 +5524,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("reset_nickname", self.reset_nickname_command)) # Команда /reset_nickname
         application.add_handler(CommandHandler("game", self.game_command)) # Команда /game
         application.add_handler(CommandHandler("cancel", self.cancel_command)) # Команда /cancel
-        application.add_handler(CommandHandler("kus", self.kus_command)) # Команда /kus
+        application.add_handler(CommandHandler("bite", self.bite_command)) # Команда /bite
         application.add_handler(CommandHandler("poke", self.poke_command)) # Команда /poke
         
 
@@ -6463,8 +6463,8 @@ class ForestWolvesBot:
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Произошла ошибка при сбросе никнейма. Попробуйте позже.")
 
-    async def kus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Команда /кусь - сделать кусь другому игроку"""
+    async def bite_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /bite - сделать кусь другому игроку"""
         user_id = update.effective_user.id
         username = update.effective_user.username or update.effective_user.full_name or str(user_id)
         
