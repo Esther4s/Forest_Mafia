@@ -83,6 +83,11 @@ class ForestWolvesBotWithEnhancedForests:
         self.application.add_handler(CommandHandler("help_forests", self._handle_help_forests))
         self.application.add_handler(CommandHandler("rules", self._handle_rules))
         
+        # Обработчик для команд с упоминанием бота (например, /start@forestwolf_bot)
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/start@'), self._handle_start))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/help@'), self._handle_help))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/balance@'), self._handle_balance))
+        
         # Команды расширенной системы лесов
         logger.info("🌲 Добавляем обработчики команд лесов...")
         forest_handlers = self.enhanced_forest_integration.get_command_handlers()
@@ -94,10 +99,16 @@ class ForestWolvesBotWithEnhancedForests:
         # Динамические команды лесов (с параметрами)
         logger.info("🌲 Добавляем динамические команды лесов...")
         from forest_handlers import handle_join_forest, handle_summon_forest
-        from telegram.ext import MessageHandler, filters
         
         self.application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+$'), handle_join_forest))
         self.application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+$'), handle_summon_forest))
+        
+        # Команды лесов с упоминанием бота
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/create_forest@'), self._handle_create_forest_with_mention))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/forests@'), self._handle_forests_with_mention))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+@'), handle_join_forest))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+@'), handle_summon_forest))
+        
         logger.info("✅ Динамические команды лесов добавлены")
         
         # Добавляем обработчик для логирования всех команд
@@ -236,6 +247,34 @@ class ForestWolvesBotWithEnhancedForests:
         
         # Do not respond to the command, just log
         return
+    
+    async def _handle_create_forest_with_mention(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /create_forest@bot для групповых чатов"""
+        # Убираем упоминание бота из команды
+        command_text = update.message.text
+        if '@' in command_text:
+            command_text = command_text.split('@')[0]
+        
+        # Создаем новое сообщение с исправленной командой
+        update.message.text = command_text
+        
+        # Вызываем основной обработчик
+        from forest_handlers import handle_create_forest
+        await handle_create_forest(update, context)
+    
+    async def _handle_forests_with_mention(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /forests@bot для групповых чатов"""
+        # Убираем упоминание бота из команды
+        command_text = update.message.text
+        if '@' in command_text:
+            command_text = command_text.split('@')[0]
+        
+        # Создаем новое сообщение с исправленной командой
+        update.message.text = command_text
+        
+        # Вызываем основной обработчик
+        from forest_handlers import handle_forests
+        await handle_forests(update, context)
     
     async def _handle_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
