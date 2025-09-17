@@ -107,7 +107,7 @@ class PlayerStats(Base):
     """Модель статистики игроков"""
     __tablename__ = 'player_stats'
     
-    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(Integer, nullable=False, index=True)
     total_games = Column(Integer, default=0)
     games_won = Column(Integer, default=0)

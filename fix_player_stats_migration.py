@@ -44,9 +44,62 @@ def fix_player_stats_table():
         
         print(f"📋 Существующие колонки: {existing_columns}")
         
+        # Проверяем тип колонки id
+        if 'id' in existing_columns:
+            check_id_type_query = text("""
+                SELECT data_type 
+                FROM information_schema.columns 
+                WHERE table_name = 'player_stats' AND column_name = 'id'
+            """)
+            result = session.execute(check_id_type_query)
+            id_type = result.fetchone()
+            if id_type and id_type[0] != 'integer':
+                print(f"⚠️ Колонка id имеет тип {id_type[0]}, нужно изменить на INTEGER")
+                try:
+                    # Создаем новую таблицу с правильной структурой
+                    create_new_table_query = text("""
+                        CREATE TABLE player_stats_new (
+                            id SERIAL PRIMARY KEY,
+                            user_id BIGINT NOT NULL,
+                            total_games INTEGER DEFAULT 0,
+                            games_won INTEGER DEFAULT 0,
+                            games_lost INTEGER DEFAULT 0,
+                            times_wolf INTEGER DEFAULT 0,
+                            times_fox INTEGER DEFAULT 0,
+                            times_hare INTEGER DEFAULT 0,
+                            times_mole INTEGER DEFAULT 0,
+                            times_beaver INTEGER DEFAULT 0,
+                            kills_made INTEGER DEFAULT 0,
+                            votes_received INTEGER DEFAULT 0,
+                            last_played TIMESTAMP,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    """)
+                    session.execute(create_new_table_query)
+                    
+                    # Копируем данные (если есть)
+                    copy_data_query = text("""
+                        INSERT INTO player_stats_new (user_id, total_games, games_won, games_lost, 
+                            times_wolf, times_fox, times_hare, times_mole, times_beaver, 
+                            kills_made, votes_received, last_played, created_at, updated_at)
+                        SELECT user_id, total_games, games_won, games_lost, 
+                            times_wolf, times_fox, times_hare, times_mole, times_beaver, 
+                            kills_made, votes_received, last_played, created_at, updated_at
+                        FROM player_stats
+                    """)
+                    session.execute(copy_data_query)
+                    
+                    # Удаляем старую таблицу и переименовываем новую
+                    session.execute(text("DROP TABLE player_stats"))
+                    session.execute(text("ALTER TABLE player_stats_new RENAME TO player_stats"))
+                    
+                    print("✅ Структура таблицы player_stats исправлена")
+                except Exception as e:
+                    print(f"⚠️ Ошибка при исправлении структуры таблицы: {e}")
+        
         # Список колонок, которые нужно добавить
         columns_to_add = [
-            ("username", "VARCHAR"),
             ("total_games", "INTEGER DEFAULT 0"),
             ("games_won", "INTEGER DEFAULT 0"),
             ("games_lost", "INTEGER DEFAULT 0"),
