@@ -61,17 +61,17 @@ async def deploy_main_bot_with_forests():
         except Exception as e:
             logger.warning(f"⚠️ Ошибка при инициализации database_psycopg2: {e}, продолжаем...")
         
-        # Применяем миграцию для исправления player_stats
-        logger.info("🔧 Применение миграции player_stats...")
-        try:
-            from fix_player_stats_migration import fix_player_stats_table
-            migration_success = fix_player_stats_table()
-            if migration_success:
-                logger.info("✅ Миграция player_stats применена успешно")
-            else:
-                logger.warning("⚠️ Ошибка при применении миграции player_stats, продолжаем...")
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка при применении миграции player_stats: {e}, продолжаем...")
+# Применяем детальную миграцию для исправления player_stats
+logger.info("🔧 Применение детальной миграции player_stats...")
+try:
+    from detailed_player_stats_fix import detailed_fix_player_stats
+    migration_success = detailed_fix_player_stats()
+    if migration_success:
+        logger.info("✅ Детальная миграция player_stats применена успешно")
+    else:
+        logger.warning("⚠️ Ошибка при применении детальной миграции player_stats, продолжаем...")
+except Exception as e:
+    logger.warning(f"⚠️ Ошибка при применении детальной миграции player_stats: {e}, продолжаем...")
         
         # Создаем и запускаем основной бот
         logger.info("🤖 Создание основного бота с системой лесов...")
