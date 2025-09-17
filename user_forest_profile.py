@@ -108,7 +108,7 @@ class UserForestProfileManager:
                 forest_stats = await self._calculate_user_forest_stats(user_id)
                 
                 # Получаем информацию о пользователе из таблицы users
-                from database_psycopg2 import get_user_by_telegram_id, create_user
+                from database_psycopg2 import get_user_by_telegram_id, create_user, get_display_name
                 user_info = get_user_by_telegram_id(user_id)
                 
                 # Если пользователь не найден в таблице users, создаем его
@@ -134,13 +134,16 @@ class UserForestProfileManager:
                 # Получаем леса пользователя
                 forests = await self.forest_profile_manager.get_user_forests(user_id)
                 
-                # Формируем профиль (приоритет: username из БД > first_name из Telegram)
-                display_name = "Unknown"
-                if user_info:
-                    display_name = user_info.get('username') or "Unknown"
-                else:
-                    # Если нет информации из БД, используем данные из Telegram
-                    display_name = user.first_name or user.username or f"User_{user_id}"
+                # Получаем отображаемое имя с правильным приоритетом (nickname > username > first_name)
+                # Используем данные из user_info или значения по умолчанию
+                username = user_info.get('username') if user_info else None
+                first_name = user_info.get('first_name') if user_info else None
+                
+                display_name = get_display_name(
+                    user_id=user_id,
+                    username=username,
+                    first_name=first_name
+                )
                 
                 profile = UserForestProfile(
                     user_id=user_id,
