@@ -122,9 +122,7 @@ class UserForestProfileManager:
                         # Создаем пользователя в базе данных
                         create_user(
                             user_id=user_id,
-                            username=tg_user.username or f"User_{user_id}",
-                            first_name=tg_user.first_name or "Unknown",
-                            last_name=tg_user.last_name
+                            username=tg_user.username or f"User_{user_id}"
                         )
                         
                         # Получаем информацию о созданном пользователе
@@ -136,11 +134,18 @@ class UserForestProfileManager:
                 # Получаем леса пользователя
                 forests = await self.forest_profile_manager.get_user_forests(user_id)
                 
-                # Формируем профиль
+                # Формируем профиль (приоритет: username из БД > first_name из Telegram)
+                display_name = "Unknown"
+                if user_info:
+                    display_name = user_info.get('username') or "Unknown"
+                else:
+                    # Если нет информации из БД, используем данные из Telegram
+                    display_name = user.first_name or user.username or f"User_{user_id}"
+                
                 profile = UserForestProfile(
                     user_id=user_id,
                     username=user_info.get('username', 'Unknown') if user_info else "Unknown",
-                    first_name=user_info.get('first_name', 'Unknown') if user_info else "Unknown",
+                    first_name=display_name,
                     total_games=player_stats.total_games,
                     games_won=player_stats.games_won,
                     games_lost=player_stats.games_lost,
