@@ -109,7 +109,6 @@ class PlayerStats(Base):
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(Integer, nullable=False, index=True)
-    username = Column(String, nullable=True)
     total_games = Column(Integer, default=0)
     games_won = Column(Integer, default=0)
     games_lost = Column(Integer, default=0)

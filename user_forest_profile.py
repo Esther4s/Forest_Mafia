@@ -107,14 +107,18 @@ class UserForestProfileManager:
                 # Получаем лесную статистику
                 forest_stats = await self._calculate_user_forest_stats(user_id)
                 
+                # Получаем информацию о пользователе из таблицы users
+                from database_psycopg2 import get_user_by_telegram_id
+                user_info = get_user_by_telegram_id(user_id)
+                
                 # Получаем леса пользователя
                 forests = await self.forest_profile_manager.get_user_forests(user_id)
                 
                 # Формируем профиль
                 profile = UserForestProfile(
                     user_id=user_id,
-                    username=player_stats.username or "Unknown",
-                    first_name=player_stats.username or "Unknown",  # Будет обновлено из лесов
+                    username=user_info.get('username', 'Unknown') if user_info else "Unknown",
+                    first_name=user_info.get('first_name', 'Unknown') if user_info else "Unknown",
                     total_games=player_stats.total_games,
                     games_won=player_stats.games_won,
                     games_lost=player_stats.games_lost,
