@@ -7,6 +7,7 @@
 """
 
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass
@@ -107,8 +108,30 @@ class UserForestProfileManager:
                 forest_stats = await self._calculate_user_forest_stats(user_id)
                 
                 # Получаем информацию о пользователе из таблицы users
-                from database_psycopg2 import get_user_by_telegram_id
+                from database_psycopg2 import get_user_by_telegram_id, create_user
                 user_info = get_user_by_telegram_id(user_id)
+                
+                # Если пользователь не найден в таблице users, создаем его
+                if not user_info:
+                    try:
+                        # Получаем информацию из Telegram
+                        from telegram import Bot
+                        bot = Bot(token=os.environ.get('BOT_TOKEN'))
+                        tg_user = await bot.get_chat(user_id)
+                        
+                        # Создаем пользователя в базе данных
+                        create_user(
+                            user_id=user_id,
+                            username=tg_user.username or f"User_{user_id}",
+                            first_name=tg_user.first_name or "Unknown",
+                            last_name=tg_user.last_name
+                        )
+                        
+                        # Получаем информацию о созданном пользователе
+                        user_info = get_user_by_telegram_id(user_id)
+                    except Exception as e:
+                        logger.warning(f"⚠️ Не удалось создать пользователя {user_id}: {e}")
+                        user_info = None
                 
                 # Получаем леса пользователя
                 forests = await self.forest_profile_manager.get_user_forests(user_id)

@@ -176,12 +176,20 @@ class ForestWolvesBotWithEnhancedForests:
         
         try:
             from database_balance_manager import balance_manager
+            from database_psycopg2 import get_user_by_telegram_id
             
             # Получаем баланс пользователя
             balance = balance_manager.get_user_balance(user_id)
             
-            # Формируем имя пользователя
-            display_name = user.first_name or user.username or f"Пользователь {user_id}"
+            # Получаем информацию о пользователе из базы данных
+            user_info = get_user_by_telegram_id(user_id)
+            
+            # Формируем имя пользователя (приоритет: username из БД > first_name > username из Telegram)
+            if user_info and user_info.get('username'):
+                display_name = user_info['username']
+            else:
+                display_name = user.first_name or user.username or f"Пользователь {user_id}"
+            
             clickable_name = f'<a href="tg://user?id={user_id}">{display_name}</a>'
             
             logger.info(f"✅ Баланс пользователя {display_name}: {balance}")
