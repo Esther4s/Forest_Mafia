@@ -52,6 +52,15 @@ async def deploy_main_bot_with_forests():
         init_database()
         logger.info("✅ База данных инициализирована (включая таблицы лесов)")
         
+        # Инициализируем database_psycopg2 для совместимости
+        logger.info("🔄 Инициализация database_psycopg2...")
+        try:
+            from database_psycopg2 import init_db
+            init_db()
+            logger.info("✅ database_psycopg2 инициализирован")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при инициализации database_psycopg2: {e}, продолжаем...")
+        
         # Применяем миграцию для исправления player_stats
         logger.info("🔧 Применение миграции player_stats...")
         try:

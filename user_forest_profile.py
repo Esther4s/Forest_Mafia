@@ -89,7 +89,6 @@ class UserForestProfileManager:
                     # Создаем базовую статистику если её нет
                     player_stats = PlayerStats(
                         user_id=user_id,
-                        username="Unknown",
                         total_games=0,
                         games_won=0,
                         games_lost=0,
