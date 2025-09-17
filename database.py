@@ -136,6 +136,61 @@ class BotSettings(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+# Модели для системы лесов
+class Forest(Base):
+    """Модель леса"""
+    __tablename__ = 'forests'
+    
+    id = Column(String(50), primary_key=True)
+    name = Column(String(100), nullable=False)
+    creator_id = Column(Integer, nullable=False)
+    description = Column(Text, nullable=True)
+    privacy = Column(String(20), default='public')  # public, private
+    max_size = Column(Integer, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    members = relationship("ForestMember", back_populates="forest", cascade="all, delete-orphan")
+    invites = relationship("ForestInvite", back_populates="forest", cascade="all, delete-orphan")
+    settings = relationship("ForestSetting", back_populates="forest", cascade="all, delete-orphan")
+
+class ForestMember(Base):
+    """Модель участника леса"""
+    __tablename__ = 'forest_members'
+    
+    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
+    user_id = Column(Integer, nullable=False, primary_key=True)
+    joined_at = Column(DateTime, default=datetime.utcnow)
+    last_called = Column(DateTime, nullable=True)
+    
+    # Связи
+    forest = relationship("Forest", back_populates="members")
+
+class ForestInvite(Base):
+    """Модель приглашения в лес"""
+    __tablename__ = 'forest_invites'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    forest_id = Column(String(50), ForeignKey('forests.id'), nullable=False)
+    from_user = Column(Integer, nullable=False)
+    to_user = Column(Integer, nullable=False)
+    status = Column(String(20), default='pending')  # pending, accepted, declined
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Связи
+    forest = relationship("Forest", back_populates="invites")
+
+class ForestSetting(Base):
+    """Модель настроек леса"""
+    __tablename__ = 'forest_settings'
+    
+    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
+    key = Column(String(100), primary_key=True)
+    value = Column(Text, nullable=True)
+    
+    # Связи
+    forest = relationship("Forest", back_populates="settings")
+
 class DatabaseManager:
     """Менеджер базы данных"""
     
