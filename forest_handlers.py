@@ -156,7 +156,7 @@ class ForestCommandHandlers:
         # Проверяем аргументы команды
         if not context.args or len(context.args) < 2:
             await update.message.reply_text(
-                "🌲 **Создание леса** 🌲\n\n"
+                "🌲 <b>Создание леса</b> 🌲\n\n"
                 "Использование: /create_forest <название> <описание>\n"
                 "Пример: /create_forest Лес Волков Еженедельные игры в мафию\n\n"
                 "Дополнительные параметры:\n"
@@ -233,21 +233,21 @@ class ForestCommandHandlers:
             
             # Отправляем сообщение о создании
             message = (
-                f"🌲 **Лес создан!** 🌲\n\n"
-                f"**Название:** {config.name}\n"
-                f"**Описание:** {config.description}\n"
-                f"**Приватность:** {'Приватный' if config.privacy == ForestPrivacy.PRIVATE else 'Публичный'}\n"
-                f"**Максимум участников:** {config.max_size or 'Без лимита'}\n"
-                f"**Размер батча:** {config.batch_size}\n"
-                f"**Cooldown:** {config.cooldown_minutes} мин\n\n"
-                f"**Команды леса:**\n"
+                f"🌲 <b>Лес создан!</b> 🌲\n\n"
+                f"<b>Название:</b> {config.name}\n"
+                f"<b>Описание:</b> {config.description}\n"
+                f"<b>Приватность:</b> {'Приватный' if config.privacy == ForestPrivacy.PRIVATE else 'Публичный'}\n"
+                f"<b>Максимум участников:</b> {config.max_size or 'Без лимита'}\n"
+                f"<b>Размер батча:</b> {config.batch_size}\n"
+                f"<b>Cooldown:</b> {config.cooldown_minutes} мин\n\n"
+                f"<b>Команды леса:</b>\n"
                 f"• /join_forest_{config.forest_id} - присоединиться\n"
                 f"• /summon_forest_{config.forest_id} - созвать участников\n"
                 f"• /list_forest_{config.forest_id} - список участников\n"
                 f"• /invite_forest_{config.forest_id} @username - пригласить"
             )
             
-            await update.message.reply_text(message, reply_markup=reply_markup)
+            await update.message.reply_text(message, reply_markup=reply_markup, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"Ошибка при создании леса: {e}")
@@ -287,16 +287,16 @@ class ForestCommandHandlers:
                     max_count = forest.max_size or "∞"
                     
                     message = (
-                        f"🌲 **Добро пожаловать в лес!** 🌲\n\n"
-                        f"**Лес:** {forest.name}\n"
-                        f"**Описание:** {forest.description}\n"
-                        f"**Участников:** {member_count}/{max_count}\n\n"
+                        f"🌲 <b>Добро пожаловать в лес!</b> 🌲\n\n"
+                        f"<b>Лес:</b> {forest.name}\n"
+                        f"<b>Описание:</b> {forest.description}\n"
+                        f"<b>Участников:</b> {member_count}/{max_count}\n\n"
                         f"Теперь вы будете получать уведомления о созывах!"
                     )
                 else:
                     message = "✅ Вы успешно присоединились к лесу!"
                 
-                await update.message.reply_text(message)
+                await update.message.reply_text(message, parse_mode='HTML')
             else:
                 await update.message.reply_text("❌ Не удалось присоединиться к лесу. Возможно, лес не существует или достиг лимита участников.")
                 
@@ -379,16 +379,16 @@ class ForestCommandHandlers:
             
             if result["success"]:
                 message = (
-                    f"🌲 **Созыв завершен!** 🌲\n\n"
-                    f"**Уведомлено участников:** {result['members_notified']}\n"
-                    f"**Отправлено батчей:** {result['batches_sent']}\n"
-                    f"**Всего участников в лесу:** {result['total_members']}"
+                    f"🌲 <b>Созыв завершен!</b> 🌲\n\n"
+                    f"<b>Уведомлено участников:</b> {result['members_notified']}\n"
+                    f"<b>Отправлено батчей:</b> {result['batches_sent']}\n"
+                    f"<b>Всего участников в лесу:</b> {result['total_members']}"
                 )
                 
                 if result["errors"]:
-                    message += f"\n\n**Ошибки:** {len(result['errors'])}"
+                    message += f"\n\n<b>Ошибки:</b> {len(result['errors'])}"
                 
-                await update.message.reply_text(message)
+                await update.message.reply_text(message, parse_mode='HTML')
             else:
                 error_messages = {
                     "cooldown": "⏰ Слишком частые вызовы. Подождите перед следующим созывом.",
@@ -438,11 +438,11 @@ class ForestCommandHandlers:
                 member_list.append(f"{i}. {status} {name}")
             
             message = (
-                f"🌲 **Участники леса \"{forest.name}\"** 🌲\n\n"
-                f"**Описание:** {forest.description}\n"
-                f"**Участников:** {len(members)}/{forest.max_size or '∞'}\n"
-                f"**Приватность:** {'Приватный' if forest.privacy == 'private' else 'Публичный'}\n\n"
-                f"**Список участников:**\n" + "\n".join(member_list) + "\n\n"
+                f"🌲 <b>Участники леса \"{forest.name}\"</b> 🌲\n\n"
+                f"<b>Описание:</b> {forest.description}\n"
+                f"<b>Участников:</b> {len(members)}/{forest.max_size or '∞'}\n"
+                f"<b>Приватность:</b> {'Приватный' if forest.privacy == 'private' else 'Публичный'}\n\n"
+                f"<b>Список участников:</b>\n" + "\n".join(member_list) + "\n\n"
                 f"🟢 - получает уведомления\n"
                 f"🔴 - не получает уведомления"
             )
@@ -468,7 +468,7 @@ class ForestCommandHandlers:
         # Проверяем аргументы
         if not context.args:
             await update.message.reply_text(
-                "🌲 **Приглашение в лес** 🌲\n\n"
+                "🌲 <b>Приглашение в лес</b> 🌲\n\n"
                 "Использование: /invite_forest_<id> @username\n"
                 "Пример: /invite_forest_les_i_volki @username"
             )
@@ -502,7 +502,7 @@ class ForestCommandHandlers:
             # Отправляем приглашение (здесь нужно получить user_id по username)
             # Пока просто показываем сообщение
             message = (
-                f"🌲 **Приглашение отправлено!** 🌲\n\n"
+                f"🌲 <b>Приглашение отправлено!</b> 🌲\n\n"
                 f"Пользователю {username} отправлено приглашение в лес \"{forest.name}\""
             )
             
@@ -581,13 +581,13 @@ class ForestCallbackHandlers:
             members = await self.forest_manager.get_forest_members(forest_id)
             
             message = (
-                f"🌲 **Информация о лесе** 🌲\n\n"
-                f"**Название:** {forest.name}\n"
-                f"**Описание:** {forest.description}\n"
-                f"**Приватность:** {'Приватный' if forest.privacy == 'private' else 'Публичный'}\n"
-                f"**Участников:** {len(members)}/{forest.max_size or '∞'}\n"
-                f"**Создан:** {forest.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-                f"**Команды:**\n"
+                f"🌲 <b>Информация о лесе</b> 🌲\n\n"
+                f"<b>Название:</b> {forest.name}\n"
+                f"<b>Описание:</b> {forest.description}\n"
+                f"<b>Приватность:</b> {'Приватный' if forest.privacy == 'private' else 'Публичный'}\n"
+                f"<b>Участников:</b> {len(members)}/{forest.max_size or '∞'}\n"
+                f"<b>Создан:</b> {forest.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
+                f"<b>Команды:</b>\n"
                 f"• /join_forest_{forest_id} - присоединиться\n"
                 f"• /summon_forest_{forest_id} - созвать участников\n"
                 f"• /list_forest_{forest_id} - список участников"
@@ -624,7 +624,7 @@ class ForestCallbackHandlers:
             if success:
                 await query.answer("✅ Приглашение принято! Добро пожаловать в лес!")
                 await query.edit_message_text(
-                    "🌲 **Приглашение принято!** 🌲\n\n"
+                    "🌲 <b>Приглашение принято!</b> 🌲\n\n"
                     "Вы успешно присоединились к лесу и будете получать уведомления о созывах."
                 )
             else:
@@ -640,7 +640,7 @@ class ForestCallbackHandlers:
         
         await query.answer("❌ Приглашение отклонено")
         await query.edit_message_text(
-            "🌲 **Приглашение отклонено** 🌲\n\n"
+            "🌲 <b>Приглашение отклонено</b> 🌲\n\n"
             "Вы отклонили приглашение в лес."
         )
     
@@ -650,14 +650,14 @@ class ForestCallbackHandlers:
         
         await query.answer("ℹ️ Информация о лесе")
         await query.edit_message_text(
-            "🌲 **Информация о лесе** 🌲\n\n"
+            "🌲 <b>Информация о лесе</b> 🌲\n\n"
             "Лес - это группа участников, которые получают уведомления о созывах для игры в мафию.\n\n"
-            "**Возможности:**\n"
+            "<b>Возможности:</b>\n"
             "• Получение уведомлений о созывах\n"
             "• Участие в батчевых призывах\n"
             "• Настройка уведомлений\n"
             "• Приглашение друзей\n\n"
-            "**Команды:**\n"
+            "<b>Команды:</b>\n"
             "• /join_forest_<id> - присоединиться\n"
             "• /leave_forest_<id> - покинуть лес\n"
             "• /list_forest_<id> - список участников"

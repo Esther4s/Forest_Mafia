@@ -52,10 +52,14 @@ class ForestWolvesBotWithEnhancedForests:
             self.application = Application.builder().token(self.bot_token).build()
             
             # Инициализируем расширенную систему лесов
+            logger.info("🌲 Инициализируем расширенную систему лесов...")
             self.enhanced_forest_integration = init_enhanced_forest_integration(self.application.bot)
+            logger.info("✅ Расширенная система лесов инициализирована")
             
             # Добавляем обработчики команд
+            logger.info("🌲 Добавляем обработчики команд...")
             await self._add_command_handlers()
+            logger.info("✅ Обработчики команд добавлены")
             
             # Добавляем обработчики callback-ов
             await self._add_callback_handlers()
@@ -95,6 +99,9 @@ class ForestWolvesBotWithEnhancedForests:
         self.application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+$'), handle_join_forest))
         self.application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+$'), handle_summon_forest))
         logger.info("✅ Динамические команды лесов добавлены")
+        
+        # Добавляем обработчик для логирования всех команд
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/'), self._log_command))
         
         logger.info("✅ Обработчики команд добавлены")
     
@@ -146,16 +153,16 @@ class ForestWolvesBotWithEnhancedForests:
     async def _handle_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /start"""
         welcome_text = (
-            "🌲 **Добро пожаловать в Лес и Волки Bot!** 🌲\n\n"
+            "🌲 <b>Добро пожаловать в Лес и Волки Bot!</b> 🌲\n\n"
             "Это бот для игры 'Лес и Волки' с расширенной системой управления лесами.\n\n"
-            "🎮 **Основные возможности:**\n"
+            "🎮 <b>Основные возможности:</b>\n"
             "• Игра в мафию с лесной тематикой\n"
             "• Создание и управление лесами (группами участников)\n"
             "• Детальные профили лесов и пользователей\n"
             "• Аналитика и рейтинги активности\n"
             "• Система созыва с батчингом\n"
             "• Статистика и сравнения\n\n"
-            "🌲 **Быстрый старт:**\n"
+            "🌲 <b>Быстрый старт:</b>\n"
             "• /profile - посмотреть свой профиль\n"
             "• /forests - найти леса для присоединения\n"
             "• /create_forest - создать свой лес\n"
@@ -179,7 +186,7 @@ class ForestWolvesBotWithEnhancedForests:
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+        await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode='HTML')
     
     async def _handle_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /balance"""
@@ -212,10 +219,19 @@ class ForestWolvesBotWithEnhancedForests:
             )
             
             await update.message.reply_text(balance_text, parse_mode='HTML')
-            
-        except Exception as e:
-            logger.error(f"❌ Ошибка при получении баланса: {e}")
-            await update.message.reply_text("❌ Ошибка при получении баланса. Попробуйте позже.")
+    
+    async def _log_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик для логирования всех команд (для отладки)"""
+        user = update.effective_user
+        command = update.message.text
+        logger.info(f"🔍 LOG_COMMAND: User {user.id} ({user.username}) sent command: {command}")
+        
+        # Check if it's a forest command
+        if any(cmd in command for cmd in ['create_forest', 'forests', 'my_forests_profile', 'forest_profile', 'forest_analytics', 'top_forests', 'help_forests', 'join_forest', 'summon_forest']):
+            logger.info(f"🌲 LOG_COMMAND: Forest command detected: {command}")
+        
+        # Do not respond to the command, just log
+        return
     
     async def _handle_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
