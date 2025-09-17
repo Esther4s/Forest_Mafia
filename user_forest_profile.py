@@ -77,17 +77,23 @@ class UserForestProfileManager:
     
     async def get_user_forest_profile(self, user_id: int) -> Optional[UserForestProfile]:
         """Получает полный профиль пользователя с лесами"""
+        logger.info(f"🔍 get_user_forest_profile: Начинаем получение профиля для user_id={user_id}")
+        
         try:
             session = get_db_session()
+            logger.info(f"✅ get_user_forest_profile: Сессия БД получена для user_id={user_id}")
             
             try:
                 # Получаем игровую статистику
+                logger.info(f"🔍 get_user_forest_profile: Ищем PlayerStats для user_id={user_id}")
                 player_stats = session.query(PlayerStats).filter(
                     PlayerStats.user_id == user_id
                 ).first()
+                logger.info(f"📊 get_user_forest_profile: PlayerStats найдена: {player_stats is not None}")
                 
                 if not player_stats:
                     # Создаем базовую статистику если её нет
+                    logger.info(f"🆕 get_user_forest_profile: Создаем новую PlayerStats для user_id={user_id}")
                     player_stats = PlayerStats(
                         user_id=user_id,
                         total_games=0,
@@ -103,48 +109,62 @@ class UserForestProfileManager:
                     )
                     session.add(player_stats)
                     session.commit()
+                    logger.info(f"✅ get_user_forest_profile: PlayerStats создана для user_id={user_id}")
                 
                 # Получаем лесную статистику
+                logger.info(f"🌲 get_user_forest_profile: Получаем лесную статистику для user_id={user_id}")
                 forest_stats = await self._calculate_user_forest_stats(user_id)
+                logger.info(f"📊 get_user_forest_profile: Лесная статистика получена: {forest_stats}")
                 
                 # Получаем информацию о пользователе из таблицы users
+                logger.info(f"👤 get_user_forest_profile: Получаем информацию о пользователе user_id={user_id}")
                 from database_psycopg2 import get_user_by_telegram_id, create_user, get_display_name
                 user_info = get_user_by_telegram_id(user_id)
+                logger.info(f"📋 get_user_forest_profile: user_info получена: {user_info is not None}")
                 
                 # Если пользователь не найден в таблице users, создаем его
                 if not user_info:
+                    logger.info(f"🆕 get_user_forest_profile: Пользователь не найден, создаем нового user_id={user_id}")
                     try:
                         # Получаем информацию из Telegram
                         from telegram import Bot
                         bot = Bot(token=os.environ.get('BOT_TOKEN'))
                         tg_user = await bot.get_chat(user_id)
+                        logger.info(f"📱 get_user_forest_profile: Telegram данные получены: username={tg_user.username}, first_name={tg_user.first_name}")
                         
                         # Создаем пользователя в базе данных
                         create_user(
                             user_id=user_id,
                             username=tg_user.username or f"User_{user_id}"
                         )
+                        logger.info(f"✅ get_user_forest_profile: Пользователь создан в БД user_id={user_id}")
                         
                         # Получаем информацию о созданном пользователе
                         user_info = get_user_by_telegram_id(user_id)
+                        logger.info(f"📋 get_user_forest_profile: user_info после создания: {user_info is not None}")
                     except Exception as e:
-                        logger.warning(f"⚠️ Не удалось создать пользователя {user_id}: {e}")
+                        logger.warning(f"⚠️ get_user_forest_profile: Не удалось создать пользователя {user_id}: {e}")
                         user_info = None
                 
                 # Получаем леса пользователя
+                logger.info(f"🌲 get_user_forest_profile: Получаем леса пользователя user_id={user_id}")
                 forests = await self.forest_profile_manager.get_user_forests(user_id)
+                logger.info(f"🌲 get_user_forest_profile: Леса получены: {len(forests) if forests else 0} лесов")
                 
                 # Получаем отображаемое имя с правильным приоритетом (nickname > username > first_name)
                 # Используем данные из user_info или значения по умолчанию
                 username = user_info.get('username') if user_info else None
                 first_name = user_info.get('first_name') if user_info else None
+                logger.info(f"👤 get_user_forest_profile: Данные для имени: username={username}, first_name={first_name}")
                 
                 display_name = get_display_name(
                     user_id=user_id,
                     username=username,
                     first_name=first_name
                 )
+                logger.info(f"📝 get_user_forest_profile: Отображаемое имя: {display_name}")
                 
+                logger.info(f"🏗️ get_user_forest_profile: Создаем UserForestProfile для user_id={user_id}")
                 profile = UserForestProfile(
                     user_id=user_id,
                     username=user_info.get('username', 'Unknown') if user_info else "Unknown",
@@ -165,13 +185,18 @@ class UserForestProfileManager:
                     forests=forests
                 )
                 
+                logger.info(f"✅ get_user_forest_profile: Профиль успешно создан для user_id={user_id}")
                 return profile
                 
             finally:
                 session.close()
+                logger.info(f"🔒 get_user_forest_profile: Сессия БД закрыта для user_id={user_id}")
                 
         except Exception as e:
-            logger.error(f"Ошибка при получении профиля пользователя {user_id}: {e}")
+            logger.error(f"❌ get_user_forest_profile: Ошибка при получении профиля пользователя {user_id}: {e}")
+            logger.error(f"❌ get_user_forest_profile: Traceback: {e.__class__.__name__}: {e}")
+            import traceback
+            logger.error(f"❌ get_user_forest_profile: Full traceback: {traceback.format_exc()}")
             return None
     
     async def _calculate_user_forest_stats(self, user_id: int) -> UserForestStats:
@@ -296,7 +321,9 @@ class UserForestProfileManager:
     
     def format_user_forest_profile(self, profile: UserForestProfile) -> str:
         """Форматирует профиль пользователя с лесами"""
+        logger.info(f"📝 format_user_forest_profile: Начинаем форматирование профиля: {profile is not None}")
         if not profile:
+            logger.warning(f"⚠️ format_user_forest_profile: Профиль не найден (None)")
             return "❌ Профиль не найден"
         
         text = f"👤 **Профиль игрока: {profile.first_name}** 👤\n\n"
@@ -431,26 +458,33 @@ class UserForestProfileHandlers:
     async def handle_user_profile(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /profile"""
         user = update.effective_user
+        logger.info(f"👤 handle_user_profile: Команда /profile от пользователя {user.id} ({user.first_name})")
         
         # Проверяем, указан ли другой пользователь
         target_user_id = user.id
         if context.args and context.args[0].startswith('@'):
             # Поиск по username (упрощенно)
             username = context.args[0][1:]  # Убираем @
+            logger.info(f"🔍 handle_user_profile: Поиск по username {username}")
             # В реальной реализации здесь должен быть поиск по username
             await update.message.reply_text("🔍 Поиск по username пока не реализован")
             return
         
         try:
+            logger.info(f"🔍 handle_user_profile: Получаем профиль для user_id={target_user_id}")
             # Получаем профиль пользователя
             profile = await self.profile_manager.get_user_forest_profile(target_user_id)
+            logger.info(f"📊 handle_user_profile: Профиль получен: {profile is not None}")
             
             if not profile:
+                logger.warning(f"⚠️ handle_user_profile: Профиль не найден для user_id={target_user_id}")
                 await update.message.reply_text("❌ Профиль не найден")
                 return
             
             # Форматируем и отправляем
+            logger.info(f"📝 handle_user_profile: Форматируем профиль для user_id={target_user_id}")
             profile_text = self.profile_manager.format_user_forest_profile(profile)
+            logger.info(f"📝 handle_user_profile: Профиль отформатирован, длина: {len(profile_text)} символов")
             
             # Создаем клавиатуру
             keyboard = [
@@ -465,29 +499,40 @@ class UserForestProfileHandlers:
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
+            logger.info(f"📤 handle_user_profile: Отправляем профиль пользователю {target_user_id}")
             await update.message.reply_text(
                 profile_text,
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
+            logger.info(f"✅ handle_user_profile: Профиль успешно отправлен пользователю {target_user_id}")
             
         except Exception as e:
-            logger.error(f"Ошибка при получении профиля пользователя: {e}")
+            logger.error(f"❌ handle_user_profile: Ошибка при получении профиля пользователя {target_user_id}: {e}")
+            logger.error(f"❌ handle_user_profile: Traceback: {e.__class__.__name__}: {e}")
+            import traceback
+            logger.error(f"❌ handle_user_profile: Full traceback: {traceback.format_exc()}")
             await update.message.reply_text("❌ Ошибка при получении профиля пользователя.")
     
     async def handle_compact_profile(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /profile_compact"""
         user = update.effective_user
+        logger.info(f"👤 handle_compact_profile: Команда /profile_compact от пользователя {user.id} ({user.first_name})")
         
         try:
+            logger.info(f"🔍 handle_compact_profile: Получаем профиль для user_id={user.id}")
             profile = await self.profile_manager.get_user_forest_profile(user.id)
+            logger.info(f"📊 handle_compact_profile: Профиль получен: {profile is not None}")
             
             if not profile:
+                logger.warning(f"⚠️ handle_compact_profile: Профиль не найден для user_id={user.id}")
                 await update.message.reply_text("❌ Профиль не найден")
                 return
             
             # Форматируем компактный профиль
+            logger.info(f"📝 handle_compact_profile: Форматируем компактный профиль для user_id={user.id}")
             profile_text = self.profile_manager.format_compact_user_profile(profile)
+            logger.info(f"📝 handle_compact_profile: Компактный профиль отформатирован, длина: {len(profile_text)} символов")
             
             # Создаем клавиатуру для детального просмотра
             keyboard = [
