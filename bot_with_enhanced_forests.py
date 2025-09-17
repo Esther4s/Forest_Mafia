@@ -83,10 +83,30 @@ class ForestWolvesBotWithEnhancedForests:
         self.application.add_handler(CommandHandler("help_forests", self._handle_help_forests))
         self.application.add_handler(CommandHandler("rules", self._handle_rules))
         
+        # Игровые команды
+        self.application.add_handler(CommandHandler("join", self._handle_join))
+        self.application.add_handler(CommandHandler("leave", self._handle_leave))
+        self.application.add_handler(CommandHandler("start_game", self._handle_start_game))
+        self.application.add_handler(CommandHandler("end_game", self._handle_end_game))
+        self.application.add_handler(CommandHandler("settings", self._handle_settings))
+        self.application.add_handler(CommandHandler("inventory", self._handle_inventory))
+        self.application.add_handler(CommandHandler("use", self._handle_use))
+        self.application.add_handler(CommandHandler("stats", self._handle_stats))
+        
         # Обработчик для команд с упоминанием бота (например, /start@forestwolf_bot)
         self.application.add_handler(MessageHandler(filters.Regex(r'^/start@'), self._handle_start))
         self.application.add_handler(MessageHandler(filters.Regex(r'^/help@'), self._handle_help))
         self.application.add_handler(MessageHandler(filters.Regex(r'^/balance@'), self._handle_balance))
+        
+        # Игровые команды с упоминанием бота
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/join@'), self._handle_join))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/leave@'), self._handle_leave))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/start_game@'), self._handle_start_game))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/end_game@'), self._handle_end_game))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/settings@'), self._handle_settings))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/inventory@'), self._handle_inventory))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/use@'), self._handle_use))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/stats@'), self._handle_stats))
         
         # Команды расширенной системы лесов
         logger.info("🌲 Добавляем обработчики команд лесов...")
@@ -133,6 +153,16 @@ class ForestWolvesBotWithEnhancedForests:
             BotCommand("help", "Помощь и команды"),
             BotCommand("balance", "💰 Показать баланс"),
             BotCommand("rules", "Правила игры"),
+            
+            # Игровые команды
+            BotCommand("join", "🎮 Присоединиться к игре"),
+            BotCommand("leave", "🚪 Покинуть игру"),
+            BotCommand("start_game", "🚀 Начать игру"),
+            BotCommand("end_game", "⏹️ Завершить игру"),
+            BotCommand("settings", "⚙️ Настройки игры"),
+            BotCommand("inventory", "🎒 Инвентарь"),
+            BotCommand("use", "🔧 Использовать предмет"),
+            BotCommand("stats", "📊 Статистика игрока"),
             
             # Профили и статистика
             BotCommand("profile", "Мой профиль"),
@@ -275,6 +305,56 @@ class ForestWolvesBotWithEnhancedForests:
         # Вызываем основной обработчик
         from forest_handlers import handle_forests
         await handle_forests(update, context)
+    
+    # Игровые команды
+    async def _handle_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /join"""
+        # Импортируем основной бот и используем его метод
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.join(update, context)
+    
+    async def _handle_leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /leave"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.leave(update, context)
+    
+    async def _handle_start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /start_game"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.start_game(update, context)
+    
+    async def _handle_end_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /end_game"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.end_game(update, context)
+    
+    async def _handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /settings"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.settings(update, context)
+    
+    async def _handle_inventory(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /inventory"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.inventory_command(update, context)
+    
+    async def _handle_use(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /use"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.use_command(update, context)
+    
+    async def _handle_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /stats"""
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        await main_bot.stats_command(update, context)
     
     async def _handle_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
