@@ -48,19 +48,20 @@ def apply_forest_migration():
             logger.info("🔍 Проверка созданных таблиц...")
             
             # Проверяем таблицу forests
-            result = session.execute("SELECT COUNT(*) FROM forests").scalar()
+            from sqlalchemy import text
+            result = session.execute(text("SELECT COUNT(*) FROM forests")).scalar()
             logger.info(f"✅ Таблица 'forests' создана (записей: {result})")
             
             # Проверяем таблицу forest_members
-            result = session.execute("SELECT COUNT(*) FROM forest_members").scalar()
+            result = session.execute(text("SELECT COUNT(*) FROM forest_members")).scalar()
             logger.info(f"✅ Таблица 'forest_members' создана (записей: {result})")
             
             # Проверяем таблицу forest_invites
-            result = session.execute("SELECT COUNT(*) FROM forest_invites").scalar()
+            result = session.execute(text("SELECT COUNT(*) FROM forest_invites")).scalar()
             logger.info(f"✅ Таблица 'forest_invites' создана (записей: {result})")
             
             # Проверяем таблицу forest_settings
-            result = session.execute("SELECT COUNT(*) FROM forest_settings").scalar()
+            result = session.execute(text("SELECT COUNT(*) FROM forest_settings")).scalar()
             logger.info(f"✅ Таблица 'forest_settings' создана (записей: {result})")
             
             logger.info("🎉 Миграция применена успешно!")
