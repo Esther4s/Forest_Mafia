@@ -5613,6 +5613,7 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("casino", self.casino_command)) # Команда /casino
         
         # 🌲 Команды лесов
+        logger.info("🌲 Добавляем обработчики команд лесов...")
         application.add_handler(CommandHandler("create_forest", handle_create_forest)) # Команда /create_forest
         application.add_handler(CommandHandler("forests", handle_forests)) # Команда /forests
         application.add_handler(CommandHandler("my_forests_profile", handle_my_forests_profile)) # Команда /my_forests_profile
@@ -5620,14 +5621,20 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("forest_analytics", handle_forest_analytics)) # Команда /forest_analytics
         application.add_handler(CommandHandler("top_forests", handle_top_forests)) # Команда /top_forests
         application.add_handler(CommandHandler("help_forests", handle_help_forests)) # Команда /help_forests
+        logger.info("✅ Обработчики команд лесов добавлены")
         
         # 🌲 Динамические команды лесов (с параметрами)
+        logger.info("🌲 Добавляем обработчики динамических команд лесов...")
         application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+$'), handle_join_forest)) # Команда /join_forest_<id>
         application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+$'), handle_summon_forest)) # Команда /summon_forest_<id>
+        logger.info("✅ Обработчики динамических команд лесов добавлены")
         
 
         # Обработчик присоединения бота к чату
         application.add_handler(ChatMemberHandler(self.handle_bot_join, ChatMemberHandler.MY_CHAT_MEMBER))
+        
+        # Обработчик для логирования всех команд (для отладки)
+        application.add_handler(MessageHandler(filters.Regex(r'^/'), self.log_command))
         
         # Обработчик личных сообщений (для регистрации пользователей)
         application.add_handler(MessageHandler(filters.TEXT & filters.ChatType.PRIVATE, self.handle_private_message))
@@ -5783,6 +5790,19 @@ class ForestWolvesBot:
             logger.error(f"❌ Ошибка при откреплении сообщений: {e}")
             import traceback
             logger.error(f"❌ Traceback: {traceback.format_exc()}")
+
+    async def log_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик для логирования всех команд (для отладки)"""
+        user = update.effective_user
+        command = update.message.text
+        logger.info(f"🔍 LOG_COMMAND: Пользователь {user.id} ({user.username}) отправил команду: {command}")
+        
+        # Проверяем, является ли это командой леса
+        if any(cmd in command for cmd in ['create_forest', 'forests', 'my_forests_profile', 'forest_profile', 'forest_analytics', 'top_forests', 'help_forests', 'join_forest', 'summon_forest']):
+            logger.info(f"🌲 LOG_COMMAND: Обнаружена команда леса: {command}")
+        
+        # Не отвечаем на команду, просто логируем
+        return
 
     async def handle_private_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает личные сообщения боту"""

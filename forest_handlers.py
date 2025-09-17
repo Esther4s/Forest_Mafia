@@ -19,6 +19,128 @@ from database import get_db_session, Forest, ForestMember
 
 logger = logging.getLogger(__name__)
 
+# Глобальный экземпляр менеджера лесов
+_forest_manager = None
+
+def get_forest_manager_instance():
+    """Получает глобальный экземпляр менеджера лесов"""
+    global _forest_manager
+    if _forest_manager is None:
+        _forest_manager = get_forest_manager()
+    return _forest_manager
+
+
+# Функции-обработчики команд для прямого использования
+async def handle_create_forest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды создания леса"""
+    logger.info(f"🌲 handle_create_forest: Команда /create_forest от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_create_forest(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_create_forest: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при создании леса. Попробуйте позже.")
+
+async def handle_join_forest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды присоединения к лесу"""
+    logger.info(f"🌲 handle_join_forest: Команда от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_join_forest(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_join_forest: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при присоединении к лесу. Попробуйте позже.")
+
+async def handle_leave_forest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды выхода из леса"""
+    logger.info(f"🌲 handle_leave_forest: Команда от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_leave_forest(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_leave_forest: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при выходе из леса. Попробуйте позже.")
+
+async def handle_forests(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды списка лесов"""
+    logger.info(f"🌲 handle_forests: Команда /forests от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_forests(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_forests: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении списка лесов. Попробуйте позже.")
+
+async def handle_my_forests_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды профиля моих лесов"""
+    logger.info(f"🌲 handle_my_forests_profile: Команда /my_forests_profile от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_my_forests_profile(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_my_forests_profile: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении профиля лесов. Попробуйте позже.")
+
+async def handle_forest_profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды профиля леса"""
+    logger.info(f"🌲 handle_forest_profile: Команда /forest_profile от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_forest_profile(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_forest_profile: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении профиля леса. Попробуйте позже.")
+
+async def handle_forest_analytics(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды аналитики леса"""
+    logger.info(f"🌲 handle_forest_analytics: Команда /forest_analytics от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_forest_analytics(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_forest_analytics: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении аналитики леса. Попробуйте позже.")
+
+async def handle_top_forests(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды топа лесов"""
+    logger.info(f"🌲 handle_top_forests: Команда /top_forests от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_top_forests(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_top_forests: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении топа лесов. Попробуйте позже.")
+
+async def handle_help_forests(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды справки по лесам"""
+    logger.info(f"🌲 handle_help_forests: Команда /help_forests от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_help_forests(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_help_forests: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при получении справки. Попробуйте позже.")
+
+async def handle_summon_forest(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды созыва леса"""
+    logger.info(f"🌲 handle_summon_forest: Команда от пользователя {update.effective_user.id}")
+    try:
+        forest_manager = get_forest_manager_instance()
+        handlers = ForestCommandHandlers(forest_manager)
+        await handlers.handle_summon_forest(update, context)
+    except Exception as e:
+        logger.error(f"❌ handle_summon_forest: Ошибка: {e}")
+        await update.message.reply_text("❌ Ошибка при созыве леса. Попробуйте позже.")
+
 
 class ForestCommandHandlers:
     """Обработчики команд для системы лесов"""
