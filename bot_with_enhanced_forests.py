@@ -76,22 +76,58 @@ class ForestWolvesBotWithEnhancedForests:
     
     async def _add_command_handlers(self):
         """Добавляет обработчики команд"""
-        # Основные команды бота
-        self.application.add_handler(CommandHandler("start", self._handle_start))
-        self.application.add_handler(CommandHandler("help", self._handle_help))
-        self.application.add_handler(CommandHandler("balance", self._handle_balance))
-        self.application.add_handler(CommandHandler("help_forests", self._handle_help_forests))
-        self.application.add_handler(CommandHandler("rules", self._handle_rules))
+        # Создаем экземпляр основного бота для получения всех обработчиков
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        
+        # Добавляем ВСЕ обработчики команд из основного бота
+        logger.info("🎮 Добавляем все игровые команды из основного бота...")
+        
+        # Основные команды
+        self.application.add_handler(CommandHandler("start", main_bot.start_command))
+        self.application.add_handler(CommandHandler("help", main_bot.help_command))
+        self.application.add_handler(CommandHandler("rules", main_bot.rules))
+        self.application.add_handler(CommandHandler("balance", main_bot.balance_command))
         
         # Игровые команды
-        self.application.add_handler(CommandHandler("join", self._handle_join))
-        self.application.add_handler(CommandHandler("leave", self._handle_leave))
-        self.application.add_handler(CommandHandler("start_game", self._handle_start_game))
-        self.application.add_handler(CommandHandler("end_game", self._handle_end_game))
-        self.application.add_handler(CommandHandler("settings", self._handle_settings))
-        self.application.add_handler(CommandHandler("inventory", self._handle_inventory))
-        self.application.add_handler(CommandHandler("use", self._handle_use))
-        self.application.add_handler(CommandHandler("stats", self._handle_stats))
+        self.application.add_handler(CommandHandler("join", main_bot.join))
+        self.application.add_handler(CommandHandler("leave", main_bot.leave))
+        self.application.add_handler(CommandHandler("start_game", main_bot.start_game))
+        self.application.add_handler(CommandHandler("end_game", main_bot.end_game))
+        self.application.add_handler(CommandHandler("end", main_bot.end_game))  # Алиас
+        self.application.add_handler(CommandHandler("force_end", main_bot.force_end))
+        self.application.add_handler(CommandHandler("clear_all_games", main_bot.clear_all_games))
+        self.application.add_handler(CommandHandler("settings", main_bot.settings))
+        self.application.add_handler(CommandHandler("status", main_bot.status))
+        
+        # Дополнительные команды
+        self.application.add_handler(CommandHandler("inventory", main_bot.inventory_command))
+        self.application.add_handler(CommandHandler("use", main_bot.use_command))
+        self.application.add_handler(CommandHandler("stats", main_bot.stats_command))
+        self.application.add_handler(CommandHandler("profile", main_bot.profile_command))
+        self.application.add_handler(CommandHandler("nickname", main_bot.nickname_command))
+        self.application.add_handler(CommandHandler("reset_nickname", main_bot.reset_nickname_command))
+        self.application.add_handler(CommandHandler("game", main_bot.game_command))
+        self.application.add_handler(CommandHandler("cancel", main_bot.cancel_command))
+        self.application.add_handler(CommandHandler("bite", main_bot.bite_command))
+        self.application.add_handler(CommandHandler("poke", main_bot.poke_command))
+        
+        # Режимы игры
+        self.application.add_handler(CommandHandler("hare_wolf", main_bot.hare_wolf_command))
+        self.application.add_handler(CommandHandler("wolf_sheep", main_bot.wolf_sheep_command))
+        self.application.add_handler(CommandHandler("hedgehogs", main_bot.hedgehogs_command))
+        self.application.add_handler(CommandHandler("casino", main_bot.casino_command))
+        
+        # Дополнительные команды
+        self.application.add_handler(CommandHandler("quick_mode", main_bot.handle_quick_mode_command))
+        self.application.add_handler(CommandHandler("setup_channel", main_bot.setup_channel))
+        self.application.add_handler(CommandHandler("remove_channel", main_bot.remove_channel))
+        self.application.add_handler(CommandHandler("save_state", main_bot.save_state_command))
+        self.application.add_handler(CommandHandler("auto_save_status", main_bot.auto_save_status_command))
+        self.application.add_handler(CommandHandler("shop", main_bot.shop_command))
+        self.application.add_handler(CommandHandler("global_stats", main_bot.global_stats_command))
+        
+        logger.info("✅ Все игровые команды добавлены")
         
         # Обработчик для команд с упоминанием бота (например, /start@forestwolf_bot)
         self.application.add_handler(MessageHandler(filters.Regex(r'^/start@'), self._handle_start))
@@ -99,14 +135,14 @@ class ForestWolvesBotWithEnhancedForests:
         self.application.add_handler(MessageHandler(filters.Regex(r'^/balance@'), self._handle_balance))
         
         # Игровые команды с упоминанием бота
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/join@'), self._handle_join))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/leave@'), self._handle_leave))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/start_game@'), self._handle_start_game))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/end_game@'), self._handle_end_game))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/settings@'), self._handle_settings))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/inventory@'), self._handle_inventory))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/use@'), self._handle_use))
-        self.application.add_handler(MessageHandler(filters.Regex(r'^/stats@'), self._handle_stats))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/join@'), main_bot.join))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/leave@'), main_bot.leave))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/start_game@'), main_bot.start_game))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/end_game@'), main_bot.end_game))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/settings@'), main_bot.settings))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/inventory@'), main_bot.inventory_command))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/use@'), main_bot.use_command))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/stats@'), main_bot.stats_command))
         
         # Команды расширенной системы лесов
         logger.info("🌲 Добавляем обработчики команд лесов...")
@@ -138,12 +174,71 @@ class ForestWolvesBotWithEnhancedForests:
     
     async def _add_callback_handlers(self):
         """Добавляет обработчики callback-ов"""
+        # Создаем экземпляр основного бота для получения всех callback-ов
+        from bot import ForestMafiaBot
+        main_bot = ForestMafiaBot()
+        
+        # Добавляем ВСЕ callback-ы из основного бота
+        logger.info("🎮 Добавляем все callback-ы из основного бота...")
+        
+        # Основные callback-ы игры
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_vote, pattern=r"^vote_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_action, pattern=r"^night_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^settings_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_welcome_buttons, pattern=r"^welcome_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_day_actions, pattern=r"^day_"))
+        
+        # Callback-ы для управления игрой
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_join_game_callback, pattern=r"^join_game$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_start_game_callback, pattern=r"^start_game$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_duel_callback, pattern=r"^duel_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_leave_registration_callback, pattern=r"^leave_registration$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_cancel_game_callback, pattern=r"^cancel_game$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_end_game_callback, pattern=r"^end_game$"))
+        
+        # Callback-ы настроек
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_timer_settings, pattern=r"^timer_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_role_settings, pattern=r"^role_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings_back, pattern=r"^settings_back$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_timer_values, pattern=r"^set_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_timer_values, pattern=r"^timer_back"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_view_my_role, pattern=r"^view_my_role$"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_view_my_role, pattern=r"^night_view_role_"))
+        
+        # Callback-ы магазина и профилей
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_buy_item_callback, pattern=r"^buy_item_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^show_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^back_to_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^close_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^farewell_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^leave_forest"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^join_chat"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^language_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^show_profile_pm"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^show_roles_pm"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^lang_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^show_rules_pm"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^back_to_start"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_settings, pattern=r"^repeat_role_actions"))
+        
+        # Callback-ы ночных действий
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_action_callback, pattern=r"^wolf_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_action_callback, pattern=r"^fox_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_action_callback, pattern=r"^mole_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_action_callback, pattern=r"^beaver_"))
+        
+        # Callback-ы пропуска
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_night_skip_callback, pattern=r"^night_skip_"))
+        self.application.add_handler(CallbackQueryHandler(main_bot.handle_hare_skip_callback, pattern=r"^hare_skip_"))
+        
+        logger.info("✅ Все callback-ы из основного бота добавлены")
+        
         # Callback-ы расширенной системы лесов
         forest_callbacks = self.enhanced_forest_integration.get_callback_handlers()
         for handler in forest_callbacks:
             self.application.add_handler(handler)
         
-        logger.info("✅ Обработчики callback-ов добавлены")
+        logger.info("✅ Все обработчики callback-ов добавлены")
     
     async def _set_bot_commands(self):
         """Устанавливает команды бота"""
@@ -306,55 +401,6 @@ class ForestWolvesBotWithEnhancedForests:
         from forest_handlers import handle_forests
         await handle_forests(update, context)
     
-    # Игровые команды
-    async def _handle_join(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /join"""
-        # Импортируем основной бот и используем его метод
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.join(update, context)
-    
-    async def _handle_leave(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /leave"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.leave(update, context)
-    
-    async def _handle_start_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /start_game"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.start_game(update, context)
-    
-    async def _handle_end_game(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /end_game"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.end_game(update, context)
-    
-    async def _handle_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /settings"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.settings(update, context)
-    
-    async def _handle_inventory(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /inventory"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.inventory_command(update, context)
-    
-    async def _handle_use(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /use"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.use_command(update, context)
-    
-    async def _handle_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Обработчик команды /stats"""
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
-        await main_bot.stats_command(update, context)
     
     async def _handle_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""
