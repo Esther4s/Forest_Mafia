@@ -264,9 +264,12 @@ class ForestCommandHandlers:
             await update.message.reply_text("❌ Неверная команда")
             return
         
-        forest_id = command.replace('/join_forest_', '')
+        forest_id_str = command.replace('/join_forest_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
+            
             # Присоединяемся к лесу
             success = await self.forest_manager.join_forest(
                 forest_id=forest_id,
@@ -336,9 +339,12 @@ class ForestCommandHandlers:
             await update.message.reply_text("❌ Неверная команда")
             return
         
-        forest_id = command.replace('/summon_forest_', '')
+        forest_id_str = command.replace('/summon_forest_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
+            
             # Получаем информацию о лесе
             forest = await self.forest_manager.get_forest_info(forest_id)
             if not forest:
@@ -393,6 +399,9 @@ class ForestCommandHandlers:
                 error_msg = error_messages.get(result.get("error", "unknown"), "❌ Ошибка при созыве участников.")
                 await update.message.reply_text(error_msg)
                 
+        except ValueError:
+            logger.error(f"❌ handle_summon_forest: Неверный ID леса: {forest_id_str}")
+            await update.message.reply_text("❌ Неверный ID леса. Используйте числовой ID.")
         except Exception as e:
             logger.error(f"Ошибка при созыве участников: {e}")
             await update.message.reply_text("❌ Ошибка при созыве участников.")
@@ -520,9 +529,12 @@ class ForestCallbackHandlers:
         if not callback_data.startswith('join_forest_'):
             return
         
-        forest_id = callback_data.replace('join_forest_', '')
+        forest_id_str = callback_data.replace('join_forest_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
+            
             # Присоединяемся к лесу
             success = await self.forest_manager.join_forest(
                 forest_id=forest_id,
@@ -539,6 +551,9 @@ class ForestCallbackHandlers:
             else:
                 await query.answer("❌ Не удалось присоединиться к лесу")
                 
+        except ValueError:
+            logger.error(f"❌ handle_join_forest_callback: Неверный ID леса: {forest_id_str}")
+            await query.answer("❌ Неверный ID леса")
         except Exception as e:
             logger.error(f"Ошибка при обработке callback присоединения: {e}")
             await query.answer("❌ Ошибка при присоединении к лесу")

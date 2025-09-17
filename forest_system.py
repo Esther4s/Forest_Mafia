@@ -39,7 +39,7 @@ class InviteStatus(Enum):
 @dataclass
 class ForestConfig:
     """Конфигурация леса"""
-    forest_id: str
+    forest_id: int
     name: str
     creator_id: int
     description: str
@@ -63,7 +63,7 @@ class ForestManager:
     
     def __init__(self, bot: Bot):
         self.bot = bot
-        self.cooldowns: Dict[Tuple[int, str], datetime] = {}  # (user_id, forest_id) -> last_call_time
+        self.cooldowns: Dict[Tuple[int, int], datetime] = {}  # (user_id, forest_id) -> last_call_time
     
     def _generate_forest_id(self, name: str) -> str:
         """Генерирует ID леса из названия"""
@@ -82,22 +82,15 @@ class ForestManager:
                           privacy: str = "public", max_size: Optional[int] = None,
                           **kwargs) -> ForestConfig:
         """Создает новый лес"""
-        forest_id = self._generate_forest_id(name)
-        
-        # Проверяем, не существует ли уже лес с таким ID
+        # Проверяем, не существует ли уже лес с таким именем
         session = get_db_session()
         try:
-            existing_forest = session.query(Forest).filter(Forest.id == forest_id).first()
+            existing_forest = session.query(Forest).filter(Forest.name == name).first()
             if existing_forest:
-                # Добавляем суффикс если лес уже существует
-                counter = 1
-                while session.query(Forest).filter(Forest.id == f"{forest_id}_{counter}").first():
-                    counter += 1
-                forest_id = f"{forest_id}_{counter}"
+                raise ValueError(f"Лес с именем '{name}' уже существует")
             
-            # Создаем лес
+            # Создаем лес (ID будет сгенерирован автоматически)
             forest = Forest(
-                id=forest_id,
                 name=self._escape_html(name),
                 creator_id=creator_id,
                 description=self._escape_html(description),
@@ -130,7 +123,7 @@ class ForestManager:
         finally:
             session.close()
     
-    async def join_forest(self, forest_id: str, user_id: int, username: str = None, 
+    async def join_forest(self, forest_id: int, user_id: int, username: str = None, 
                          first_name: str = None) -> bool:
         """Присоединяет пользователя к лесу"""
         session = get_db_session()
@@ -174,7 +167,7 @@ class ForestManager:
         finally:
             session.close()
     
-    async def leave_forest(self, forest_id: str, user_id: int) -> bool:
+    async def leave_forest(self, forest_id: int, user_id: int) -> bool:
         """Покидает лес"""
         session = get_db_session()
         try:
@@ -199,7 +192,7 @@ class ForestManager:
         finally:
             session.close()
     
-    async def get_forest_members(self, forest_id: str) -> List[ForestMember]:
+    async def get_forest_members(self, forest_id: int) -> List[ForestMember]:
         """Получает список участников леса"""
         session = get_db_session()
         try:
@@ -213,7 +206,7 @@ class ForestManager:
         finally:
             session.close()
     
-    async def get_forest_info(self, forest_id: str) -> Optional[Forest]:
+    async def get_forest_info(self, forest_id: int) -> Optional[Forest]:
         """Получает информацию о лесе"""
         session = get_db_session()
         try:
@@ -225,7 +218,7 @@ class ForestManager:
         finally:
             session.close()
     
-    def _check_cooldown(self, user_id: int, forest_id: str, cooldown_minutes: int) -> bool:
+    def _check_cooldown(self, user_id: int, forest_id: int, cooldown_minutes: int) -> bool:
         """Проверяет cooldown для пользователя"""
         key = (user_id, forest_id)
         if key in self.cooldowns:
@@ -236,7 +229,7 @@ class ForestManager:
         self.cooldowns[key] = datetime.utcnow()
         return True
     
-    async def summon_forest_members(self, forest_id: str, invoker_id: int, 
+    async def summon_forest_members(self, forest_id: int, invoker_id: int, 
                                   chat_id: int, config: ForestConfig) -> Dict[str, Any]:
         """Созывает участников леса"""
         # Проверяем права
@@ -358,7 +351,7 @@ class ForestManager:
         
         return message
     
-    async def send_private_invite(self, forest_id: str, from_user_id: int, 
+    async def send_private_invite(self, forest_id: int, from_user_id: int, 
                                 to_user_id: int, config: ForestConfig) -> bool:
         """Отправляет персональное приглашение"""
         try:

@@ -140,7 +140,7 @@ class Forest(Base):
     """Модель леса"""
     __tablename__ = 'forests'
     
-    id = Column(String(50), primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     creator_id = Column(Integer, nullable=False)
     description = Column(Text, nullable=True)
@@ -157,7 +157,7 @@ class ForestMember(Base):
     """Модель участника леса"""
     __tablename__ = 'forest_members'
     
-    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
+    forest_id = Column(Integer, ForeignKey('forests.id'), primary_key=True)
     user_id = Column(Integer, nullable=False, primary_key=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_called = Column(DateTime, nullable=True)
@@ -170,7 +170,7 @@ class ForestInvite(Base):
     __tablename__ = 'forest_invites'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    forest_id = Column(String(50), ForeignKey('forests.id'), nullable=False)
+    forest_id = Column(Integer, ForeignKey('forests.id'), nullable=False)
     from_user = Column(Integer, nullable=False)
     to_user = Column(Integer, nullable=False)
     status = Column(String(20), default='pending')  # pending, accepted, declined
@@ -183,7 +183,7 @@ class ForestSetting(Base):
     """Модель настроек леса"""
     __tablename__ = 'forest_settings'
     
-    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
+    forest_id = Column(Integer, ForeignKey('forests.id'), primary_key=True)
     key = Column(String(100), primary_key=True)
     value = Column(Text, nullable=True)
     
