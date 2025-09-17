@@ -1,121 +1,134 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-
 """
-Скрипт развертывания на Railway с расширенной системой лесов
-Автоматически применяет миграции и запускает бота
+Скрипт деплоя на Railway
 """
 
-import asyncio
-import logging
 import os
 import sys
-from pathlib import Path
+import subprocess
+import time
 
-# Добавляем текущую директорию в путь
-sys.path.append(str(Path(__file__).parent))
+def check_environment():
+    """Проверяет переменные окружения"""
+    print("🔍 Проверка переменных окружения...")
+    
+    required_vars = ['BOT_TOKEN', 'DATABASE_URL']
+    missing_vars = []
+    
+    for var in required_vars:
+        if not os.environ.get(var):
+            missing_vars.append(var)
+    
+    if missing_vars:
+        print(f"❌ Отсутствуют переменные: {', '.join(missing_vars)}")
+        return False
+    
+    print("✅ Переменные окружения настроены")
+    return True
 
-from database import init_database
-from enhanced_forest_integration import init_enhanced_forest_integration
-from bot_with_enhanced_forests import ForestWolvesBotWithEnhancedForests
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
-
-async def deploy_to_railway():
-    """Развертывание на Railway"""
-    print("🚀 Развертывание бота с расширенной системой лесов на Railway")
-    print("=" * 70)
+def install_dependencies():
+    """Устанавливает зависимости"""
+    print("📦 Установка зависимостей...")
     
     try:
-        # Проверяем переменные окружения
-        bot_token = os.environ.get('BOT_TOKEN')
-        database_url = os.environ.get('DATABASE_URL')
-        
-        if not bot_token:
-            logger.error("❌ BOT_TOKEN не установлен в переменных окружения")
-            return False
-        
-        if not database_url:
-            logger.error("❌ DATABASE_URL не установлен в переменных окружения")
-            return False
-        
-        logger.info("✅ Переменные окружения настроены")
-        logger.info(f"🔗 База данных: {database_url}")
-        
-        # Инициализируем базу данных (создаст все таблицы включая леса)
-        logger.info("🗄️ Инициализация базы данных...")
-        init_database()
-        logger.info("✅ База данных инициализирована (включая таблицы лесов)")
-        
-        # Инициализируем database_psycopg2 для совместимости
-        logger.info("🔄 Инициализация database_psycopg2...")
-        try:
-            from database_psycopg2 import init_db
-            init_db()
-            logger.info("✅ database_psycopg2 инициализирован")
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка при инициализации database_psycopg2: {e}, продолжаем...")
-        
-        # Исправляем реальную структуру базы данных
-        logger.info("🔧 Исправление реальной структуры базы данных...")
-        try:
-            from fix_real_database_structure import fix_real_database_structure
-            migration_success = fix_real_database_structure()
-            if migration_success:
-                logger.info("✅ Структура базы данных исправлена успешно")
-            else:
-                logger.warning("⚠️ Ошибка при исправлении структуры БД, продолжаем...")
-        except Exception as e:
-            logger.warning(f"⚠️ Ошибка при исправлении структуры БД: {e}, продолжаем...")
-
-        # Создаем и инициализируем бота
-        logger.info("🤖 Создание бота с расширенной системой лесов...")
-        bot = ForestWolvesBotWithEnhancedForests()
-        
-        # Инициализируем бота
-        if not await bot.initialize():
-            logger.error("❌ Ошибка инициализации бота")
-            return False
-        
-        logger.info("✅ Бот инициализирован успешно")
-        
-        # Запускаем бота
-        logger.info("🚀 Запуск бота...")
-        if not await bot.start_bot():
-            logger.error("❌ Ошибка запуска бота")
-            return False
-        
-        logger.info("🎉 Бот успешно запущен на Railway!")
-        logger.info("🌲 Расширенная система лесов активна")
-        
+        subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], 
+                      check=True, capture_output=True, text=True)
+        print("✅ Зависимости установлены")
         return True
-        
-    except Exception as e:
-        logger.error(f"❌ Критическая ошибка при развертывании: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Ошибка установки зависимостей: {e}")
         return False
 
-
-async def main():
-    """Главная функция"""
+def test_imports():
+    """Тестирует импорты"""
+    print("🧪 Тестирование импортов...")
+    
     try:
-        success = await deploy_to_railway()
-        if success:
-            # Держим бота запущенным
-            await asyncio.Event().wait()
-        else:
-            logger.error("❌ Развертывание не удалось")
-            sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("🛑 Получен сигнал остановки")
+        from bot import ForestMafiaBot
+        from game_logic import Game, Role, Team, Player
+        from night_actions import NightActions
+        from night_interface import NightInterface
+        from config import BOT_TOKEN, MIN_PLAYERS
+        print("✅ Все модули импортированы")
+        return True
     except Exception as e:
-        logger.error(f"❌ Критическая ошибка: {e}")
-        sys.exit(1)
+        print(f"❌ Ошибка импорта: {e}")
+        return False
 
+def test_database():
+    """Тестирует базу данных"""
+    print("🗄️ Тестирование базы данных...")
+    
+    try:
+        from database_psycopg2 import init_db, execute_query, close_db
+        
+        db = init_db()
+        if db is None:
+            print("❌ Не удалось подключиться к БД")
+            return False
+        
+        result = execute_query("SELECT 1 as test")
+        if result:
+            print("✅ База данных работает")
+            close_db()
+            return True
+        else:
+            print("❌ Запрос к БД не выполнился")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Ошибка БД: {e}")
+        return False
+
+def start_bot():
+    """Запускает бота"""
+    print("🚀 Запуск бота...")
+    
+    try:
+        from bot import ForestMafiaBot
+        
+        bot = ForestMafiaBot()
+        print("✅ Бот создан успешно")
+        print("🔄 Запуск бота...")
+        
+        # Запускаем бота
+        bot.run()
+        
+    except Exception as e:
+        print(f"❌ Ошибка запуска бота: {e}")
+        return False
+
+def main():
+    """Основная функция деплоя"""
+    print("🚀 ДЕПЛОЙ НА RAILWAY")
+    print("=" * 50)
+    
+    # Проверяем окружение
+    if not check_environment():
+        print("❌ Деплой прерван: проблемы с окружением")
+        return False
+    
+    # Устанавливаем зависимости
+    if not install_dependencies():
+        print("❌ Деплой прерван: проблемы с зависимостями")
+        return False
+    
+    # Тестируем импорты
+    if not test_imports():
+        print("❌ Деплой прерван: проблемы с импортами")
+        return False
+    
+    # Тестируем базу данных
+    if not test_database():
+        print("❌ Деплой прерван: проблемы с БД")
+        return False
+    
+    print("✅ Все проверки пройдены!")
+    print("🚀 Запуск бота...")
+    
+    # Запускаем бота
+    start_bot()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
