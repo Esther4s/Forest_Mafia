@@ -369,7 +369,7 @@ class SummonSystem:
             # Сохраняем приглашение в БД
             session = get_db_session()
             try:
-                from forest_system import ForestInvite
+                from database import ForestInvite
                 invite = ForestInvite(
                     forest_id=forest_id,
                     from_user_id=from_user_id,

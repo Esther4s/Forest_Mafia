@@ -16,10 +16,8 @@ import re
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import ContextTypes
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, Text, ForeignKey, JSON
-from sqlalchemy.orm import relationship, Session
-
-from database import Base, get_db_session
+from sqlalchemy.orm import Session
+from database import get_db_session, Forest, ForestMember, ForestInvite, ForestSetting
 
 logger = logging.getLogger(__name__)
 
@@ -57,66 +55,7 @@ class ForestConfig:
     max_length: int = 400
 
 
-class Forest(Base):
-    """Модель леса"""
-    __tablename__ = 'forests'
-    
-    id = Column(String(50), primary_key=True)
-    name = Column(String(100), nullable=False)
-    creator_id = Column(Integer, nullable=False)
-    description = Column(Text)
-    privacy = Column(String(20), default='public')
-    max_size = Column(Integer, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Связи
-    members = relationship("ForestMember", back_populates="forest", cascade="all, delete-orphan")
-    invites = relationship("ForestInvite", back_populates="forest", cascade="all, delete-orphan")
-    settings = relationship("ForestSetting", back_populates="forest", cascade="all, delete-orphan")
-
-
-class ForestMember(Base):
-    """Модель участника леса"""
-    __tablename__ = 'forest_members'
-    
-    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
-    user_id = Column(Integer, nullable=False, primary_key=True)
-    username = Column(String(100), nullable=True)
-    first_name = Column(String(100), nullable=True)
-    joined_at = Column(DateTime, default=datetime.utcnow)
-    last_called = Column(DateTime, nullable=True)
-    is_opt_in = Column(Boolean, default=True)  # Согласие на упоминания
-    
-    # Связи
-    forest = relationship("Forest", back_populates="members")
-
-
-class ForestInvite(Base):
-    """Модель приглашений в лес"""
-    __tablename__ = 'forest_invites'
-    
-    id = Column(String(50), primary_key=True, default=lambda: str(uuid.uuid4()))
-    forest_id = Column(String(50), ForeignKey('forests.id'), nullable=False)
-    from_user_id = Column(Integer, nullable=False)
-    to_user_id = Column(Integer, nullable=False)
-    status = Column(String(20), default='pending')
-    created_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=True)
-    
-    # Связи
-    forest = relationship("Forest", back_populates="invites")
-
-
-class ForestSetting(Base):
-    """Модель настроек леса"""
-    __tablename__ = 'forest_settings'
-    
-    forest_id = Column(String(50), ForeignKey('forests.id'), primary_key=True)
-    key = Column(String(100), primary_key=True)
-    value = Column(Text)
-    
-    # Связи
-    forest = relationship("Forest", back_populates="settings")
+# Модели лесов импортированы из database.py
 
 
 class ForestManager:

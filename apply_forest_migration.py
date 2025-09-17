@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent))
 
 from database import init_database, get_db_session
-from forest_system import Forest, ForestMember, ForestInvite, ForestSetting
+from database import Forest, ForestMember, ForestInvite, ForestSetting
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
