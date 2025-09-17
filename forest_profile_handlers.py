@@ -32,10 +32,36 @@ class ExtendedForestProfileHandlers:
         # Создаем обработчики
         self.forest_profile_handlers = ForestProfileHandlers(self.forest_profile_manager)
         self.user_forest_profile_handlers = UserForestProfileHandlers(self.user_forest_profile_manager)
+        
+        # Импортируем обработчики команд лесов
+        from forest_handlers import (
+            handle_create_forest, handle_join_forest, handle_leave_forest, handle_forests,
+            handle_my_forests_profile, handle_forest_profile, handle_forest_analytics,
+            handle_top_forests, handle_help_forests, handle_summon_forest
+        )
+        
+        # Сохраняем ссылки на функции-обработчики
+        self.handle_create_forest = handle_create_forest
+        self.handle_join_forest = handle_join_forest
+        self.handle_leave_forest = handle_leave_forest
+        self.handle_forests = handle_forests
+        self.handle_my_forests_profile = handle_my_forests_profile
+        self.handle_forest_profile = handle_forest_profile
+        self.handle_forest_analytics = handle_forest_analytics
+        self.handle_top_forests = handle_top_forests
+        self.handle_help_forests = handle_help_forests
+        self.handle_summon_forest = handle_summon_forest
     
     def get_command_handlers(self):
         """Возвращает все обработчики команд профилей"""
         return [
+            # Основные команды лесов
+            CommandHandler("create_forest", self.handle_create_forest),
+            CommandHandler("forests", self.handle_forests),
+            CommandHandler("join_forest", self.handle_join_forest),
+            CommandHandler("leave_forest", self.handle_leave_forest),
+            CommandHandler("summon_forest", self.handle_summon_forest),
+            
             # Профили лесов
             CommandHandler("forest_profile", self.forest_profile_handlers.handle_forest_profile),
             CommandHandler("forest_stats", self.forest_profile_handlers.handle_forest_stats),

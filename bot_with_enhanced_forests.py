@@ -80,9 +80,21 @@ class ForestWolvesBotWithEnhancedForests:
         self.application.add_handler(CommandHandler("rules", self._handle_rules))
         
         # Команды расширенной системы лесов
+        logger.info("🌲 Добавляем обработчики команд лесов...")
         forest_handlers = self.enhanced_forest_integration.get_command_handlers()
+        logger.info(f"🌲 Получено {len(forest_handlers)} обработчиков команд лесов")
         for handler in forest_handlers:
             self.application.add_handler(handler)
+        logger.info("✅ Обработчики команд лесов добавлены")
+        
+        # Динамические команды лесов (с параметрами)
+        logger.info("🌲 Добавляем динамические команды лесов...")
+        from forest_handlers import handle_join_forest, handle_summon_forest
+        from telegram.ext import MessageHandler, filters
+        
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+$'), handle_join_forest))
+        self.application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+$'), handle_summon_forest))
+        logger.info("✅ Динамические команды лесов добавлены")
         
         logger.info("✅ Обработчики команд добавлены")
     
