@@ -75,6 +75,7 @@ class ForestWolvesBotWithEnhancedForests:
         # Основные команды бота
         self.application.add_handler(CommandHandler("start", self._handle_start))
         self.application.add_handler(CommandHandler("help", self._handle_help))
+        self.application.add_handler(CommandHandler("balance", self._handle_balance))
         self.application.add_handler(CommandHandler("help_forests", self._handle_help_forests))
         self.application.add_handler(CommandHandler("rules", self._handle_rules))
         
@@ -100,6 +101,7 @@ class ForestWolvesBotWithEnhancedForests:
             # Основные команды
             BotCommand("start", "Запустить бота"),
             BotCommand("help", "Помощь и команды"),
+            BotCommand("balance", "💰 Показать баланс"),
             BotCommand("rules", "Правила игры"),
             
             # Профили и статистика
@@ -166,6 +168,36 @@ class ForestWolvesBotWithEnhancedForests:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.message.reply_text(welcome_text, reply_markup=reply_markup)
+    
+    async def _handle_balance(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик команды /balance"""
+        user = update.effective_user
+        user_id = user.id
+        
+        try:
+            from database_balance_manager import balance_manager
+            
+            # Получаем баланс пользователя
+            balance = balance_manager.get_user_balance(user_id)
+            
+            # Формируем имя пользователя
+            display_name = user.first_name or user.username or f"Пользователь {user_id}"
+            clickable_name = f'<a href="tg://user?id={user_id}">{display_name}</a>'
+            
+            logger.info(f"✅ Баланс пользователя {display_name}: {balance}")
+            
+            balance_text = (
+                f"🌲 <b>Баланс Лес и волки</b>\n\n"
+                f"👤 <b>{clickable_name}:</b>\n"
+                f"🌰 Орешки: {int(balance)}\n\n"
+                f"💡 Орешки можно заработать, играя в Лес и волки!"
+            )
+            
+            await update.message.reply_text(balance_text, parse_mode='HTML')
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении баланса: {e}")
+            await update.message.reply_text("❌ Ошибка при получении баланса. Попробуйте позже.")
     
     async def _handle_help(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик команды /help"""

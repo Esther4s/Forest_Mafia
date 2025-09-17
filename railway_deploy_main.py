@@ -52,6 +52,18 @@ async def deploy_main_bot_with_forests():
         init_database()
         logger.info("✅ База данных инициализирована (включая таблицы лесов)")
         
+        # Применяем миграцию для исправления player_stats
+        logger.info("🔧 Применение миграции player_stats...")
+        try:
+            from fix_player_stats_migration import fix_player_stats_table
+            migration_success = fix_player_stats_table()
+            if migration_success:
+                logger.info("✅ Миграция player_stats применена успешно")
+            else:
+                logger.warning("⚠️ Ошибка при применении миграции player_stats, продолжаем...")
+        except Exception as e:
+            logger.warning(f"⚠️ Ошибка при применении миграции player_stats: {e}, продолжаем...")
+        
         # Создаем и запускаем основной бот
         logger.info("🤖 Создание основного бота с системой лесов...")
         bot = ForestWolvesBot()
