@@ -3,6 +3,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "python railway_deploy.py"
+    "startCommand": "python bot_with_enhanced_forests.py"
   }
 }
