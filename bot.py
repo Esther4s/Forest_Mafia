@@ -38,6 +38,13 @@ from database_psycopg2 import (
     get_player_chat_stats, add_nuts_to_user, get_shop_items
 )
 
+# Импортируем обработчики команд лесов
+from forest_handlers import (
+    handle_create_forest, handle_join_forest, handle_leave_forest, handle_forests,
+    handle_my_forests_profile, handle_forest_profile, handle_forest_analytics,
+    handle_top_forests, handle_help_forests, handle_summon_forest
+)
+
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
@@ -5604,6 +5611,19 @@ class ForestWolvesBot:
         application.add_handler(CommandHandler("wolf_sheep", self.wolf_sheep_command)) # Команда /wolf_sheep
         application.add_handler(CommandHandler("hedgehogs", self.hedgehogs_command)) # Команда /hedgehogs
         application.add_handler(CommandHandler("casino", self.casino_command)) # Команда /casino
+        
+        # 🌲 Команды лесов
+        application.add_handler(CommandHandler("create_forest", handle_create_forest)) # Команда /create_forest
+        application.add_handler(CommandHandler("forests", handle_forests)) # Команда /forests
+        application.add_handler(CommandHandler("my_forests_profile", handle_my_forests_profile)) # Команда /my_forests_profile
+        application.add_handler(CommandHandler("forest_profile", handle_forest_profile)) # Команда /forest_profile
+        application.add_handler(CommandHandler("forest_analytics", handle_forest_analytics)) # Команда /forest_analytics
+        application.add_handler(CommandHandler("top_forests", handle_top_forests)) # Команда /top_forests
+        application.add_handler(CommandHandler("help_forests", handle_help_forests)) # Команда /help_forests
+        
+        # 🌲 Динамические команды лесов (с параметрами)
+        application.add_handler(MessageHandler(filters.Regex(r'^/join_forest_\d+$'), handle_join_forest)) # Команда /join_forest_<id>
+        application.add_handler(MessageHandler(filters.Regex(r'^/summon_forest_\d+$'), handle_summon_forest)) # Команда /summon_forest_<id>
         
 
         # Обработчик присоединения бота к чату
