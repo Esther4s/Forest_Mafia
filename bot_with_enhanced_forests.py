@@ -219,6 +219,10 @@ class ForestWolvesBotWithEnhancedForests:
             )
             
             await update.message.reply_text(balance_text, parse_mode='HTML')
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка при получении баланса: {e}")
+            await update.message.reply_text("❌ Ошибка при получении баланса. Попробуйте позже.")
     
     async def _log_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработчик для логирования всех команд (для отладки)"""
