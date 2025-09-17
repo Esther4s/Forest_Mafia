@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Скрипт развертывания на Railway с расширенной системой лесов
-Автоматически применяет миграции и запускает бота
+Скрипт развертывания на Railway с основным ботом и интегрированной системой лесов
+Автоматически применяет миграции и запускает основной бот с лесными командами
 """
 
 import asyncio
@@ -17,7 +17,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from database import init_database
 from enhanced_forest_integration import init_enhanced_forest_integration
-from bot_with_enhanced_forests import ForestWolvesBotWithEnhancedForests
+from bot import ForestWolvesBot
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -26,9 +26,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-async def deploy_to_railway():
-    """Развертывание на Railway"""
-    print("🚀 Развертывание бота с расширенной системой лесов на Railway")
+async def deploy_main_bot_with_forests():
+    """Развертывание основного бота с интегрированной системой лесов"""
+    print("🚀 Развертывание основного бота с системой лесов на Railway")
     print("=" * 70)
     
     try:
@@ -64,25 +64,18 @@ async def deploy_to_railway():
         except Exception as e:
             logger.warning(f"⚠️ Ошибка при применении миграций: {e}, продолжаем...")
         
-        # Создаем и инициализируем бота
-        logger.info("🤖 Создание бота с расширенной системой лесов...")
-        bot = ForestWolvesBotWithEnhancedForests()
+        # Создаем и запускаем основной бот
+        logger.info("🤖 Создание основного бота с системой лесов...")
+        bot = ForestWolvesBot()
         
-        # Инициализируем бота
-        if not await bot.initialize():
-            logger.error("❌ Ошибка инициализации бота")
-            return False
-        
-        logger.info("✅ Бот инициализирован успешно")
+        logger.info("✅ Основной бот инициализирован")
+        logger.info("🌲 Система лесов интегрирована в основной бот")
         
         # Запускаем бота
-        logger.info("🚀 Запуск бота...")
-        if not await bot.start_bot():
-            logger.error("❌ Ошибка запуска бота")
-            return False
+        logger.info("🚀 Запуск основного бота...")
+        bot.run()
         
-        logger.info("🎉 Бот успешно запущен на Railway!")
-        logger.info("🌲 Расширенная система лесов активна")
+        logger.info("🎉 Основной бот с системой лесов успешно запущен на Railway!")
         
         return True
         
@@ -94,11 +87,8 @@ async def deploy_to_railway():
 async def main():
     """Главная функция"""
     try:
-        success = await deploy_to_railway()
-        if success:
-            # Держим бота запущенным
-            await asyncio.Event().wait()
-        else:
+        success = await deploy_main_bot_with_forests()
+        if not success:
             logger.error("❌ Развертывание не удалось")
             sys.exit(1)
     except KeyboardInterrupt:

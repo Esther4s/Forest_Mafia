@@ -97,14 +97,33 @@ class ForestWolvesBotWithEnhancedForests:
     async def _set_bot_commands(self):
         """Устанавливает команды бота"""
         commands = [
+            # Основные команды
             BotCommand("start", "Запустить бота"),
             BotCommand("help", "Помощь и команды"),
-            BotCommand("help_forests", "Справка по лесам"),
             BotCommand("rules", "Правила игры"),
+            
+            # Профили и статистика
             BotCommand("profile", "Мой профиль"),
+            BotCommand("profile_compact", "Компактный профиль"),
+            BotCommand("user_forest_stats", "Лесная статистика"),
+            
+            # Леса - создание и управление
             BotCommand("create_forest", "Создать лес"),
-            BotCommand("forests", "Список лесов"),
+            BotCommand("forests", "Список всех лесов"),
+            BotCommand("my_forests_profile", "Мои леса"),
+            
+            # Профили лесов
+            BotCommand("forest_profile", "Профиль леса"),
+            BotCommand("forest_stats", "Статистика леса"),
+            BotCommand("forest_analytics", "Аналитика леса"),
+            
+            # Рейтинги и сравнения
             BotCommand("top_forests", "Топ лесов"),
+            BotCommand("forest_comparison", "Сравнение лесов"),
+            BotCommand("forest_ranking", "Рейтинг участников"),
+            
+            # Справка
+            BotCommand("help_forests", "Справка по лесам"),
         ]
         
         await self.application.bot.set_my_commands(commands)

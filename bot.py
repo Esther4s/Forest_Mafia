@@ -5541,6 +5541,15 @@ class ForestWolvesBot:
             BotCommand("end", "🏁 Завершить игру (краткая)"),
             BotCommand("leave", "👋 Покинуть игру"),
             
+            # 🌲 Система лесов
+            BotCommand("create_forest", "🌲 Создать лес"),
+            BotCommand("forests", "🌲 Список лесов"),
+            BotCommand("my_forests_profile", "🌲 Мои леса"),
+            BotCommand("forest_profile", "🌲 Профиль леса"),
+            BotCommand("forest_analytics", "📊 Аналитика леса"),
+            BotCommand("top_forests", "🏆 Топ лесов"),
+            BotCommand("help_forests", "🆘 Справка по лесам"),
+            
             # ⚙️ Административные команды
             BotCommand("settings", "⚙️ Настройки игры"),
             BotCommand("force_end", "⛔ Принудительное завершение"),
