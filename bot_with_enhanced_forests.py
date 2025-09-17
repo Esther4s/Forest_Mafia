@@ -77,8 +77,8 @@ class ForestWolvesBotWithEnhancedForests:
     async def _add_command_handlers(self):
         """Добавляет обработчики команд"""
         # Создаем экземпляр основного бота для получения всех обработчиков
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
+        from bot import ForestWolvesBot
+        main_bot = ForestWolvesBot()
         
         # Добавляем ВСЕ обработчики команд из основного бота
         logger.info("🎮 Добавляем все игровые команды из основного бота...")
@@ -175,8 +175,8 @@ class ForestWolvesBotWithEnhancedForests:
     async def _add_callback_handlers(self):
         """Добавляет обработчики callback-ов"""
         # Создаем экземпляр основного бота для получения всех callback-ов
-        from bot import ForestMafiaBot
-        main_bot = ForestMafiaBot()
+        from bot import ForestWolvesBot
+        main_bot = ForestWolvesBot()
         
         # Добавляем ВСЕ callback-ы из основного бота
         logger.info("🎮 Добавляем все callback-ы из основного бота...")
