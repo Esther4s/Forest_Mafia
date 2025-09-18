@@ -3782,6 +3782,8 @@ class ForestWolvesBot:
             logger.warning(f"⚠️ handle_welcome_buttons: Нет прав у пользователя {user_id}: {error_msg}")
             await query.answer(error_msg, show_alert=True)
             return
+        
+        logger.info(f"✅ handle_welcome_buttons: Пользователь {user_id} имеет права, обрабатываем callback: '{query.data}'")
 
         if query.data == "welcome_start_game":
             # welcome_start_game - присоединение к игре (создание новой если нужно)
@@ -4236,7 +4238,7 @@ class ForestWolvesBot:
         elif query.data == "show_shop":
             await self.show_shop_menu(query, context)
         elif query.data == "shop_menu":
-            logger.info(f"🛍️ handle_welcome_buttons: Обработка shop_menu для пользователя {user_id}")
+            logger.info(f"🛍️ handle_welcome_buttons: Условие shop_menu сработало для пользователя {user_id}")
             logger.info(f"🛍️ handle_welcome_buttons: Вызываем show_shop_menu")
             await self.show_shop_menu(query, context)
             logger.info(f"🛍️ handle_welcome_buttons: show_shop_menu завершен")
@@ -4255,7 +4257,7 @@ class ForestWolvesBot:
         elif query.data == "show_inventory":
             await self.show_inventory(query, context)
         elif query.data == "inventory_menu":
-            logger.info(f"🧺 handle_welcome_buttons: Обработка inventory_menu для пользователя {user_id}")
+            logger.info(f"🧺 handle_welcome_buttons: Условие inventory_menu сработало для пользователя {user_id}")
             logger.info(f"🧺 handle_welcome_buttons: Вызываем show_inventory")
             await self.show_inventory(query, context)
             logger.info(f"🧺 handle_welcome_buttons: show_inventory завершен")
@@ -4300,6 +4302,10 @@ class ForestWolvesBot:
         elif query.data.startswith("farewell_back_"):
             user_id = int(query.data.split("_")[2])
             await self.handle_farewell_back(query, context, user_id)
+        else:
+            logger.warning(f"⚠️ handle_welcome_buttons: Неизвестный callback '{query.data}' от пользователя {user_id}")
+        
+        logger.info(f"🏁 handle_welcome_buttons: Метод завершен для пользователя {user_id}, callback: '{query.data}'")
 
     async def show_timer_settings(self, query, context):
         chat_id = query.message.chat.id
