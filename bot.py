@@ -5714,6 +5714,13 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^welcome_"))
         application.add_handler(CallbackQueryHandler(self.handle_day_actions, pattern=r"^day_"))
         
+        # Обработчики для кнопок стартового меню
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^shop_menu$"))
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^inventory_menu$"))
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^show_shop$"))
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^game_mode_"))
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^casino_menu$"))
+        
         # Новые callback обработчики
         application.add_handler(CallbackQueryHandler(self.handle_join_game_callback, pattern=r"^join_game$"))
         application.add_handler(CallbackQueryHandler(self.handle_start_game_callback, pattern=r"^start_game$"))
