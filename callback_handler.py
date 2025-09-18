@@ -82,12 +82,17 @@ class CallbackHandler:
         """
         query = update.callback_query
         if not query:
+            self.logger.warning("⚠️ handle_callback: query is None")
             return
         
         try:
             # Получаем данные callback'а
             callback_data = query.data
+            user_id = query.from_user.id if query.from_user else "unknown"
+            self.logger.info(f"🔍 handle_callback: Получен callback от пользователя {user_id}, data: '{callback_data}'")
+            
             if not callback_data:
+                self.logger.warning(f"⚠️ handle_callback: callback_data пустой для пользователя {user_id}")
                 await error_handler.show_alert(query, "invalid_input", "❌ Неверные данные callback'а")
                 return
             
@@ -99,21 +104,29 @@ class CallbackHandler:
             
             # Получаем основной обработчик
             main_handler = parts[0]
+            self.logger.info(f"🔍 handle_callback: main_handler = '{main_handler}', parts = {parts}")
             
             # Специальная обработка для wolf_kill, fox_steal, beaver_help, mole_check
             if len(parts) >= 2:
                 action_type = f"{parts[0]}_{parts[1]}"
                 if action_type in ["wolf_kill", "fox_steal", "beaver_help", "mole_check"]:
+                    self.logger.info(f"🔍 handle_callback: Специальная обработка для {action_type}")
                     handler_func = self.callback_handlers.get(parts[0])
                     if handler_func:
+                        self.logger.info(f"✅ handle_callback: Найден специальный обработчик для {parts[0]}")
                         await handler_func(query, context, parts)
                         return
+                    else:
+                        self.logger.warning(f"⚠️ handle_callback: Специальный обработчик для {parts[0]} не найден")
             
             handler_func = self.callback_handlers.get(main_handler)
+            self.logger.info(f"🔍 handle_callback: Поиск обработчика для '{main_handler}': {'найден' if handler_func else 'не найден'}")
             
             if handler_func:
+                self.logger.info(f"✅ handle_callback: Выполняем обработчик для '{main_handler}'")
                 await handler_func(query, context, parts)
             else:
+                self.logger.warning(f"⚠️ handle_callback: Обработчик для '{main_handler}' не найден, доступные: {list(self.callback_handlers.keys())}")
                 await self._handle_unknown_callback(query, context, callback_data)
                 
         except Exception as e:
@@ -1042,7 +1055,7 @@ class CallbackHandler:
         """Обрабатывает открытие инвентаря (корзинки)"""
         try:
             user_id = query.from_user.id
-            self.logger.info(f"🧺 Обработка inventory_menu для пользователя {user_id}")
+            self.logger.info(f"🧺 _handle_inventory_menu: Начало обработки для пользователя {user_id}, parts: {parts}")
             
             # Получаем экземпляр бота
             from bot import ForestWolvesBot
@@ -1080,7 +1093,7 @@ class CallbackHandler:
         """Обрабатывает открытие магазина"""
         try:
             user_id = query.from_user.id
-            self.logger.info(f"🛍️ Обработка shop_menu для пользователя {user_id}")
+            self.logger.info(f"🛍️ _handle_shop_menu: Начало обработки для пользователя {user_id}, parts: {parts}")
             
             # Получаем экземпляр бота
             from bot import ForestWolvesBot

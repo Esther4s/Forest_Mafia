@@ -3766,8 +3766,11 @@ class ForestWolvesBot:
 
     async def handle_welcome_buttons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not update or not update.callback_query:
+            logger.warning("⚠️ handle_welcome_buttons: update или callback_query is None")
             return
         query = update.callback_query
+        user_id = query.from_user.id if query.from_user else "unknown"
+        logger.info(f"🔍 handle_welcome_buttons: Получен callback от пользователя {user_id}, data: '{query.data}'")
         await query.answer()
 
         # Проверяем права пользователя
@@ -3776,6 +3779,7 @@ class ForestWolvesBot:
             update, context, "member"
         )
         if not has_permission:
+            logger.warning(f"⚠️ handle_welcome_buttons: Нет прав у пользователя {user_id}: {error_msg}")
             await query.answer(error_msg, show_alert=True)
             return
 
@@ -4232,6 +4236,7 @@ class ForestWolvesBot:
         elif query.data == "show_shop":
             await self.show_shop_menu(query, context)
         elif query.data == "shop_menu":
+            logger.info(f"🛍️ handle_welcome_buttons: Обработка shop_menu для пользователя {user_id}")
             await self.show_shop_menu(query, context)
         elif query.data == "show_stats":
             await self.show_stats_menu(query, context)
@@ -4248,6 +4253,7 @@ class ForestWolvesBot:
         elif query.data == "show_inventory":
             await self.show_inventory(query, context)
         elif query.data == "inventory_menu":
+            logger.info(f"🧺 handle_welcome_buttons: Обработка inventory_menu для пользователя {user_id}")
             await self.show_inventory(query, context)
         elif query.data == "show_chat_stats":
             await self.show_chat_stats(query, context)
@@ -6299,6 +6305,7 @@ class ForestWolvesBot:
             await query.answer()
             user_id = query.from_user.id
             username = query.from_user.username or query.from_user.first_name or "Unknown"
+            logger.info(f"🛍️ show_shop_menu: Начало показа магазина для пользователя {user_id} ({username})")
             
             # Получаем баланс пользователя
             from database_balance_manager import balance_manager
@@ -7408,6 +7415,7 @@ class ForestWolvesBot:
             await query.answer()
             user_id = query.from_user.id
             username = query.from_user.username or query.from_user.first_name or "Unknown"
+            logger.info(f"🧺 show_inventory: Начало показа инвентаря для пользователя {user_id} ({username})")
             
             # Получаем подробную информацию об инвентаре
             from database_psycopg2 import get_user_inventory_detailed
