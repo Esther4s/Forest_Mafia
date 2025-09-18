@@ -177,6 +177,13 @@ class DatabaseConnection:
 # Глобальный экземпляр подключения
 db_connection: Optional[DatabaseConnection] = None
 
+def safe_get_connection():
+    """Безопасно получает соединение с базой данных"""
+    if not db_connection:
+        logger.error("❌ База данных не инициализирована")
+        return None
+    return db_connection.get_connection()
+
 def init_db(database_url: Optional[str] = None) -> DatabaseConnection:
     """
     Инициализирует подключение к базе данных
@@ -353,13 +360,15 @@ def close_db():
 
 # Удобные функции для работы с новыми таблицами
 
-def create_user(user_id: int, username: str = None) -> int:
+def create_user(user_id: int, username: str = None, first_name: str = None, last_name: str = None) -> int:
     """
     Создает нового пользователя
     
     Args:
         user_id: Telegram user ID
         username: Имя пользователя
+        first_name: Имя
+        last_name: Фамилия
     
     Returns:
         int: ID созданного пользователя
@@ -369,13 +378,15 @@ def create_user(user_id: int, username: str = None) -> int:
         
         # Используем execute_query вместо fetch_one для INSERT
         query = """
-            INSERT INTO users (user_id, username, balance) 
-            VALUES (%s, %s, 100) 
+            INSERT INTO users (user_id, username, first_name, last_name, balance) 
+            VALUES (%s, %s, %s, %s, 100) 
             ON CONFLICT (user_id) DO UPDATE SET 
                 username = EXCLUDED.username,
+                first_name = EXCLUDED.first_name,
+                last_name = EXCLUDED.last_name,
                 updated_at = CURRENT_TIMESTAMP
         """
-        affected = execute_query(query, (user_id, username))
+        affected = execute_query(query, (user_id, username, first_name, last_name))
         
         if affected > 0:
             logger.info(f"✅ create_user: пользователь {user_id} создан/обновлен, затронуто строк: {affected}")
@@ -696,18 +707,26 @@ def get_chat_settings(chat_id: int) -> Dict[str, Any]:
         logger.error(f"❌ Ошибка создания настроек чата {chat_id}: {e}")
         return default_settings
 
-def update_chat_settings(chat_id: int, **kwargs) -> bool:
+def update_chat_settings(chat_id: int, settings: dict = None, **kwargs) -> bool:
     """
     Обновляет настройки чата. Обновляет только переданные поля.
     
     Args:
         chat_id: ID чата в Telegram
+        settings: Словарь с настройками для обновления
         **kwargs: Поля для обновления
     
     Returns:
         bool: True если обновление успешно
     """
-    if not kwargs:
+    # Объединяем settings и kwargs
+    update_fields = {}
+    if settings:
+        update_fields.update(settings)
+    if kwargs:
+        update_fields.update(kwargs)
+    
+    if not update_fields:
         logger.warning(f"⚠️ Нет полей для обновления настроек чата {chat_id}")
         return False
     
@@ -720,7 +739,7 @@ def update_chat_settings(chat_id: int, **kwargs) -> bool:
     }
     
     # Фильтруем только допустимые поля
-    valid_fields = {k: v for k, v in kwargs.items() if k in allowed_fields}
+    valid_fields = {k: v for k, v in update_fields.items() if k in allowed_fields}
     
     if not valid_fields:
         logger.error(f"❌ Нет допустимых полей для обновления настроек чата {chat_id}")
@@ -1411,7 +1430,7 @@ def create_tables():
             """
             inventory_exists = fetch_query(inventory_check_query)
             
-            if not inventory_exists or not inventory_exists[0]['exists']:
+            if not inventory_exists or not inventory_exists[0].get('exists', False):
                 logger.info("🔧 Создаем таблицу inventory...")
                 create_inventory_sql = """
                     CREATE TABLE IF NOT EXISTS inventory (
@@ -1444,6 +1463,8 @@ def create_tables():
             id SERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL UNIQUE,
             username VARCHAR(255),
+            first_name VARCHAR(255),
+            last_name VARCHAR(255),
             balance INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -1686,6 +1707,26 @@ def create_tables():
         logger.info("🔧 Создаем таблицы...")
         execute_query(tables_sql)
         logger.info("✅ Все таблицы созданы успешно")
+        
+        # Добавляем миграции для существующих таблиц
+        logger.info("🔧 Выполняем миграции...")
+        
+        # Миграция для добавления first_name и last_name в users
+        try:
+            execute_query("ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);")
+            execute_query("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);")
+            logger.info("✅ Миграция users: добавлены first_name и last_name")
+        except Exception as e:
+            logger.warning(f"⚠️ Миграция users: {e}")
+        
+        # Миграция для добавления loser_rewards_enabled в chat_settings
+        try:
+            execute_query("ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS loser_rewards_enabled BOOLEAN DEFAULT false;")
+            logger.info("✅ Миграция chat_settings: добавлен loser_rewards_enabled")
+        except Exception as e:
+            logger.warning(f"⚠️ Миграция chat_settings: {e}")
+        
+        logger.info("✅ Миграции выполнены")
         return True
         
     except Exception as e:

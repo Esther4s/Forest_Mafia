@@ -110,11 +110,11 @@ class DatabaseTestSuite:
             missing_tables = []
             
             for table in required_tables:
-                result = execute_query(
+                result = fetch_query(
                     "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = %s)",
                     (table,)
                 )
-                if not result or not result[0]:
+                if not result or not result[0].get('exists', False):
                     missing_tables.append(table)
             
             if missing_tables:
@@ -178,7 +178,7 @@ class DatabaseTestSuite:
             test_game_id = "test_game_123"
             
             # Создаем игру
-            success = save_game_to_db(test_game_id, test_chat_id, "registration", 0)
+            success = save_game_to_db(test_game_id, test_chat_id, None, "waiting", "registration", 0)
             if not success:
                 self.log_test("Game Operations", False, "Не удалось создать игру")
                 return False
@@ -214,11 +214,11 @@ class DatabaseTestSuite:
             test_chat_id = 666666
             
             # Создаем игру
-            save_game_to_db(test_game_id, test_chat_id, "active", 1)
+            save_game_to_db(test_game_id, test_chat_id, None, "active", "night", 1)
             self.test_data['games'].append(test_game_id)
             
             # Создаем игрока
-            success = save_player_to_db(test_game_id, test_user_id, "test_player", "Test", "Player", "wolf", "predators")
+            success = save_player_to_db(f"player_{test_user_id}", test_game_id, test_user_id, "test_player", "Test", "Player", "wolf", "predators")
             if not success:
                 self.log_test("Player Operations", False, "Не удалось создать игрока")
                 return False
@@ -232,7 +232,7 @@ class DatabaseTestSuite:
                 return False
             
             # Сохраняем голос
-            success = save_vote(test_game_id, test_user_id, 555555)
+            success = save_vote(test_game_id, f"player_{test_user_id}", "target_player_id", "lynch", 1)
             if not success:
                 self.log_test("Player Operations", False, "Не удалось сохранить голос")
                 return False
@@ -387,8 +387,11 @@ class DatabaseTestSuite:
                 return False
             
             # Тестируем основные методы адаптера
-            if not hasattr(adapter, 'get_user') or not hasattr(adapter, 'save_user'):
-                self.log_test("Database Adapter", False, "Адаптер не имеет необходимых методов")
+            required_methods = ['create_game', 'add_player', 'get_players', 'get_player_stats']
+            missing_methods = [method for method in required_methods if not hasattr(adapter, method)]
+            
+            if missing_methods:
+                self.log_test("Database Adapter", False, f"Адаптер не имеет методов: {', '.join(missing_methods)}")
                 return False
             
             self.log_test("Database Adapter", True, "Адаптер базы данных работает")
