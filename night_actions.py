@@ -345,15 +345,19 @@ class NightActions:
                     check_result = Mole.check_player(target, self.game.current_round)
                     results.append(check_result)
                 
-                # Сохраняем информацию о проверке крота для отправки ЛС
-                self.game.last_mole_check = {
-                    'mole_id': mole_id,
-                    'mole_username': mole.username,
-                    'target_id': target_id,
-                    'target_username': target.username,
-                    'target_role': target.role,
-                    'check_result': check_result
-                }
+                # Сохраняем информацию о проверке крота для отправки ЛС только если крот жив
+                if mole.is_alive:
+                    self.game.last_mole_check = {
+                        'mole_id': mole_id,
+                        'mole_username': mole.username,
+                        'target_id': target_id,
+                        'target_username': target.username,
+                        'target_role': target.role,
+                        'check_result': check_result
+                    }
+                    logger.info(f"✅ Сохранена информация о проверке крота {mole_id} (жив)")
+                else:
+                    logger.warning(f"⚠️ Крот {mole_id} мертв, не сохраняем информацию о проверке")
         
         return results
     

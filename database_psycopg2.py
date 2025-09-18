@@ -1726,6 +1726,22 @@ def create_tables():
         except Exception as e:
             logger.warning(f"⚠️ Миграция chat_settings: {e}")
         
+        # Миграция для добавления dead_rewards_enabled в chat_settings
+        try:
+            execute_query("ALTER TABLE chat_settings ADD COLUMN IF NOT EXISTS dead_rewards_enabled BOOLEAN DEFAULT false;")
+            logger.info("✅ Миграция chat_settings: добавлен dead_rewards_enabled")
+        except Exception as e:
+            logger.warning(f"⚠️ Миграция chat_settings: {e}")
+        
+        # Миграция для добавления полей в forest_members
+        try:
+            execute_query("ALTER TABLE forest_members ADD COLUMN IF NOT EXISTS username VARCHAR(100);")
+            execute_query("ALTER TABLE forest_members ADD COLUMN IF NOT EXISTS first_name VARCHAR(100);")
+            execute_query("ALTER TABLE forest_members ADD COLUMN IF NOT EXISTS is_opt_in BOOLEAN DEFAULT true;")
+            logger.info("✅ Миграция forest_members: добавлены username, first_name, is_opt_in")
+        except Exception as e:
+            logger.warning(f"⚠️ Миграция forest_members: {e}")
+        
         logger.info("✅ Миграции выполнены")
         return True
         

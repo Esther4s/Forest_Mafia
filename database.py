@@ -159,8 +159,11 @@ class ForestMember(Base):
     
     forest_id = Column(Integer, ForeignKey('forests.id'), primary_key=True)
     user_id = Column(Integer, nullable=False, primary_key=True)
+    username = Column(String(100), nullable=True)
+    first_name = Column(String(100), nullable=True)
     joined_at = Column(DateTime, default=datetime.utcnow)
     last_called = Column(DateTime, nullable=True)
+    is_opt_in = Column(Boolean, default=True)  # Получает ли уведомления
     
     # Связи
     forest = relationship("Forest", back_populates="members")

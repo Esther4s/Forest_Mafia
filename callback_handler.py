@@ -713,23 +713,88 @@ class CallbackHandler:
                     else:
                         await query.answer("❌ Не удалось установить цель!", show_alert=True)
                 else:
-                    self.logger.error(f"❌ Ночные действия недоступны! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
-                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    # Попробуем создать night_actions если их нет
+                    if bot_instance and game.chat_id not in bot_instance.night_actions:
+                        self.logger.warning(f"⚠️ night_actions отсутствуют для чата {game.chat_id}, создаем...")
+                        try:
+                            from night_actions import NightActions
+                            from night_interface import NightInterface
+                            
+                            bot_instance.night_actions[game.chat_id] = NightActions(game)
+                            bot_instance.night_interfaces[game.chat_id] = NightInterface(game, bot_instance.night_actions[game.chat_id], bot_instance.get_display_name)
+                            
+                            self.logger.info(f"✅ Созданы night_actions для чата {game.chat_id}")
+                            
+                            # Теперь пробуем установить цель
+                            night_actions = bot_instance.night_actions[game.chat_id]
+                            success = night_actions.set_wolf_target(user_id, target_id)
+                            
+                            if success:
+                                target = game.players[target_id]
+                                display_name = self.get_display_name(target.user_id, target.username, target.first_name)
+                                await query.edit_message_text(f"🐺 Вы выбрали цель: {display_name}")
+                                self.logger.info(f"✅ Волк {user_id} выбрал цель {target_id} в игре {game.chat_id} (после создания night_actions)")
+                            else:
+                                await query.answer("❌ Не удалось установить цель!", show_alert=True)
+                                self.logger.warning(f"⚠️ Не удалось установить цель для волка {user_id} (после создания night_actions)")
+                        except Exception as e:
+                            self.logger.error(f"❌ Ошибка создания night_actions: {e}")
+                            await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    else:
+                        self.logger.error(f"❌ Ночные действия недоступны! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
+                        await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
             elif len(parts) >= 2 and parts[1] == "skip":
                 # Обрабатываем пропуск хода
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Отладочная информация для пропуска хода волка
+                self.logger.info(f"🔍 Пропуск хода волка для игры {game.chat_id}")
+                self.logger.info(f"🔍 bot_instance: {bot_instance is not None}")
+                if bot_instance:
+                    self.logger.info(f"🔍 night_actions: {list(bot_instance.night_actions.keys())}")
+                    self.logger.info(f"🔍 game.chat_id в night_actions: {game.chat_id in bot_instance.night_actions}")
+                
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.skip_action(user_id)
                     
                     if success:
                         await query.edit_message_text("⏭️ Вы пропустили ход")
+                        self.logger.info(f"✅ Волк {user_id} пропустил ход в игре {game.chat_id}")
                     else:
                         await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                        self.logger.warning(f"⚠️ Не удалось пропустить ход для волка {user_id}")
                 else:
-                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    # Попробуем создать night_actions если их нет
+                    if bot_instance and game.chat_id not in bot_instance.night_actions:
+                        self.logger.warning(f"⚠️ night_actions отсутствуют для чата {game.chat_id}, создаем...")
+                        try:
+                            from night_actions import NightActions
+                            from night_interface import NightInterface
+                            
+                            bot_instance.night_actions[game.chat_id] = NightActions(game)
+                            bot_instance.night_interfaces[game.chat_id] = NightInterface(game, bot_instance.night_actions[game.chat_id], bot_instance.get_display_name)
+                            
+                            self.logger.info(f"✅ Созданы night_actions для чата {game.chat_id}")
+                            
+                            # Теперь пробуем пропустить ход
+                            night_actions = bot_instance.night_actions[game.chat_id]
+                            success = night_actions.skip_action(user_id)
+                            
+                            if success:
+                                await query.edit_message_text("⏭️ Вы пропустили ход")
+                                self.logger.info(f"✅ Волк {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
+                            else:
+                                await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                                self.logger.warning(f"⚠️ Не удалось пропустить ход для волка {user_id} (после создания night_actions)")
+                        except Exception as e:
+                            self.logger.error(f"❌ Ошибка создания night_actions: {e}")
+                            await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    else:
+                        self.logger.error(f"❌ Ночные действия недоступны для пропуска! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
+                        await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия волка: {e}")

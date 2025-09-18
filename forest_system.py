@@ -103,7 +103,7 @@ class ForestManager:
             
             # Создаем конфигурацию
             config = ForestConfig(
-                forest_id=forest_id,
+                forest_id=forest.id,
                 name=name,
                 creator_id=creator_id,
                 description=description,
@@ -113,7 +113,7 @@ class ForestManager:
                 **kwargs
             )
             
-            logger.info(f"Создан лес '{name}' (ID: {forest_id}) пользователем {creator_id}")
+            logger.info(f"Создан лес '{name}' (ID: {forest.id}) пользователем {creator_id}")
             return config
             
         except Exception as e:

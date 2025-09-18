@@ -1406,11 +1406,15 @@ class ForestWolvesBot:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает команду /start с различными параметрами"""
         if not update or not update.message:
+            logger.warning("⚠️ start_command: update или message отсутствует")
             return
+        
+        logger.info(f"🔍 start_command: Обработка команды /start от пользователя {update.effective_user.id} в чате {update.effective_chat.id}")
         
         # Проверяем права пользователя
         has_permission, error_msg = await self.check_user_permissions(update, context, "member")
         if not has_permission:
+            logger.warning(f"⚠️ start_command: Нет прав у пользователя {update.effective_user.id}: {error_msg}")
             await self.send_permission_error(update, context, error_msg)
             return
         
@@ -1431,22 +1435,29 @@ class ForestWolvesBot:
         # Проверяем параметры команды
         if context.args and context.args[0] == "role":
             # Показываем роль игрока
+            logger.info(f"🔍 start_command: Показываем роль игрока для пользователя {user_id}")
             await self.show_role_in_private(update, context)
         else:
             # Начинаем регистрацию в игру
+            logger.info(f"🔍 start_command: Начинаем регистрацию для пользователя {user_id}")
             await self.start_registration(update, context)
 
     async def start_registration(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Начинает регистрацию игроков в игру"""
-        # Проверяем права бота в чате
-        if not await self.check_bot_permissions_decorator(update, context):
-            return
+        try:
+            logger.info(f"🔍 start_registration: Начало регистрации для чата {update.effective_chat.id}")
+            
+            # Проверяем права бота в чате
+            if not await self.check_bot_permissions_decorator(update, context):
+                logger.warning(f"⚠️ start_registration: Нет прав бота в чате {update.effective_chat.id}")
+                return
             
         chat_id = update.effective_chat.id
         user_id = update.effective_user.id
 
         # Для личных сообщений отправляем информацию о том, как начать игру
         if chat_id == user_id:
+            logger.info(f"🔍 start_registration: Личное сообщение от пользователя {user_id}")
             # Создаем клавиатуру для личных сообщений
             keyboard = [
                 [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
@@ -1477,9 +1488,11 @@ class ForestWolvesBot:
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
+            logger.info(f"✅ start_registration: Сообщение отправлено в личном чате пользователю {user_id}")
             return
 
         # Создаем игру, если её нет
+        logger.info(f"🔍 start_registration: Групповой чат {chat_id}, создаем/получаем игру")
         if chat_id not in self.games:
             self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
             self.night_actions[chat_id] = NightActions(self.games[chat_id])
@@ -1531,11 +1544,22 @@ class ForestWolvesBot:
             "🚀 <b>Нажмите 'Присоединиться к игре' для участия!</b>"
         )
 
+        logger.info(f"🔍 start_registration: Отправляем сообщение регистрации в чат {chat_id}")
         await update.message.reply_text(
             registration_text,
             reply_markup=reply_markup,
             parse_mode='HTML'
         )
+        logger.info(f"✅ start_registration: Сообщение регистрации отправлено в чат {chat_id}")
+        
+        except Exception as e:
+            logger.error(f"❌ start_registration: Ошибка при регистрации в чате {update.effective_chat.id}: {e}")
+            import traceback
+            logger.error(f"❌ start_registration: Traceback: {traceback.format_exc()}")
+            try:
+                await update.message.reply_text("❌ Произошла ошибка при регистрации. Попробуйте позже.")
+            except Exception as reply_error:
+                logger.error(f"❌ start_registration: Ошибка при отправке сообщения об ошибке: {reply_error}")
 
     async def is_user_admin(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
         """Проверяет, является ли пользователь администратором чата"""
@@ -3129,9 +3153,14 @@ class ForestWolvesBot:
             await self._pin_stage_message(context, game, "voting", voting_message.message_id)
 
         # Отправляем меню голосования каждому живому игроку в личку
+        logger.info(f"🔍 Отправляем меню голосования {len(alive_players)} игрокам")
         for voter in alive_players:
+            logger.info(f"🔍 Отправляем меню голосования игроку {voter.user_id} (роль: {voter.role}, жив: {voter.is_alive})")
+            
             # Исключаем самого голосующего из списка целей
             voting_targets = [p for p in alive_players if p.user_id != voter.user_id]
+            logger.info(f"🔍 Доступные цели для голосования: {[p.user_id for p in voting_targets]}")
+            
             keyboard = [[InlineKeyboardButton(f"🗳️ {self.get_display_name(p.user_id, p.username, None)}", callback_data=f"vote_{p.user_id}")] for p in voting_targets]
             # Добавляем кнопку "Пропустить голосование"
             keyboard.append([InlineKeyboardButton("⏭️ Пропустить голосование", callback_data="vote_skip")])
@@ -3151,8 +3180,9 @@ class ForestWolvesBot:
                     ),
                     reply_markup=reply_markup
                 )
+                logger.info(f"✅ Меню голосования отправлено игроку {voter.user_id} (роль: {voter.role})")
             except Exception as e:
-                logger.error(f"Не удалось отправить меню голосования игроку {voter.user_id}: {e}")
+                logger.error(f"❌ Не удалось отправить меню голосования игроку {voter.user_id} (роль: {voter.role}): {e}")
 
         # Сохраняем информацию о количестве игроков для проверки досрочного завершения
         game.total_voters = len(alive_players)
@@ -3538,37 +3568,50 @@ class ForestWolvesBot:
         query = update.callback_query
         await query.answer()
 
+        user_id = query.from_user.id
+        logger.info(f"🔍 Обработка голосования от пользователя {user_id}, callback_data: {query.data}")
+
         # Проверяем права пользователя
         update = Update(update_id=0, callback_query=query)
         has_permission, error_msg = await self.check_user_permissions(
             update, context, "member"
         )
         if not has_permission:
+            logger.warning(f"⚠️ Нет прав у пользователя {user_id}: {error_msg}")
             await query.answer(error_msg, show_alert=True)
             return
 
-        user_id = query.from_user.id
+        logger.info(f"🔍 Пользователь {user_id} имеет права для голосования")
         
         # Находим игру по игроку
         if user_id not in self.player_games:
+            logger.warning(f"⚠️ Пользователь {user_id} не участвует в игре")
             await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
             return
 
         chat_id = self.player_games[user_id]
+        logger.info(f"🔍 Игра найдена для пользователя {user_id} в чате {chat_id}")
+        
         if chat_id not in self.games:
+            logger.error(f"❌ Игра {chat_id} не найдена в self.games")
             await query.edit_message_text("❌ Игра не найдена!")
             return
 
         game = self.games[chat_id]
+        logger.info(f"🔍 Игра найдена, фаза: {game.phase}")
+        
         if game.phase != GamePhase.VOTING:
+            logger.warning(f"⚠️ Не фаза голосования, текущая фаза: {game.phase}")
             await query.answer("❌ Голосование уже завершено!", show_alert=True)
             return
 
         # Проверяем пропуск голосования
         if query.data == "vote_skip":
+            logger.info(f"🔍 Пользователь {user_id} пропускает голосование")
             # Добавляем голос "пропустить" в игру
             success = game.vote(user_id, None)  # None означает пропуск
             if success:
+                logger.info(f"✅ Пользователь {user_id} успешно пропустил голосование")
                 await query.edit_message_text("⏭️ Вы пропустили голосование!\n\n🕐 Ожидайте результатов голосования...")
                 
                 # Проверяем, все ли проголосовали (включая пропуски)
@@ -3579,19 +3622,23 @@ class ForestWolvesBot:
                             # Все проголосовали - завершаем досрочно
                             asyncio.create_task(self.complete_exile_voting_early(context, game))
             else:
+                logger.error(f"❌ Не удалось зарегистрировать пропуск голосования для пользователя {user_id}")
                 await query.edit_message_text("❌ Не удалось зарегистрировать пропуск голосования!")
             return
         
         target_id = int(query.data.split('_', 1)[1])
+        logger.info(f"🔍 Пользователь {user_id} голосует за игрока {target_id}")
         
         # Дополнительная проверка на голосование за себя
         if target_id == user_id:
+            logger.warning(f"⚠️ Пользователь {user_id} пытается голосовать за себя")
             await query.answer("❌ Вы не можете голосовать за себя!\n\n🔄 Выберите другого игрока для голосования.", show_alert=True)
             return
         
         success = game.vote(user_id, target_id)
         
         if success:
+            logger.info(f"✅ Пользователь {user_id} успешно проголосовал за игрока {target_id}")
             target_player = game.players[target_id]
             # Проверяем, голосовал ли игрок ранее
             already_voted = user_id in game.votes
@@ -4903,6 +4950,18 @@ class ForestWolvesBot:
             target_username = check_info['target_username']
             target_role = check_info['target_role']
             check_result = check_info['check_result']
+            
+            # Проверяем, что крот жив перед отправкой сообщения
+            # Находим игру по mole_id
+            game = None
+            for chat_id, g in self.games.items():
+                if mole_id in g.players and g.players[mole_id].is_alive:
+                    game = g
+                    break
+            
+            if not game or not game.players[mole_id].is_alive:
+                logger.warning(f"⚠️ Крот {mole_id} ({mole_username}) мертв, не отправляем ЛС с результатом проверки")
+                return
             
             # Получаем русское название роли
             from role_translator import get_role_name_russian

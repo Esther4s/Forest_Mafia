@@ -206,11 +206,11 @@ class ForestIntegration:
         if not command.startswith('/join_forest_'):
             return
         
-        forest_id = command.replace('/join_forest_', '')
+        forest_id_str = command.replace('/join_forest_', '')
         
         # Создаем временный контекст с forest_id
         temp_context = context
-        temp_context.args = [forest_id]
+        temp_context.args = [forest_id_str]
         
         await self.command_handlers.handle_join_forest(update, temp_context)
     
@@ -220,9 +220,9 @@ class ForestIntegration:
         if not command.startswith('/leave_forest_'):
             return
         
-        forest_id = command.replace('/leave_forest_', '')
+        forest_id_str = command.replace('/leave_forest_', '')
         temp_context = context
-        temp_context.args = [forest_id]
+        temp_context.args = [forest_id_str]
         
         await self.command_handlers.handle_leave_forest(update, temp_context)
     
@@ -232,9 +232,9 @@ class ForestIntegration:
         if not command.startswith('/summon_forest_'):
             return
         
-        forest_id = command.replace('/summon_forest_', '')
+        forest_id_str = command.replace('/summon_forest_', '')
         temp_context = context
-        temp_context.args = [forest_id]
+        temp_context.args = [forest_id_str]
         
         await self.command_handlers.handle_summon_forest(update, temp_context)
     
@@ -244,9 +244,9 @@ class ForestIntegration:
         if not command.startswith('/list_forest_'):
             return
         
-        forest_id = command.replace('/list_forest_', '')
+        forest_id_str = command.replace('/list_forest_', '')
         temp_context = context
-        temp_context.args = [forest_id]
+        temp_context.args = [forest_id_str]
         
         await self.command_handlers.handle_list_forest(update, temp_context)
     
@@ -256,9 +256,9 @@ class ForestIntegration:
         if not command.startswith('/invite_forest_'):
             return
         
-        forest_id = command.replace('/invite_forest_', '')
+        forest_id_str = command.replace('/invite_forest_', '')
         temp_context = context
-        temp_context.args = context.args  # Передаем аргументы как есть
+        temp_context.args = [forest_id_str] + (context.args or [])  # Добавляем ID леса к аргументам
         
         await self.command_handlers.handle_invite_forest(update, temp_context)
     

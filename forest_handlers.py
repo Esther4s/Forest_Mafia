@@ -314,9 +314,11 @@ class ForestCommandHandlers:
             await update.message.reply_text("❌ Неверная команда")
             return
         
-        forest_id = command.replace('/leave_forest_', '')
+        forest_id_str = command.replace('/leave_forest_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
             success = await self.forest_manager.leave_forest(forest_id, user.id)
             
             if success:
@@ -414,9 +416,11 @@ class ForestCommandHandlers:
             await update.message.reply_text("❌ Неверная команда")
             return
         
-        forest_id = command.replace('/list_forest_', '')
+        forest_id_str = command.replace('/list_forest_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
             # Получаем информацию о лесе
             forest = await self.forest_manager.get_forest_info(forest_id)
             if not forest:
@@ -463,7 +467,14 @@ class ForestCommandHandlers:
             await update.message.reply_text("❌ Неверная команда")
             return
         
-        forest_id = command.replace('/invite_forest_', '')
+        forest_id_str = command.replace('/invite_forest_', '')
+        
+        try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
+        except ValueError:
+            await update.message.reply_text("❌ Неверный ID леса. Используйте числовой ID.")
+            return
         
         # Проверяем аргументы
         if not context.args:
@@ -568,9 +579,11 @@ class ForestCallbackHandlers:
         if not callback_data.startswith('forest_info_'):
             return
         
-        forest_id = callback_data.replace('forest_info_', '')
+        forest_id_str = callback_data.replace('forest_info_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
             # Получаем информацию о лесе
             forest = await self.forest_manager.get_forest_info(forest_id)
             if not forest:
@@ -610,9 +623,11 @@ class ForestCallbackHandlers:
         if not callback_data.startswith('accept_invite_'):
             return
         
-        forest_id = callback_data.replace('accept_invite_', '')
+        forest_id_str = callback_data.replace('accept_invite_', '')
         
         try:
+            # Преобразуем ID в число
+            forest_id = int(forest_id_str)
             # Присоединяемся к лесу
             success = await self.forest_manager.join_forest(
                 forest_id=forest_id,
