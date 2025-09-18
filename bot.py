@@ -6308,7 +6308,7 @@ class ForestWolvesBot:
             shop_items = get_shop_items()
             
             if not shop_items:
-                await query.edit_message_text("🛍️ <b>Магазин пуст</b>\n\nТовары появятся позже!", parse_mode='HTML')
+                await query.message.reply_text("🛍️ <b>Магазин пуст</b>\n\nТовары появятся позже!", parse_mode='HTML')
                 return
             
             # Создаем клавиатуру для магазина
@@ -6340,7 +6340,7 @@ class ForestWolvesBot:
                 shop_text += f"📝 {item['description']}\n"
                 shop_text += f"💰 {int(item['price'])} орешков\n\n"
             
-            await query.edit_message_text(shop_text, reply_markup=reply_markup, parse_mode='HTML')
+            await query.message.reply_text(shop_text, reply_markup=reply_markup, parse_mode='HTML')
         except Exception as e:
             logger.error(f"❌ Ошибка показа магазина: {e}")
 
