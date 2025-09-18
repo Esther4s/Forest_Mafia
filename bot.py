@@ -1452,105 +1452,105 @@ class ForestWolvesBot:
                 logger.warning(f"⚠️ start_registration: Нет прав бота в чате {update.effective_chat.id}")
                 return
             
-        chat_id = update.effective_chat.id
-        user_id = update.effective_user.id
+            chat_id = update.effective_chat.id
+            user_id = update.effective_user.id
 
-        # Для личных сообщений отправляем информацию о том, как начать игру
-        if chat_id == user_id:
-            logger.info(f"🔍 start_registration: Личное сообщение от пользователя {user_id}")
-            # Создаем клавиатуру для личных сообщений
+            # Для личных сообщений отправляем информацию о том, как начать игру
+            if chat_id == user_id:
+                logger.info(f"🔍 start_registration: Личное сообщение от пользователя {user_id}")
+                # Создаем клавиатуру для личных сообщений
+                keyboard = [
+                    [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
+                    [InlineKeyboardButton("🎮 Войти в чат", callback_data="join_chat")],
+                    [InlineKeyboardButton("🌍 Язык / Language", callback_data="language_settings")],
+                    [InlineKeyboardButton("👤 Профиль", callback_data="show_profile_pm")],
+                    [InlineKeyboardButton("🎭 Роли", callback_data="show_roles_pm")],
+                    [InlineKeyboardButton("💡 Советы по игре (Роль)", url=f"https://t.me/{context.bot.username}?start=role")]
+                ]
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                welcome_text = (
+                    "🌲 <b>Привет!</b>\n\n"
+                    "Я бот-ведущий для игры в 🌲 <b>Лес и Волки</b>.\n\n"
+                    "🎭 <b>Ролевая игра в стиле 'Мафия' с лесными зверушками</b>\n\n"
+                    "🐺 <b>Хищники:</b> Волки + Лиса\n"
+                    "🐰 <b>Травоядные:</b> Зайцы + Крот + Бобёр\n\n"
+                    "🌙 <b>Как играть:</b>\n"
+                    "• Ночью хищники охотятся, травоядные защищаются\n"
+                    "• Днем все обсуждают и голосуют за изгнание\n"
+                    "• Цель: уничтожить всех противников\n\n"
+                    "🚀 <b>Выберите действие:</b>"
+                )
+                
+                await update.message.reply_text(
+                    welcome_text,
+                    reply_markup=reply_markup,
+                    parse_mode='HTML'
+                )
+                logger.info(f"✅ start_registration: Сообщение отправлено в личном чате пользователю {user_id}")
+                return
+
+            # Создаем игру, если её нет
+            logger.info(f"🔍 start_registration: Групповой чат {chat_id}, создаем/получаем игру")
+            if chat_id not in self.games:
+                self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
+                self.night_actions[chat_id] = NightActions(self.games[chat_id])
+                self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
+
+            game = self.games[chat_id]
+
+            # Проверяем, что игра в режиме ожидания
+            if game.phase != GamePhase.WAITING:
+                await update.message.reply_text("❌ Игра уже идет! Дождитесь окончания текущей игры.")
+                return
+
+            # Создаем клавиатуру для регистрации
             keyboard = [
-                [InlineKeyboardButton("🌲 Добавить игру в свой чат", url=f"https://t.me/{context.bot.username}?startgroup=true")],
-                [InlineKeyboardButton("🎮 Войти в чат", callback_data="join_chat")],
-                [InlineKeyboardButton("🌍 Язык / Language", callback_data="language_settings")],
-                [InlineKeyboardButton("👤 Профиль", callback_data="show_profile_pm")],
-                [InlineKeyboardButton("🎭 Роли", callback_data="show_roles_pm")],
-                [InlineKeyboardButton("💡 Советы по игре (Роль)", url=f"https://t.me/{context.bot.username}?start=role")]
+                [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
+                [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
+                [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
+                [InlineKeyboardButton("🐰 Заяц-волк", callback_data="game_mode_hare_wolf"), InlineKeyboardButton("🐺 Волк в овечьей шкуре", callback_data="game_mode_wolf_sheep")],
+                [InlineKeyboardButton("🦔 Ежики", callback_data="game_mode_hedgehogs"), InlineKeyboardButton("🎰 Казино", callback_data="casino_menu")]
             ]
             
+            
+            # Добавляем кнопку "Начать игру" если достаточно игроков
+            if game.can_start_game():
+                keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
+            
+            # Добавляем кнопку "Отменить игру" для администраторов и создателей
+            if await self.can_cancel_game(update, context):
+                keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
+            
             reply_markup = InlineKeyboardMarkup(keyboard)
+
+            # Формируем сообщение о регистрации
+            # Получаем настройки чата для правильного отображения минимума игроков
+            chat_settings = get_chat_settings(chat_id)
+            min_players = self.global_settings.get_min_players()
+            current_players = len(game.players)
             
-            welcome_text = (
-                "🌲 <b>Привет!</b>\n\n"
-                "Я бот-ведущий для игры в 🌲 <b>Лес и Волки</b>.\n\n"
+            registration_text = (
+                "🌲 <b>Регистрация в игру 'Лес и Волки'</b> 🌲\n\n"
                 "🎭 <b>Ролевая игра в стиле 'Мафия' с лесными зверушками</b>\n\n"
-                "🐺 <b>Хищники:</b> Волки + Лиса\n"
-                "🐰 <b>Травоядные:</b> Зайцы + Крот + Бобёр\n\n"
-                "🌙 <b>Как играть:</b>\n"
-                "• Ночью хищники охотятся, травоядные защищаются\n"
-                "• Днем все обсуждают и голосуют за изгнание\n"
-                "• Цель: уничтожить всех противников\n\n"
-                "🚀 <b>Выберите действие:</b>"
+                "🐺 <b>Хищники:</b> Волк + Лиса\n"
+                "🐰 <b>Травоядные:</b> Заяц + Крот + Бобёр\n\n"
+                f"👥 <b>Игроков зарегистрировано:</b> {current_players}\n"
+                f"📋 <b>Минимум для начала:</b> {min_players}\n"
+                f"{'⚡ <b>БЫСТРЫЙ РЕЖИМ</b>' if chat_settings.get('test_mode', False) else ''}\n\n"
+                "🎯 <b>Цель:</b> Уничтожить команду противника!\n\n"
+                "🚀 <b>Нажмите 'Присоединиться к игре' для участия!</b>"
             )
-            
+
+            logger.info(f"🔍 start_registration: Отправляем сообщение регистрации в чат {chat_id}")
             await update.message.reply_text(
-                welcome_text,
+                registration_text,
                 reply_markup=reply_markup,
                 parse_mode='HTML'
             )
-            logger.info(f"✅ start_registration: Сообщение отправлено в личном чате пользователю {user_id}")
-            return
-
-        # Создаем игру, если её нет
-        logger.info(f"🔍 start_registration: Групповой чат {chat_id}, создаем/получаем игру")
-        if chat_id not in self.games:
-            self.games[chat_id] = Game(chat_id=chat_id, thread_id=update.effective_message.message_thread_id, is_test_mode=self.global_settings.is_test_mode(), creator_id=update.effective_user.id)
-            self.night_actions[chat_id] = NightActions(self.games[chat_id])
-            self.night_interfaces[chat_id] = NightInterface(self.games[chat_id], self.night_actions[chat_id], self.get_display_name)
-
-        game = self.games[chat_id]
-
-        # Проверяем, что игра в режиме ожидания
-        if game.phase != GamePhase.WAITING:
-            await update.message.reply_text("❌ Игра уже идет! Дождитесь окончания текущей игры.")
-            return
-
-        # Создаем клавиатуру для регистрации
-        keyboard = [
-            [InlineKeyboardButton("✅ Присоединиться к игре", callback_data="welcome_start_game")],
-            [InlineKeyboardButton("📖 Правила игры", callback_data="welcome_rules")],
-            [InlineKeyboardButton("📊 Статус игры", callback_data="welcome_status")],
-            [InlineKeyboardButton("🛍️ Магазин", callback_data="shop_menu"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
-            [InlineKeyboardButton("🐰 Заяц-волк", callback_data="game_mode_hare_wolf"), InlineKeyboardButton("🐺 Волк в овечьей шкуре", callback_data="game_mode_wolf_sheep")],
-            [InlineKeyboardButton("🦔 Ежики", callback_data="game_mode_hedgehogs"), InlineKeyboardButton("🎰 Казино", callback_data="casino_menu")]
-        ]
-        
-        
-        # Добавляем кнопку "Начать игру" если достаточно игроков
-        if game.can_start_game():
-            keyboard.append([InlineKeyboardButton("🚀 Начать игру", callback_data="start_game")])
-        
-        # Добавляем кнопку "Отменить игру" для администраторов и создателей
-        if await self.can_cancel_game(update, context):
-            keyboard.append([InlineKeyboardButton("🛑 Отменить игру", callback_data="cancel_game")])
-        
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        # Формируем сообщение о регистрации
-        # Получаем настройки чата для правильного отображения минимума игроков
-        chat_settings = get_chat_settings(chat_id)
-        min_players = self.global_settings.get_min_players()
-        current_players = len(game.players)
-        
-        registration_text = (
-            "🌲 <b>Регистрация в игру 'Лес и Волки'</b> 🌲\n\n"
-            "🎭 <b>Ролевая игра в стиле 'Мафия' с лесными зверушками</b>\n\n"
-            "🐺 <b>Хищники:</b> Волк + Лиса\n"
-            "🐰 <b>Травоядные:</b> Заяц + Крот + Бобёр\n\n"
-            f"👥 <b>Игроков зарегистрировано:</b> {current_players}\n"
-            f"📋 <b>Минимум для начала:</b> {min_players}\n"
-            f"{'⚡ <b>БЫСТРЫЙ РЕЖИМ</b>' if chat_settings.get('test_mode', False) else ''}\n\n"
-            "🎯 <b>Цель:</b> Уничтожить команду противника!\n\n"
-            "🚀 <b>Нажмите 'Присоединиться к игре' для участия!</b>"
-        )
-
-        logger.info(f"🔍 start_registration: Отправляем сообщение регистрации в чат {chat_id}")
-        await update.message.reply_text(
-            registration_text,
-            reply_markup=reply_markup,
-            parse_mode='HTML'
-        )
-        logger.info(f"✅ start_registration: Сообщение регистрации отправлено в чат {chat_id}")
+            logger.info(f"✅ start_registration: Сообщение регистрации отправлено в чат {chat_id}")
         
         except Exception as e:
             logger.error(f"❌ start_registration: Ошибка при регистрации в чате {update.effective_chat.id}: {e}")
