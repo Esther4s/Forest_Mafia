@@ -45,7 +45,7 @@ def test_imports():
     print("🧪 Тестирование импортов...")
     
     try:
-        from bot import ForestMafiaBot
+        from bot import ForestWolvesBot
         from game_logic import Game, Role, Team, Player
         from night_actions import NightActions
         from night_interface import NightInterface
@@ -86,9 +86,9 @@ def start_bot():
     print("🚀 Запуск бота...")
     
     try:
-        from bot import ForestMafiaBot
+        from bot import ForestWolvesBot
         
-        bot = ForestMafiaBot()
+        bot = ForestWolvesBot()
         print("✅ Бот создан успешно")
         print("🔄 Запуск бота...")
         
