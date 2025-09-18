@@ -4237,7 +4237,9 @@ class ForestWolvesBot:
             await self.show_shop_menu(query, context)
         elif query.data == "shop_menu":
             logger.info(f"🛍️ handle_welcome_buttons: Обработка shop_menu для пользователя {user_id}")
+            logger.info(f"🛍️ handle_welcome_buttons: Вызываем show_shop_menu")
             await self.show_shop_menu(query, context)
+            logger.info(f"🛍️ handle_welcome_buttons: show_shop_menu завершен")
         elif query.data == "show_stats":
             await self.show_stats_menu(query, context)
         elif query.data == "game_mode_hare_wolf":
@@ -4254,7 +4256,9 @@ class ForestWolvesBot:
             await self.show_inventory(query, context)
         elif query.data == "inventory_menu":
             logger.info(f"🧺 handle_welcome_buttons: Обработка inventory_menu для пользователя {user_id}")
+            logger.info(f"🧺 handle_welcome_buttons: Вызываем show_inventory")
             await self.show_inventory(query, context)
+            logger.info(f"🧺 handle_welcome_buttons: show_inventory завершен")
         elif query.data == "show_chat_stats":
             await self.show_chat_stats(query, context)
         elif query.data == "close_profile":
