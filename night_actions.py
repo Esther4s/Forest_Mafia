@@ -136,19 +136,45 @@ class NightActions:
     
     def skip_action(self, player_id: int) -> bool:
         """Пропускает ночное действие для игрока"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        logger.info(f"🔍 skip_action: Попытка пропустить ход для игрока {player_id}")
+        
         player = self.game.players.get(player_id)
-        if not player or not player.is_alive:
+        if not player:
+            logger.error(f"❌ skip_action: Игрок {player_id} не найден в игре")
             return False
+        
+        if not player.is_alive:
+            logger.error(f"❌ skip_action: Игрок {player_id} не жив")
+            return False
+        
+        logger.info(f"✅ skip_action: Игрок {player_id} ({player.role}) найден и жив")
         
         # Добавляем в список пропустивших
         self.skipped_actions.add(player_id)
+        logger.info(f"✅ skip_action: Игрок {player_id} добавлен в skipped_actions")
         
         # Удаляем из всех списков целей (если был)
-        self.wolf_targets.pop(player_id, None)
-        self.fox_targets.pop(player_id, None)
-        self.beaver_targets.pop(player_id, None)
-        self.mole_targets.pop(player_id, None)
+        removed_from = []
+        if player_id in self.wolf_targets:
+            self.wolf_targets.pop(player_id, None)
+            removed_from.append("wolf_targets")
+        if player_id in self.fox_targets:
+            self.fox_targets.pop(player_id, None)
+            removed_from.append("fox_targets")
+        if player_id in self.beaver_targets:
+            self.beaver_targets.pop(player_id, None)
+            removed_from.append("beaver_targets")
+        if player_id in self.mole_targets:
+            self.mole_targets.pop(player_id, None)
+            removed_from.append("mole_targets")
         
+        if removed_from:
+            logger.info(f"✅ skip_action: Игрок {player_id} удален из: {', '.join(removed_from)}")
+        
+        logger.info(f"✅ skip_action: Ход успешно пропущен для игрока {player_id}")
         return True
     
     def process_all_actions(self) -> Dict[str, List[str]]:

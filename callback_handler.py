@@ -665,23 +665,29 @@ class CallbackHandler:
         """Обрабатывает действия волка"""
         try:
             user_id = query.from_user.id
+            self.logger.info(f"🔍 _handle_wolf_action: Получен callback от пользователя {user_id}, parts: {parts}")
             
             # Находим игру пользователя
             game = self._find_user_game(user_id)
             if not game:
+                self.logger.warning(f"⚠️ _handle_wolf_action: Игра не найдена для пользователя {user_id}")
                 await query.answer("❌ Игра не найдена!", show_alert=True)
                 return
             
             # Проверяем, что пользователь волк
             player = game.players.get(user_id)
             if not player or player.role != Role.WOLF:
+                self.logger.warning(f"⚠️ _handle_wolf_action: Пользователь {user_id} не волк (роль: {player.role if player else 'None'})")
                 await query.answer("❌ Вы не волк!", show_alert=True)
                 return
             
             # Проверяем фазу игры
             if game.phase != GamePhase.NIGHT:
+                self.logger.warning(f"⚠️ _handle_wolf_action: Не ночная фаза для пользователя {user_id} (фаза: {game.phase})")
                 await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
                 return
+            
+            self.logger.info(f"✅ _handle_wolf_action: Все проверки пройдены для пользователя {user_id}")
             
             # Обрабатываем действие
             if len(parts) >= 3 and parts[1] == "kill":
@@ -760,15 +766,26 @@ class CallbackHandler:
             
             elif len(parts) >= 2 and parts[1] == "skip":
                 # Обрабатываем пропуск хода
+                self.logger.info(f"🔍 ОБРАБОТКА ПРОПУСКА ХОДА: {parts[0]}_skip для пользователя {user_id}")
+                
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
                 
-                # Отладочная информация для пропуска хода волка
-                self.logger.info(f"🔍 Пропуск хода волка для игры {game.chat_id}")
+                # Отладочная информация для пропуска хода
+                self.logger.info(f"🔍 Пропуск хода {parts[0]} для игры {game.chat_id}")
                 self.logger.info(f"🔍 bot_instance: {bot_instance is not None}")
                 if bot_instance:
                     self.logger.info(f"🔍 night_actions: {list(bot_instance.night_actions.keys())}")
                     self.logger.info(f"🔍 game.chat_id в night_actions: {game.chat_id in bot_instance.night_actions}")
+                
+                # Проверяем состояние игрока
+                player = game.players.get(user_id)
+                if player:
+                    self.logger.info(f"🔍 Игрок найден: {player.role}, жив: {player.is_alive}")
+                else:
+                    self.logger.error(f"❌ Игрок {user_id} не найден в игре {game.chat_id}")
+                    await query.answer("❌ Игрок не найден!", show_alert=True)
+                    return
                 
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
@@ -818,23 +835,29 @@ class CallbackHandler:
         """Обрабатывает действия лисы"""
         try:
             user_id = query.from_user.id
+            self.logger.info(f"🔍 _handle_fox_action: Получен callback от пользователя {user_id}, parts: {parts}")
             
             # Находим игру пользователя
             game = self._find_user_game(user_id)
             if not game:
+                self.logger.warning(f"⚠️ _handle_fox_action: Игра не найдена для пользователя {user_id}")
                 await query.answer("❌ Игра не найдена!", show_alert=True)
                 return
             
             # Проверяем, что пользователь лиса
             player = game.players.get(user_id)
             if not player or player.role != Role.FOX:
+                self.logger.warning(f"⚠️ _handle_fox_action: Пользователь {user_id} не лиса (роль: {player.role if player else 'None'})")
                 await query.answer("❌ Вы не лиса!", show_alert=True)
                 return
             
             # Проверяем фазу игры
             if game.phase != GamePhase.NIGHT:
+                self.logger.warning(f"⚠️ _handle_fox_action: Не ночная фаза для пользователя {user_id} (фаза: {game.phase})")
                 await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
                 return
+            
+            self.logger.info(f"✅ _handle_fox_action: Все проверки пройдены для пользователя {user_id}")
             
             # Обрабатываем действие
             if len(parts) >= 3 and parts[1] == "steal":
@@ -897,23 +920,29 @@ class CallbackHandler:
         """Обрабатывает действия крота"""
         try:
             user_id = query.from_user.id
+            self.logger.info(f"🔍 _handle_mole_action: Получен callback от пользователя {user_id}, parts: {parts}")
             
             # Находим игру пользователя
             game = self._find_user_game(user_id)
             if not game:
+                self.logger.warning(f"⚠️ _handle_mole_action: Игра не найдена для пользователя {user_id}")
                 await query.answer("❌ Игра не найдена!", show_alert=True)
                 return
             
             # Проверяем, что пользователь крот
             player = game.players.get(user_id)
             if not player or player.role != Role.MOLE:
+                self.logger.warning(f"⚠️ _handle_mole_action: Пользователь {user_id} не крот (роль: {player.role if player else 'None'})")
                 await query.answer("❌ Вы не крот!", show_alert=True)
                 return
             
             # Проверяем фазу игры
             if game.phase != GamePhase.NIGHT:
+                self.logger.warning(f"⚠️ _handle_mole_action: Не ночная фаза для пользователя {user_id} (фаза: {game.phase})")
                 await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
                 return
+            
+            self.logger.info(f"✅ _handle_mole_action: Все проверки пройдены для пользователя {user_id}")
             
             # Обрабатываем действие
             if len(parts) >= 3 and parts[1] == "check":
@@ -976,23 +1005,29 @@ class CallbackHandler:
         """Обрабатывает действия бобра"""
         try:
             user_id = query.from_user.id
+            self.logger.info(f"🔍 _handle_beaver_action: Получен callback от пользователя {user_id}, parts: {parts}")
             
             # Находим игру пользователя
             game = self._find_user_game(user_id)
             if not game:
+                self.logger.warning(f"⚠️ _handle_beaver_action: Игра не найдена для пользователя {user_id}")
                 await query.answer("❌ Игра не найдена!", show_alert=True)
                 return
             
             # Проверяем, что пользователь бобр
             player = game.players.get(user_id)
             if not player or player.role != Role.BEAVER:
+                self.logger.warning(f"⚠️ _handle_beaver_action: Пользователь {user_id} не бобр (роль: {player.role if player else 'None'})")
                 await query.answer("❌ Вы не бобр!", show_alert=True)
                 return
             
             # Проверяем фазу игры
             if game.phase != GamePhase.NIGHT:
+                self.logger.warning(f"⚠️ _handle_beaver_action: Не ночная фаза для пользователя {user_id} (фаза: {game.phase})")
                 await query.answer("❌ Сейчас не ночная фаза!", show_alert=True)
                 return
+            
+            self.logger.info(f"✅ _handle_beaver_action: Все проверки пройдены для пользователя {user_id}")
             
             # Обрабатываем действие
             if len(parts) >= 3 and parts[1] == "help":
