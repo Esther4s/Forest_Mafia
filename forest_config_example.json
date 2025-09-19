@@ -1,0 +1,74 @@
+{
+  "forest": {
+    "id": "les_i_volki",
+    "name": "Лес и Волки",
+    "creator": "Мастер",
+    "description": "Еженедельные раунды мафии в тематике леса",
+    "privacy": "public",
+    "max_size": 30,
+    "created_at": "2024-01-15T12:00:00Z"
+  },
+  "commands": {
+    "join_cmd": "/join_forest_les_i_volki",
+    "leave_cmd": "/leave_forest_les_i_volki",
+    "summon_cmd": "/summon_forest_les_i_volki",
+    "invite_cmd": "/invite_forest_les_i_volki",
+    "list_cmd": "/list_forest_les_i_volki"
+  },
+  "messages": {
+    "join_confirmation": {
+      "text": "🌲 Добро пожаловать в Лес и Волки, {USER}! Твоя душа теперь принадлежит древнему лесу. Готов к испытаниям?",
+      "notes": "Персонализированное приветствие с тематикой мистического леса"
+    },
+    "leave_confirmation": {
+      "text": "🌙 Ты покидаешь Лес и Волки, {USER}. Лес помнит твой путь...",
+      "notes": "Прощание с мистическим оттенком"
+    },
+    "summon_batch": {
+      "text": "🌲 **СОБРАНИЕ В ЛЕСУ!** 🌲\n\nМастер призывает вас в свой лес! я приглашаю тебя в свой лес\n\n{MENTIONS}\n\n⏰ Время: {GAME_TIME}\n📍 Место: {LOCATION}\n\n{CTA}",
+      "notes": "Батчевое сообщение с HTML-упоминаниями, включает обязательную фразу приглашения"
+    },
+    "summon_full": {
+      "text": "🌲 **ВСЕ В ЛЕС!** 🌲\n\nМастер созывает всех обитателей Лес и Волки!\n\n⏰ Время: {GAME_TIME}\n📍 Место: {LOCATION}\n\n{CTA}",
+      "notes": "Полный призыв всех участников леса"
+    },
+    "private_invite": {
+      "text": "🌲 Привет, {TARGET}!\n\n{HOST} я приглашаю тебя в свой лес - Лес и Волки. Готов к мистическим испытаниям?",
+      "notes": "Персональное приглашение с обязательной фразой"
+    },
+    "rules_pinned": {
+      "text": "🌲 **ПРАВИЛА ЛЕС И ВОЛКИ** 🌲\n\n• Максимум 30 участников\n• Только админы могут вызывать summon\n• Cooldown: 30 минут между вызовами\n• Приватность: открытый лес\n\n🌲 Лес ждет тебя...",
+      "notes": "Закрепленные правила с мистической тематикой"
+    }
+  },
+  "buttons": {
+    "group": [
+      {"text": "🌲 Присоединиться", "callback_data": "join_forest"},
+      {"text": "❌ Отказаться", "callback_data": "decline_forest"},
+      {"text": "👁 Наблюдать", "callback_data": "spectate_forest"}
+    ],
+    "private": [
+      {"text": "✅ Принять приглашение", "callback_data": "accept_invite"},
+      {"text": "❌ Отклонить", "callback_data": "decline_invite"},
+      {"text": "ℹ️ Узнать больше", "callback_data": "ask_info"}
+    ]
+  },
+  "db_migration_sql": "-- Создание таблиц для системы лесов\nCREATE TABLE IF NOT EXISTS forests (\n    id VARCHAR(50) PRIMARY KEY,\n    name VARCHAR(100) NOT NULL,\n    creator_id BIGINT NOT NULL,\n    description TEXT,\n    privacy VARCHAR(20) DEFAULT 'public',\n    max_size INTEGER,\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS forest_members (\n    forest_id VARCHAR(50) REFERENCES forests(id) ON DELETE CASCADE,\n    user_id BIGINT NOT NULL,\n    username VARCHAR(100),\n    first_name VARCHAR(100),\n    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    last_called TIMESTAMP,\n    is_opt_in BOOLEAN DEFAULT TRUE,\n    PRIMARY KEY (forest_id, user_id)\n);\n\nCREATE TABLE IF NOT EXISTS forest_invites (\n    id VARCHAR(50) PRIMARY KEY,\n    forest_id VARCHAR(50) REFERENCES forests(id) ON DELETE CASCADE,\n    from_user_id BIGINT NOT NULL,\n    to_user_id BIGINT NOT NULL,\n    status VARCHAR(20) DEFAULT 'pending',\n    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n    expires_at TIMESTAMP\n);\n\nCREATE TABLE IF NOT EXISTS forest_settings (\n    forest_id VARCHAR(50) REFERENCES forests(id) ON DELETE CASCADE,\n    key VARCHAR(100) NOT NULL,\n    value TEXT,\n    PRIMARY KEY (forest_id, key)\n);\n\n-- Индексы для оптимизации\nCREATE INDEX IF NOT EXISTS idx_forest_members_user ON forest_members(user_id);\nCREATE INDEX IF NOT EXISTS idx_forest_invites_to_user ON forest_invites(to_user_id);\nCREATE INDEX IF NOT EXISTS idx_forest_members_last_called ON forest_members(last_called);",
+  "api_notes": "Алгоритм summon: 1) Проверить права вызывающего (только админы), 2) Получить список участников леса с opt-in статусом, 3) Фильтровать по cooldown (30 мин), 4) Разбить на батчи по 6 участников, 5) Отправить сообщения с интервалом 500ms между батчами, 6) Обновить last_called для каждого участника. Рекомендации: логировать все вызовы с timestamp, запретить упоминания пользователей без opt-in, использовать HTML-разметку для упоминаний.",
+  "examples": [
+    {
+      "mode": "group",
+      "text": "🌲 **СОБРАНИЕ В ЛЕСУ!** 🌲\n\nМастер призывает вас в свой лес! я приглашаю тебя в свой лес\n\n<a href=\"tg://user?id=123456789\">Игрок1</a> <a href=\"tg://user?id=987654321\">Игрок2</a>\n\n⏰ Время: 20:00\n📍 Место: Голосовой канал\n\nИграть"
+    },
+    {
+      "mode": "private",
+      "text": "🌲 Привет, Игрок!\n\nМастер я приглашаю тебя в свой лес - Лес и Волки. Готов к мистическим испытаниям?"
+    }
+  ],
+  "meta": {
+    "batch_size": 6,
+    "cooldown_minutes": 30,
+    "allowed_invokers": "admins",
+    "max_length": 400
+  }
+}

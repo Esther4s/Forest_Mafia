@@ -1,0 +1,28 @@
+[Unit]
+Description=Forest Mafia Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=bot
+Group=bot
+WorkingDirectory=/opt/forest-mafia-bot
+Environment=PATH=/opt/forest-mafia-bot/venv/bin
+ExecStart=/opt/forest-mafia-bot/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/forest-mafia-bot
+
+# Логирование
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=forest-mafia-bot
+
+[Install]
+WantedBy=multi-user.target

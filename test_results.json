@@ -1,0 +1,52 @@
+{
+  "File Structure": {
+    "success": true,
+    "message": "Все необходимые файлы присутствуют",
+    "timestamp": "2025-09-18T01:54:37.136831"
+  },
+  "Dependencies": {
+    "success": true,
+    "message": "Все зависимости присутствуют",
+    "timestamp": "2025-09-18T01:54:37.137679"
+  },
+  "Docker Build": {
+    "success": false,
+    "message": "Ошибка: [WinError 2] The system cannot find the file specified",
+    "timestamp": "2025-09-18T01:54:37.146444"
+  },
+  "Docker Compose": {
+    "success": false,
+    "message": "Ошибка: [WinError 2] The system cannot find the file specified",
+    "timestamp": "2025-09-18T01:54:37.150192"
+  },
+  "Database Connection": {
+    "success": false,
+    "message": "Ошибка: could not translate host name \"sqlite\" to address: Name or service not known\n",
+    "timestamp": "2025-09-18T01:54:39.441860"
+  },
+  "Bot Configuration": {
+    "success": true,
+    "message": "Конфигурация бота корректна",
+    "timestamp": "2025-09-18T01:54:39.442415"
+  },
+  "Game Logic": {
+    "success": true,
+    "message": "Игровая логика работает корректно",
+    "timestamp": "2025-09-18T01:54:39.447990"
+  },
+  "Night Actions": {
+    "success": true,
+    "message": "Ночные действия работают корректно",
+    "timestamp": "2025-09-18T01:54:39.455897"
+  },
+  "Telegram Integration": {
+    "success": false,
+    "message": "Ошибка: 'Updater' object has no attribute '_Updater__polling_cleanup_cb' and no __dict__ for setting new attributes",
+    "timestamp": "2025-09-18T01:54:41.262818"
+  },
+  "Docker Run": {
+    "success": false,
+    "message": "Ошибка: [WinError 2] The system cannot find the file specified",
+    "timestamp": "2025-09-18T01:54:41.283380"
+  }
+}

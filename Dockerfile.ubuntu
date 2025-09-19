@@ -1,0 +1,38 @@
+# Альтернативный Dockerfile с Ubuntu
+FROM ubuntu:22.04
+
+# Устанавливаем Python и системные зависимости
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем символическую ссылку для python
+RUN ln -s /usr/bin/python3 /usr/bin/python
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Обновляем pip
+RUN python -m pip install --upgrade pip
+
+# Копируем requirements.txt и устанавливаем зависимости
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Копируем исходный код
+COPY . .
+
+# Создаем пользователя для безопасности
+RUN useradd --create-home --shell /bin/bash bot && \
+    chown -R bot:bot /app
+USER bot
+
+# Создаем директории для логов и данных
+RUN mkdir -p logs data
+
+# Запускаем бота
+CMD ["python", "bot.py"]
