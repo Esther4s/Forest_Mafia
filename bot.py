@@ -3956,6 +3956,8 @@ class ForestWolvesBot:
             logger.info(f"🔧 handle_welcome_buttons: DEBUG - Найден use_item_ callback: '{query.data}'")
             logger.info(f"🔧 handle_welcome_buttons: DEBUG - Продолжаем проверку условий...")
 
+        # Отладочное логирование для каждого условия
+        logger.info(f"🔧 handle_welcome_buttons: DEBUG - Проверяем условие welcome_start_game: {query.data == 'welcome_start_game'}")
         if query.data == "welcome_start_game":
             # welcome_start_game - присоединение к игре (создание новой если нужно)
             chat_id = query.message.chat.id
@@ -4457,6 +4459,7 @@ class ForestWolvesBot:
         elif query.data == "leave_forest":
             await self.handle_leave_forest(query, context)
         elif query.data.startswith("farewell_"):
+            logger.info(f"🔧 handle_welcome_buttons: DEBUG - Сработало условие farewell_ для callback: '{query.data}'")
             parts = query.data.split("_")
             if len(parts) >= 3:
                 farewell_type = parts[1]
@@ -4469,6 +4472,7 @@ class ForestWolvesBot:
             user_id = int(query.data.split("_")[2])
             await self.handle_farewell_back(query, context, user_id)
         elif query.data.startswith("use_item_"):
+            logger.info(f"🔧 handle_welcome_buttons: DEBUG - Дошли до условия use_item_!")
             # Обрабатываем использование предмета
             logger.info(f"🔧 handle_welcome_buttons: Найдено условие use_item_ для пользователя {user_id}, callback: '{query.data}'")
             logger.info(f"🔧 handle_welcome_buttons: Вызываем handle_use_item_callback...")
