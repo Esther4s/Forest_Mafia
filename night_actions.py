@@ -189,9 +189,8 @@ class NightActions:
         
         # Обрабатываем действия по порядку: Волки -> Лиса -> Бобёр -> Крот
         
-        # 1. Волки едят
-        if self.game.current_round > 1:  # В первую ночь волки не едят
-            results["wolves"] = self._process_wolf_actions()
+        # 1. Волки едят (теперь могут есть с первой ночи при минимум 3 игроках)
+        results["wolves"] = self._process_wolf_actions()
         
         # 2. Лиса ворует
         results["fox"] = self._process_fox_actions()
