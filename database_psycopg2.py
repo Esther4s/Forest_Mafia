@@ -2615,6 +2615,87 @@ def update_user_inventory(user_id: int, item_name: str, count: int, flags: Dict[
         logger.error(f"❌ Ошибка обновления инвентаря: {e}")
         return False
 
+def use_item(user_id: int, item_name: str) -> dict:
+    """
+    Универсальная функция для использования предмета из инвентаря
+    
+    Args:
+        user_id: ID пользователя
+        item_name: Название предмета
+    
+    Returns:
+        dict: Результат использования предмета
+    """
+    try:
+        # Проверяем, есть ли предмет в инвентаре
+        if not has_item_in_inventory(user_id, item_name):
+            return {
+                'success': False,
+                'message': '❌ У тебя больше нет этого предмета',
+                'item_removed': False
+            }
+        
+        # Получаем информацию о предмете
+        from item_effects import get_item_info, can_use_item, apply_item_effect
+        
+        item_info = get_item_info(item_name)
+        if not item_info:
+            return {
+                'success': False,
+                'message': f'❌ Предмет "{item_name}" не найден в системе',
+                'item_removed': False
+            }
+        
+        # Проверяем, можно ли использовать предмет
+        can_use, reason = can_use_item(user_id, item_name)
+        if not can_use:
+            return {
+                'success': False,
+                'message': f'❌ {reason}',
+                'item_removed': False
+            }
+        
+        # Применяем эффект предмета
+        effect_success, effect_message = apply_item_effect(user_id, item_name)
+        
+        if not effect_success:
+            return {
+                'success': False,
+                'message': f'❌ {effect_message}',
+                'item_removed': False
+            }
+        
+        # Уменьшаем количество предмета на 1 (если это расходник)
+        if item_info.get('is_consumable', True):
+            success = remove_item_from_inventory(user_id, item_name, 1)
+            if not success:
+                logger.warning(f"⚠️ Не удалось уменьшить количество предмета {item_name} для пользователя {user_id}")
+                # Не возвращаем ошибку, так как эффект уже применен
+        
+        # Проверяем, остался ли предмет в инвентаре
+        remaining_count = 0
+        if has_item_in_inventory(user_id, item_name):
+            inventory = get_user_inventory(user_id)
+            for item in inventory:
+                if item['item_name'] == item_name:
+                    remaining_count = item['count']
+                    break
+        
+        return {
+            'success': True,
+            'message': f'✅ {effect_message}',
+            'item_removed': remaining_count == 0,
+            'remaining_count': remaining_count
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Ошибка использования предмета {item_name} пользователем {user_id}: {e}")
+        return {
+            'success': False,
+            'message': f'❌ Ошибка использования предмета: {str(e)}',
+            'item_removed': False
+        }
+
 # Пример использования
 if __name__ == "__main__":
     try:

@@ -821,12 +821,26 @@ class ForestWolvesBot:
                 message += "📦 <b>Инвентарь пуст</b>\n"
                 message += "🛍️ Посетите магазин, чтобы купить предметы!"
             
-            # Создаем клавиатуру
-            keyboard = [
+            # Создаем клавиатуру с кнопками использования предметов
+            keyboard = []
+            
+            # Добавляем кнопки "Использовать" для каждого предмета
+            if inventory_data['items']:
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    if count > 0:  # Показываем кнопку только если предмет есть
+                        keyboard.append([InlineKeyboardButton(
+                            f"🔧 Использовать {item_name}", 
+                            callback_data=f"use_item_{user_id}_{item_name.replace(' ', '_')}"
+                        )])
+            
+            # Добавляем стандартные кнопки
+            keyboard.extend([
                 [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
                 [InlineKeyboardButton("💰 Баланс", callback_data="show_balance")],
                 [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
-            ]
+            ])
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await update.message.reply_text(
@@ -4419,10 +4433,116 @@ class ForestWolvesBot:
         elif query.data.startswith("farewell_back_"):
             user_id = int(query.data.split("_")[2])
             await self.handle_farewell_back(query, context, user_id)
+        elif query.data.startswith("use_item_"):
+            # Обрабатываем использование предмета
+            await self.handle_use_item_callback(query, context)
         else:
             logger.warning(f"⚠️ handle_welcome_buttons: Неизвестный callback '{query.data}' от пользователя {user_id}")
         
         logger.info(f"🏁 handle_welcome_buttons: Метод завершен для пользователя {user_id}, callback: '{query.data}'")
+
+    async def handle_use_item_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
+        """Обрабатывает использование предмета из инвентаря"""
+        try:
+            user_id = query.from_user.id
+            
+            # Парсим параметры: use_item_user_id_item_name
+            parts = query.data.split("_")
+            if len(parts) < 4:  # use_item_user_id_item_name
+                await query.answer("❌ Неверный формат команды!", show_alert=True)
+                return
+            
+            target_user_id = int(parts[2])
+            item_name = "_".join(parts[3:]).replace('_', ' ')
+            
+            # Проверяем, что пользователь использует свой предмет
+            if user_id != target_user_id:
+                await query.answer("❌ Это не ваш предмет!", show_alert=True)
+                return
+            
+            # Используем предмет
+            from database_psycopg2 import use_item
+            
+            result = use_item(user_id, item_name)
+            
+            if result['success']:
+                # Предмет успешно использован
+                await query.answer(result['message'], show_alert=True)
+                
+                # Обновляем сообщение инвентаря
+                await self._update_inventory_message(query, context, user_id)
+            else:
+                # Ошибка использования предмета
+                await query.answer(result['message'], show_alert=True)
+                
+                # Если предмет закончился, обновляем сообщение
+                if result.get('item_removed', False):
+                    await self._update_inventory_message(query, context, user_id)
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка использования предмета: {e}")
+            await query.answer("❌ Произошла ошибка при использовании предмета!", show_alert=True)
+
+    async def _update_inventory_message(self, query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+        """Обновляет сообщение инвентаря после использования предмета"""
+        try:
+            from database_psycopg2 import get_user_inventory_detailed
+            
+            # Получаем обновленные данные инвентаря
+            inventory_data = get_user_inventory_detailed(user_id)
+            
+            if not inventory_data['success']:
+                await query.edit_message_text(f"❌ {inventory_data['error']}")
+                return
+            
+            # Формируем обновленное сообщение
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            message = f"🧺 <b>Инвентарь {username}</b>\n\n"
+            message += f"🌰 Орешки: {inventory_data['balance']}\n"
+            message += f"📊 Всего предметов: {inventory_data['total_items']}\n\n"
+            
+            if inventory_data['items']:
+                message += "📦 <b>Предметы:</b>\n"
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    message += f"• {item_name} x{count}\n"
+            else:
+                message += "📦 <b>Инвентарь пуст</b>\n"
+                message += "🛍️ Посетите магазин, чтобы купить предметы!"
+            
+            # Создаем обновленную клавиатуру
+            keyboard = []
+            
+            # Добавляем кнопки "Использовать" для каждого предмета
+            if inventory_data['items']:
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    if count > 0:  # Показываем кнопку только если предмет есть
+                        keyboard.append([InlineKeyboardButton(
+                            f"🔧 Использовать {item_name}", 
+                            callback_data=f"use_item_{user_id}_{item_name.replace(' ', '_')}"
+                        )])
+            
+            # Добавляем стандартные кнопки
+            keyboard.extend([
+                [InlineKeyboardButton("🛍️ Магазин", callback_data="show_shop"), InlineKeyboardButton("🧺 Корзинка", callback_data="inventory_menu")],
+                [InlineKeyboardButton("💰 Баланс", callback_data="show_balance")],
+                [InlineKeyboardButton("⬅️ Назад", callback_data="back_to_main")]
+            ])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Обновляем сообщение
+            await query.edit_message_text(
+                message,
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления сообщения инвентаря: {e}")
+            await query.answer("❌ Ошибка обновления инвентаря!", show_alert=True)
 
     async def show_timer_settings(self, query, context):
         chat_id = query.message.chat.id
