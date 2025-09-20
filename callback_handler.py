@@ -74,6 +74,7 @@ class CallbackHandler:
             "inventory": self._handle_inventory_menu,
             "inventory_menu": self._handle_inventory_menu,
             "shop_menu": self._handle_shop_menu,
+            "show_shop": self._handle_shop_menu,
             "use_item": self._handle_use_item,
         }
     
