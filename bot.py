@@ -3954,6 +3954,7 @@ class ForestWolvesBot:
         # Отладочное логирование для use_item
         if query.data.startswith("use_item_"):
             logger.info(f"🔧 handle_welcome_buttons: DEBUG - Найден use_item_ callback: '{query.data}'")
+            logger.info(f"🔧 handle_welcome_buttons: DEBUG - Продолжаем проверку условий...")
 
         if query.data == "welcome_start_game":
             # welcome_start_game - присоединение к игре (создание новой если нужно)
@@ -4470,7 +4471,9 @@ class ForestWolvesBot:
         elif query.data.startswith("use_item_"):
             # Обрабатываем использование предмета
             logger.info(f"🔧 handle_welcome_buttons: Найдено условие use_item_ для пользователя {user_id}, callback: '{query.data}'")
+            logger.info(f"🔧 handle_welcome_buttons: Вызываем handle_use_item_callback...")
             await self.handle_use_item_callback(query, context)
+            logger.info(f"🔧 handle_welcome_buttons: handle_use_item_callback завершен")
         else:
             logger.warning(f"⚠️ handle_welcome_buttons: Неизвестный callback '{query.data}' от пользователя {user_id}")
         
