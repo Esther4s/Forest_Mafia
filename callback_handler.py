@@ -775,6 +775,24 @@ class CallbackHandler:
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
                 
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
                 # Отладочная информация для пропуска хода
                 self.logger.info(f"🔍 Пропуск хода {parts[0]} для игры {game.chat_id}")
                 self.logger.info(f"🔍 bot_instance: {bot_instance is not None}")
@@ -797,10 +815,10 @@ class CallbackHandler:
                     
                     if success:
                         await query.edit_message_text("⏭️ Вы пропустили ход")
-                        self.logger.info(f"✅ Волк {user_id} пропустил ход в игре {game.chat_id}")
+                        self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id}")
                     else:
                         await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
-                        self.logger.warning(f"⚠️ Не удалось пропустить ход для волка {user_id}")
+                        self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id}")
                 else:
                     # Попробуем создать night_actions если их нет
                     if bot_instance and game.chat_id not in bot_instance.night_actions:
@@ -820,10 +838,10 @@ class CallbackHandler:
                             
                             if success:
                                 await query.edit_message_text("⏭️ Вы пропустили ход")
-                                self.logger.info(f"✅ Волк {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
+                                self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
                             else:
                                 await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
-                                self.logger.warning(f"⚠️ Не удалось пропустить ход для волка {user_id} (после создания night_actions)")
+                                self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id} (после создания night_actions)")
                         except Exception as e:
                             self.logger.error(f"❌ Ошибка создания night_actions: {e}")
                             await query.answer("❌ Ночные действия недоступны!", show_alert=True)
@@ -905,16 +923,64 @@ class CallbackHandler:
                 # Обрабатываем пропуск хода
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.skip_action(user_id)
                     
                     if success:
                         await query.edit_message_text("⏭️ Вы пропустили ход")
+                        self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id}")
                     else:
                         await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                        self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id}")
                 else:
-                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    # Попробуем создать night_actions если их нет
+                    if bot_instance and game.chat_id not in bot_instance.night_actions:
+                        self.logger.warning(f"⚠️ night_actions отсутствуют для чата {game.chat_id}, создаем...")
+                        try:
+                            from night_actions import NightActions
+                            from night_interface import NightInterface
+                            
+                            bot_instance.night_actions[game.chat_id] = NightActions(game)
+                            bot_instance.night_interfaces[game.chat_id] = NightInterface(game, bot_instance.night_actions[game.chat_id], bot_instance.get_display_name)
+                            
+                            self.logger.info(f"✅ Созданы night_actions для чата {game.chat_id}")
+                            
+                            # Теперь пробуем пропустить ход
+                            night_actions = bot_instance.night_actions[game.chat_id]
+                            success = night_actions.skip_action(user_id)
+                            
+                            if success:
+                                await query.edit_message_text("⏭️ Вы пропустили ход")
+                                self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
+                            else:
+                                await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                                self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id} (после создания night_actions)")
+                        except Exception as e:
+                            self.logger.error(f"❌ Ошибка создания night_actions: {e}")
+                            await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    else:
+                        self.logger.error(f"❌ Ночные действия недоступны для пропуска! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
+                        await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия лисы: {e}")
@@ -990,16 +1056,64 @@ class CallbackHandler:
                 # Обрабатываем пропуск хода
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.skip_action(user_id)
                     
                     if success:
                         await query.edit_message_text("⏭️ Вы пропустили ход")
+                        self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id}")
                     else:
                         await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                        self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id}")
                 else:
-                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    # Попробуем создать night_actions если их нет
+                    if bot_instance and game.chat_id not in bot_instance.night_actions:
+                        self.logger.warning(f"⚠️ night_actions отсутствуют для чата {game.chat_id}, создаем...")
+                        try:
+                            from night_actions import NightActions
+                            from night_interface import NightInterface
+                            
+                            bot_instance.night_actions[game.chat_id] = NightActions(game)
+                            bot_instance.night_interfaces[game.chat_id] = NightInterface(game, bot_instance.night_actions[game.chat_id], bot_instance.get_display_name)
+                            
+                            self.logger.info(f"✅ Созданы night_actions для чата {game.chat_id}")
+                            
+                            # Теперь пробуем пропустить ход
+                            night_actions = bot_instance.night_actions[game.chat_id]
+                            success = night_actions.skip_action(user_id)
+                            
+                            if success:
+                                await query.edit_message_text("⏭️ Вы пропустили ход")
+                                self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
+                            else:
+                                await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                                self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id} (после создания night_actions)")
+                        except Exception as e:
+                            self.logger.error(f"❌ Ошибка создания night_actions: {e}")
+                            await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    else:
+                        self.logger.error(f"❌ Ночные действия недоступны для пропуска! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
+                        await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия крота: {e}")
@@ -1075,16 +1189,64 @@ class CallbackHandler:
                 # Обрабатываем пропуск хода
                 from bot import ForestWolvesBot
                 bot_instance = ForestWolvesBot.get_instance()
+                
+                # Если не получили экземпляр, пробуем альтернативные способы
+                if not bot_instance:
+                    try:
+                        import bot
+                        if hasattr(bot, 'bot_instance') and bot.bot_instance:
+                            bot_instance = bot.bot_instance
+                            self.logger.info(f"✅ Найден экземпляр бота через глобальную переменную")
+                        else:
+                            # Попробуем получить экземпляр через sys.modules
+                            import sys
+                            for module_name, module in sys.modules.items():
+                                if hasattr(module, 'bot_instance') and module.bot_instance:
+                                    bot_instance = module.bot_instance
+                                    self.logger.info(f"✅ Найден экземпляр бота через модуль {module_name}")
+                                    break
+                    except Exception as e:
+                        self.logger.warning(f"⚠️ Не удалось найти экземпляр бота: {e}")
+                
                 if bot_instance and game.chat_id in bot_instance.night_actions:
                     night_actions = bot_instance.night_actions[game.chat_id]
                     success = night_actions.skip_action(user_id)
                     
                     if success:
                         await query.edit_message_text("⏭️ Вы пропустили ход")
+                        self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id}")
                     else:
                         await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                        self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id}")
                 else:
-                    await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    # Попробуем создать night_actions если их нет
+                    if bot_instance and game.chat_id not in bot_instance.night_actions:
+                        self.logger.warning(f"⚠️ night_actions отсутствуют для чата {game.chat_id}, создаем...")
+                        try:
+                            from night_actions import NightActions
+                            from night_interface import NightInterface
+                            
+                            bot_instance.night_actions[game.chat_id] = NightActions(game)
+                            bot_instance.night_interfaces[game.chat_id] = NightInterface(game, bot_instance.night_actions[game.chat_id], bot_instance.get_display_name)
+                            
+                            self.logger.info(f"✅ Созданы night_actions для чата {game.chat_id}")
+                            
+                            # Теперь пробуем пропустить ход
+                            night_actions = bot_instance.night_actions[game.chat_id]
+                            success = night_actions.skip_action(user_id)
+                            
+                            if success:
+                                await query.edit_message_text("⏭️ Вы пропустили ход")
+                                self.logger.info(f"✅ {parts[0].capitalize()} {user_id} пропустил ход в игре {game.chat_id} (после создания night_actions)")
+                            else:
+                                await query.answer("❌ Не удалось пропустить ход!", show_alert=True)
+                                self.logger.warning(f"⚠️ Не удалось пропустить ход для {parts[0]} {user_id} (после создания night_actions)")
+                        except Exception as e:
+                            self.logger.error(f"❌ Ошибка создания night_actions: {e}")
+                            await query.answer("❌ Ночные действия недоступны!", show_alert=True)
+                    else:
+                        self.logger.error(f"❌ Ночные действия недоступны для пропуска! bot_instance: {bot_instance is not None}, game.chat_id: {game.chat_id}, night_actions: {list(bot_instance.night_actions.keys()) if bot_instance else 'None'}")
+                        await query.answer("❌ Ночные действия недоступны!", show_alert=True)
             
         except Exception as e:
             self.logger.error(f"❌ Ошибка обработки действия бобра: {e}")
