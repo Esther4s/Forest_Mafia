@@ -3931,25 +3931,26 @@ class ForestWolvesBot:
             await query.answer("❌ Вы не участвуете в игре!", show_alert=True)
 
     async def handle_welcome_buttons(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        if not update or not update.callback_query:
-            logger.warning("⚠️ handle_welcome_buttons: update или callback_query is None")
-            return
-        query = update.callback_query
-        user_id = query.from_user.id if query.from_user else "unknown"
-        logger.info(f"🔍 handle_welcome_buttons: Получен callback от пользователя {user_id}, data: '{query.data}'")
-        await query.answer()
+        try:
+            if not update or not update.callback_query:
+                logger.warning("⚠️ handle_welcome_buttons: update или callback_query is None")
+                return
+            query = update.callback_query
+            user_id = query.from_user.id if query.from_user else "unknown"
+            logger.info(f"🔍 handle_welcome_buttons: Получен callback от пользователя {user_id}, data: '{query.data}'")
+            await query.answer()
 
-        # Проверяем права пользователя
-        update = Update(update_id=0, callback_query=query)
-        has_permission, error_msg = await self.check_user_permissions(
-            update, context, "member"
-        )
-        if not has_permission:
-            logger.warning(f"⚠️ handle_welcome_buttons: Нет прав у пользователя {user_id}: {error_msg}")
-            await query.answer(error_msg, show_alert=True)
-            return
-        
-        logger.info(f"✅ handle_welcome_buttons: Пользователь {user_id} имеет права, обрабатываем callback: '{query.data}'")
+            # Проверяем права пользователя
+            update = Update(update_id=0, callback_query=query)
+            has_permission, error_msg = await self.check_user_permissions(
+                update, context, "member"
+            )
+            if not has_permission:
+                logger.warning(f"⚠️ handle_welcome_buttons: Нет прав у пользователя {user_id}: {error_msg}")
+                await query.answer(error_msg, show_alert=True)
+                return
+            
+            logger.info(f"✅ handle_welcome_buttons: Пользователь {user_id} имеет права, обрабатываем callback: '{query.data}'")
 
         # Отладочное логирование для use_item
         if query.data.startswith("use_item_"):
@@ -4482,6 +4483,13 @@ class ForestWolvesBot:
             logger.warning(f"⚠️ handle_welcome_buttons: Неизвестный callback '{query.data}' от пользователя {user_id}")
         
         logger.info(f"🏁 handle_welcome_buttons: Метод завершен для пользователя {user_id}, callback: '{query.data}'")
+        
+        except Exception as e:
+            logger.error(f"❌ handle_welcome_buttons: Ошибка обработки callback '{query.data}': {e}", exc_info=True)
+            try:
+                await query.answer("❌ Произошла ошибка при обработке команды!", show_alert=True)
+            except:
+                pass
 
     async def handle_use_item_callback(self, query, context: ContextTypes.DEFAULT_TYPE):
         """Обрабатывает использование предмета из инвентаря"""
