@@ -4469,15 +4469,25 @@ class ForestWolvesBot:
                 # Предмет успешно использован
                 await query.answer(result['message'], show_alert=True)
                 
-                # Обновляем сообщение инвентаря
-                await self._update_inventory_message(query, context, user_id)
+                # Определяем, откуда был вызван (из команды /инвентарь или из корзинки профиля)
+                if "Корзинка" in query.message.text or "Ваши товары" in query.message.text:
+                    # Обновляем сообщение корзинки из профиля
+                    await self._update_basket_message(query, context, user_id)
+                else:
+                    # Обновляем сообщение инвентаря из команды
+                    await self._update_inventory_message(query, context, user_id)
             else:
                 # Ошибка использования предмета
                 await query.answer(result['message'], show_alert=True)
                 
                 # Если предмет закончился, обновляем сообщение
                 if result.get('item_removed', False):
-                    await self._update_inventory_message(query, context, user_id)
+                    if "Корзинка" in query.message.text or "Ваши товары" in query.message.text:
+                        # Обновляем сообщение корзинки из профиля
+                        await self._update_basket_message(query, context, user_id)
+                    else:
+                        # Обновляем сообщение инвентаря из команды
+                        await self._update_inventory_message(query, context, user_id)
                 
         except Exception as e:
             logger.error(f"❌ Ошибка использования предмета: {e}")
@@ -4543,6 +4553,69 @@ class ForestWolvesBot:
         except Exception as e:
             logger.error(f"❌ Ошибка обновления сообщения инвентаря: {e}")
             await query.answer("❌ Ошибка обновления инвентаря!", show_alert=True)
+
+    async def _update_basket_message(self, query, context: ContextTypes.DEFAULT_TYPE, user_id: int):
+        """Обновляет сообщение корзинки из профиля после использования предмета"""
+        try:
+            from database_psycopg2 import get_user_inventory_detailed
+            
+            # Получаем обновленные данные инвентаря
+            inventory_data = get_user_inventory_detailed(user_id)
+            
+            if not inventory_data['success']:
+                await query.edit_message_text(f"❌ {inventory_data['error']}")
+                return
+            
+            # Формируем обновленное сообщение в стиле корзинки
+            username = query.from_user.username or query.from_user.first_name or "Unknown"
+            clickable_name = self.format_player_tag(username, user_id, make_clickable=True)
+            
+            inventory_text = f"🧺 <b>Корзинка</b> 🧺\n\n"
+            inventory_text += f"👤 <b>{clickable_name}</b>\n\n"
+            
+            if inventory_data['items']:
+                inventory_text += "🛍️ <b>Ваши товары:</b>\n\n"
+                
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    inventory_text += f"• {item_name} x{count}\n"
+                
+                inventory_text += f"\n📦 Всего товаров: {inventory_data['total_items']} видов\n"
+                inventory_text += f"🌰 Орешки: {inventory_data['balance']}"
+            else:
+                inventory_text += "📦 Корзинка пуста\n\n"
+                inventory_text += "🛍️ Посетите магазин, чтобы купить товары!\n"
+                inventory_text += "💡 Используйте кнопку 'Магазин' в профиле"
+            
+            # Создаем обновленную клавиатуру
+            keyboard = []
+            
+            # Добавляем кнопки "Использовать" для каждого предмета
+            if inventory_data['items']:
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    if count > 0:  # Показываем кнопку только если предмет есть
+                        keyboard.append([InlineKeyboardButton(
+                            f"🔧 Использовать {item_name}", 
+                            callback_data=f"use_item_{user_id}_{item_name.replace(' ', '_')}"
+                        )])
+            
+            # Добавляем кнопку "Назад к профилю"
+            keyboard.append([InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")])
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Обновляем сообщение
+            await query.edit_message_text(
+                inventory_text,
+                parse_mode='HTML',
+                reply_markup=reply_markup
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка обновления сообщения корзинки: {e}")
+            await query.answer("❌ Ошибка обновления корзинки!", show_alert=True)
 
     async def show_timer_settings(self, query, context):
         chat_id = query.message.chat.id
@@ -7748,9 +7821,22 @@ class ForestWolvesBot:
             
             inventory_data = get_user_inventory_detailed(user_id)
             
-            keyboard = [
-                [InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")]
-            ]
+            # Создаем клавиатуру с кнопками использования предметов
+            keyboard = []
+            
+            # Добавляем кнопки "Использовать" для каждого предмета
+            if inventory_data['success'] and inventory_data['items']:
+                for item in inventory_data['items']:
+                    item_name = item['item_name']
+                    count = item['count']
+                    if count > 0:  # Показываем кнопку только если предмет есть
+                        keyboard.append([InlineKeyboardButton(
+                            f"🔧 Использовать {item_name}", 
+                            callback_data=f"use_item_{user_id}_{item_name.replace(' ', '_')}"
+                        )])
+            
+            # Добавляем кнопку "Назад к профилю"
+            keyboard.append([InlineKeyboardButton("⬅️ Назад к профилю", callback_data="back_to_profile")])
             
             reply_markup = InlineKeyboardMarkup(keyboard)
             
