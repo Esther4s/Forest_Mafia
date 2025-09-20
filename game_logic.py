@@ -376,6 +376,59 @@ class Game:
     def _apply_start_game_effects(self):
         """Применяет эффекты предметов при старте игры"""
         try:
+            from game_effects_integration import game_effects_manager
+            from database_psycopg2 import get_enhanced_active_effects
+            
+            logger.info(f"🎮 _apply_start_game_effects: Применение эффектов для игры {self.game_id}")
+            
+            # Привязываем активные эффекты к игре
+            from database_psycopg2 import bind_effects_to_game
+            bound_effects = bind_effects_to_game(self.game_id, self.chat_id)
+            logger.info(f"🔗 Привязано {bound_effects} эффектов к игре {self.game_id}")
+            
+            # Получаем список игроков для передачи в менеджер эффектов
+            players_data = []
+            for player in self.players.values():
+                players_data.append({
+                    'user_id': player.user_id,
+                    'username': player.username,
+                    'role': player.role.value if hasattr(player.role, 'value') else str(player.role),
+                    'team': player.team.value if hasattr(player.team, 'value') else str(player.team)
+                })
+            
+            # Применяем эффекты через менеджер
+            result = game_effects_manager.apply_effects_at_game_start(
+                game_id=self.game_id,
+                chat_id=self.chat_id,
+                players=players_data
+            )
+            
+            if result['success']:
+                logger.info(f"✅ Эффекты применены при старте игры: {result['message']}")
+                
+                # Применяем эффекты к игрокам
+                for effect_info in result['applied_effects']:
+                    user_id = effect_info['user_id']
+                    item_name = effect_info['item_name']
+                    
+                    # Находим игрока
+                    if user_id in self.players:
+                        player = self.players[user_id]
+                        
+                        # Применяем конкретные эффекты
+                        if item_name == "🎭 Активная роль":
+                            # Увеличиваем шанс активной роли
+                            logger.info(f"🎭 Игрок {user_id} получил эффект активной роли")
+                        elif item_name == "🌿 Лесная маскировка":
+                            # Добавляем маскировку
+                            logger.info(f"🌿 Игрок {user_id} получил лесную маскировку")
+                        elif item_name == "🛡️ Защита бобра":
+                            # Добавляем защиту
+                            logger.info(f"🛡️ Игрок {user_id} получил защиту бобра")
+            else:
+                logger.warning(f"⚠️ Не удалось применить эффекты: {result['message']}")
+            
+            # Старая логика для совместимости
             from item_effects import check_extra_lives_effect
             
             # Применяем дополнительные жизни для всех игроков

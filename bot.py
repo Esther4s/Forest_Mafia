@@ -3611,6 +3611,36 @@ class ForestWolvesBot:
         # Открепляем все закрепленные сообщения бота при завершении игры
         await self._unpin_all_bot_messages(context, game)
         
+        # Очищаем эффекты при окончании игры
+        try:
+            from game_effects_integration import game_effects_manager
+            
+            # Получаем список игроков для очистки эффектов
+            players_data = []
+            for player in game.players.values():
+                players_data.append({
+                    'user_id': player.user_id,
+                    'username': player.username,
+                    'role': player.role.value if hasattr(player.role, 'value') else str(player.role),
+                    'team': player.team.value if hasattr(player.team, 'value') else str(player.team)
+                })
+            
+            # Очищаем эффекты игры
+            if hasattr(game, 'db_game_id') and game.db_game_id:
+                result = game_effects_manager.apply_effects_at_game_end(
+                    game_id=game.db_game_id,
+                    chat_id=game.chat_id,
+                    players=players_data
+                )
+                
+                if result['success']:
+                    logger.info(f"✅ Эффекты очищены при окончании игры: {result['message']}")
+                else:
+                    logger.warning(f"⚠️ Не удалось очистить эффекты: {result['message']}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка очистки эффектов при окончании игры: {e}")
+        
         # Используем новую логику завершения игры
         try:
             from game_end_logic import GameEndLogic

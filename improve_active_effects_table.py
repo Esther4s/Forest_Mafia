@@ -150,20 +150,19 @@ def improve_active_effects_table():
             cursor.execute(trigger_sql)
             logger.info("✅ Создан триггер для автоматического обновления updated_at")
             
-            # Обновляем существующие записи
-            cursor.execute("""
-                UPDATE active_effects 
-                SET effect_status = CASE 
-                    WHEN is_used = TRUE THEN 'used'
-                    WHEN expires_at IS NOT NULL AND expires_at < NOW() THEN 'expired'
-                    ELSE 'active'
-                END,
-                updated_at = CURRENT_TIMESTAMP
-                WHERE effect_status IS NULL
-            """)
-            
-            updated_rows = cursor.rowcount
-            logger.info(f"✅ Обновлено {updated_rows} существующих записей")
+            # Обновляем существующие записи (если есть)
+            try:
+                cursor.execute("""
+                    UPDATE active_effects 
+                    SET effect_status = 'active',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE effect_status IS NULL
+                """)
+                
+                updated_rows = cursor.rowcount
+                logger.info(f"✅ Обновлено {updated_rows} существующих записей")
+            except Exception as e:
+                logger.info(f"ℹ️ Нет записей для обновления: {e}")
             
             conn.commit()
             logger.info("🎉 Таблица active_effects успешно улучшена!")

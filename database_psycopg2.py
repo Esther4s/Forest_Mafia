@@ -2680,6 +2680,46 @@ def use_item(user_id: int, item_name: str) -> dict:
         
         logger.info(f"✅ use_item: Эффект предмета '{item_name}' успешно применен: {effect_message}")
         
+        # Добавляем активный эффект в базу данных
+        logger.info(f"💾 use_item: Добавляем активный эффект в БД для предмета '{item_name}'")
+        
+        # Определяем параметры эффекта
+        effect_type = item_info.get('type', 'consumable')
+        duration_rounds = 1  # По умолчанию действует 1 раунд
+        remaining_uses = 1   # По умолчанию 1 использование
+        
+        # Для некоторых предметов можно настроить другие параметры
+        if item_name == "🎭 Активная роль":
+            effect_type = "boost"
+            duration_rounds = 1  # Действует до назначения ролей
+        elif item_name == "🌿 Лесная маскировка":
+            effect_type = "consumable"
+            duration_rounds = 1
+        elif item_name == "🛡️ Защита бобра":
+            effect_type = "boost"
+            duration_rounds = 1
+        
+        # Добавляем эффект в БД
+        effect_added = add_enhanced_active_effect(
+            user_id=user_id,
+            item_name=item_name,
+            effect_type=effect_type,
+            effect_data=item_info,
+            game_id=None,  # Будет привязан к игре при её начале
+            chat_id=None,  # Будет привязан к чату при начале игры
+            duration_rounds=duration_rounds,
+            remaining_uses=remaining_uses,
+            triggered_by='item_use',
+            trigger_conditions={
+                'event_types': ['game_start', 'role_assignment'],
+                'game_phase': 'night'
+            },
+            auto_remove=True
+        )
+        
+        if not effect_added:
+            logger.warning(f"⚠️ use_item: Не удалось добавить активный эффект для предмета {item_name}")
+        
         # Уменьшаем количество предмета на 1 (если это расходник)
         if item_info.get('is_consumable', True):
             success = remove_item_from_inventory(user_id, item_name, 1)
@@ -2698,9 +2738,10 @@ def use_item(user_id: int, item_name: str) -> dict:
         
         return {
             'success': True,
-            'message': f'✅ {effect_message}',
+            'message': f'✅ {effect_message}\n🎮 Эффект будет активен в следующей игре!',
             'item_removed': remaining_count == 0,
-            'remaining_count': remaining_count
+            'remaining_count': remaining_count,
+            'effect_added': effect_added
         }
         
     except Exception as e:
@@ -3314,15 +3355,19 @@ def get_enhanced_active_effects(
             cursor.execute(query, params)
             results = cursor.fetchall()
             
-            # Конвертируем в обычные словари
-            effects = []
-            for row in results:
-                effect = dict(row)
-                if effect['effect_data']:
-                    effect['effect_data'] = json.loads(effect['effect_data'])
-                if effect['trigger_conditions']:
-                    effect['trigger_conditions'] = json.loads(effect['trigger_conditions'])
-                effects.append(effect)
+                # Конвертируем в обычные словари
+                effects = []
+                for row in results:
+                    effect = dict(row)
+                    if effect['effect_data']:
+                        if isinstance(effect['effect_data'], str):
+                            effect['effect_data'] = json.loads(effect['effect_data'])
+                        # Если уже dict, оставляем как есть
+                    if effect['trigger_conditions']:
+                        if isinstance(effect['trigger_conditions'], str):
+                            effect['trigger_conditions'] = json.loads(effect['trigger_conditions'])
+                        # Если уже dict, оставляем как есть
+                    effects.append(effect)
             
             return effects
             
@@ -3514,6 +3559,83 @@ def cleanup_expired_effects() -> int:
     finally:
         if conn:
             conn.close()
+
+
+def get_game_players(game_id: str) -> List[Dict]:
+    """
+    Получает список игроков игры
+    
+    Args:
+        game_id: ID игры
+    
+    Returns:
+        List[Dict]: Список игроков
+    """
+    try:
+        conn = get_database_connection()
+        if not conn:
+            return []
+            
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+            cursor.execute("""
+                SELECT p.user_id, p.username, p.first_name, p.last_name, p.role, p.team, p.is_alive
+                FROM players p
+                WHERE p.game_id = %s
+                ORDER BY p.created_at
+            """, (game_id,))
+            
+            results = cursor.fetchall()
+            players = [dict(row) for row in results]
+            
+            logger.info(f"✅ Получено {len(players)} игроков для игры {game_id}")
+            return players
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения игроков игры {game_id}: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
+def bind_effects_to_game(game_id: str, chat_id: int) -> int:
+    """
+    Привязывает активные эффекты к игре
+    
+    Args:
+        game_id: ID игры
+        chat_id: ID чата
+    
+    Returns:
+        int: Количество привязанных эффектов
+    """
+    try:
+        conn = get_database_connection()
+        if not conn:
+            return 0
+            
+        with conn.cursor() as cursor:
+            # Привязываем эффекты без game_id к текущей игре
+            cursor.execute("""
+                UPDATE active_effects 
+                SET game_id = %s, chat_id = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE game_id IS NULL AND effect_status = 'active'
+            """, (game_id, str(chat_id)))
+            
+            bound_count = cursor.rowcount
+            conn.commit()
+            
+            if bound_count > 0:
+                logger.info(f"✅ Привязано {bound_count} эффектов к игре {game_id}")
+            
+            return bound_count
+            
+    except Exception as e:
+        logger.error(f"❌ Ошибка привязки эффектов к игре: {e}")
+        return 0
+    finally:
+        if conn:
+            conn.close()
+
 
 def get_effect_statistics(user_id: int = None, game_id: str = None) -> Dict[str, Any]:
     """
