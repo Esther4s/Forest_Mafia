@@ -1,69 +1,69 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 """
-Скрипт для быстрого запуска бота "Лес и Волки"
+Скрипт для запуска Forest Mafia Bot
 """
 
 import os
 import sys
-import subprocess
+import asyncio
+from telegram import Bot
+from telegram.ext import Application
+from config import Config
+from database import init_database
 
-def check_requirements():
-    """Проверяет наличие необходимых зависимостей"""
-    print("🔍 Проверка зависимостей...")
+async def main():
+    """Главная функция запуска бота"""
+    print("🌲 Forest Mafia Bot - Запуск")
+    print("=" * 50)
     
     try:
-        import telegram
-        import psycopg2
-        import sqlalchemy
-        print("✅ Все зависимости установлены")
-        return True
-    except ImportError as e:
-        print(f"❌ Отсутствует зависимость: {e}")
-        print("📦 Установите зависимости: pip install -r requirements.txt")
-        return False
-
-def check_env_file():
-    """Проверяет наличие .env файла"""
-    print("🔍 Проверка .env файла...")
-    
-    if os.path.exists('.env'):
-        print("✅ .env файл найден")
-        return True
-    else:
-        print("⚠️ .env файл не найден")
-        print("📝 Создайте .env файл с BOT_TOKEN")
-        return False
-
-def main():
-    """Основная функция запуска"""
-    print("🚀 ЗАПУСК БОТА 'ЛЕС И ВОЛКИ'")
-    print("=" * 40)
-    
-    # Проверяем зависимости
-    if not check_requirements():
-        return False
-    
-    # Проверяем .env файл
-    if not check_env_file():
-        print("\n💡 Создайте .env файл со следующим содержимым:")
-        print("BOT_TOKEN=your_bot_token_here")
-        print("DATABASE_URL=postgresql://postgres:password@host:port/database")
-        return False
-    
-    # Запускаем бота
-    print("\n🎮 Запуск бота...")
-    try:
-        subprocess.run([sys.executable, "bot.py"], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Ошибка запуска бота: {e}")
-        return False
+        # Создаем конфигурацию
+        config = Config()
+        print(f"✅ Конфигурация загружена")
+        print(f"   Токен бота: {config.bot_token[:10]}...")
+        print(f"   База данных: {config.database_url[:30]}...")
+        
+        # Инициализируем базу данных
+        print("\n🗄️ Инициализация базы данных...")
+        db_manager = init_database(config.database_url)
+        print("✅ База данных подключена")
+        
+        # Создаем приложение бота
+        print("\n🤖 Создание приложения бота...")
+        application = Application.builder().token(config.bot_token).build()
+        
+        # Импортируем и регистрируем обработчики
+        print("📝 Регистрация обработчиков...")
+        
+        # Здесь нужно будет добавить импорты всех обработчиков
+        # Пока что просто создаем базовое приложение
+        
+        print("✅ Бот готов к работе!")
+        print("\n🎮 Команды бота:")
+        print("   /start - приветствие")
+        print("   /rules - правила игры")
+        print("   /join - присоединиться к игре")
+        print("   /status - статус игры")
+        print("\n🚀 Запуск бота...")
+        print("   Нажмите Ctrl+C для остановки")
+        
+        # Запускаем бота
+        await application.run_polling()
+        
     except KeyboardInterrupt:
-        print("\n⏹️ Бот остановлен пользователем")
-        return True
-    
-    return True
+        print("\n\n⏹️ Остановка бота...")
+    except Exception as e:
+        print(f"\n❌ Ошибка при запуске бота: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
 
 if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    # Устанавливаем переменные окружения
+    os.environ['BOT_TOKEN'] = '8314318680:AAG1CDOB-SQhyFfCpqDIBm-U8ANz6Ggw94k'
+    os.environ['DATABASE_URL'] = 'postgresql://postgres:JOoSxKXEcnXImgvwCWsfcQQDlnWSDNyD@hopper.proxy.rlwy.net:23049/railway'
+    
+    # Запускаем бота
+    asyncio.run(main())
