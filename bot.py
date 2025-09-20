@@ -7177,7 +7177,7 @@ class ForestWolvesBot:
                 "⭐️ До свидания, путник! ⭐️"
             )
             
-            await query.edit_message_text(farewell_text)
+            await query.edit_message_text(farewell_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка покидания леса: {e}")
@@ -7419,7 +7419,7 @@ class ForestWolvesBot:
                     f"⭐️ До свидания, {username}!"
                 )
                 
-                await query.edit_message_text(confirmation_text)
+                await query.edit_message_text(confirmation_text, parse_mode='HTML')
             else:
                 # Показываем ошибку
                 error_text = (
@@ -7428,7 +7428,7 @@ class ForestWolvesBot:
                     f"💡 Попробуйте позже или обратитесь к администратору."
                 )
                 
-                await query.edit_message_text(error_text)
+                await query.edit_message_text(error_text, parse_mode='HTML')
             
         except Exception as e:
             logger.error(f"❌ Ошибка обработки типа прощания: {e}")
