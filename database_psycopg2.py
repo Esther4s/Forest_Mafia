@@ -3355,19 +3355,19 @@ def get_enhanced_active_effects(
             cursor.execute(query, params)
             results = cursor.fetchall()
             
-                # Конвертируем в обычные словари
-                effects = []
-                for row in results:
-                    effect = dict(row)
-                    if effect['effect_data']:
-                        if isinstance(effect['effect_data'], str):
-                            effect['effect_data'] = json.loads(effect['effect_data'])
-                        # Если уже dict, оставляем как есть
-                    if effect['trigger_conditions']:
-                        if isinstance(effect['trigger_conditions'], str):
-                            effect['trigger_conditions'] = json.loads(effect['trigger_conditions'])
-                        # Если уже dict, оставляем как есть
-                    effects.append(effect)
+            # Конвертируем в обычные словари
+            effects = []
+            for row in results:
+                effect = dict(row)
+                if effect['effect_data']:
+                    if isinstance(effect['effect_data'], str):
+                        effect['effect_data'] = json.loads(effect['effect_data'])
+                    # Если уже dict, оставляем как есть
+                if effect['trigger_conditions']:
+                    if isinstance(effect['trigger_conditions'], str):
+                        effect['trigger_conditions'] = json.loads(effect['trigger_conditions'])
+                    # Если уже dict, оставляем как есть
+                effects.append(effect)
             
             return effects
             
