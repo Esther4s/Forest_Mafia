@@ -4445,28 +4445,36 @@ class ForestWolvesBot:
         """Обрабатывает использование предмета из инвентаря"""
         try:
             user_id = query.from_user.id
+            logger.info(f"🔧 handle_use_item_callback: Обработка использования предмета для пользователя {user_id}, callback: '{query.data}'")
             
             # Парсим параметры: use_item_user_id_item_name
             parts = query.data.split("_")
             if len(parts) < 4:  # use_item_user_id_item_name
+                logger.warning(f"❌ handle_use_item_callback: Неверный формат команды '{query.data}', parts: {parts}")
                 await query.answer("❌ Неверный формат команды!", show_alert=True)
                 return
             
             target_user_id = int(parts[2])
             item_name = "_".join(parts[3:]).replace('_', ' ')
             
+            logger.info(f"🔍 handle_use_item_callback: Парсинг завершен - user_id: {user_id}, target_user_id: {target_user_id}, item_name: '{item_name}'")
+            
             # Проверяем, что пользователь использует свой предмет
             if user_id != target_user_id:
+                logger.warning(f"❌ handle_use_item_callback: Пользователь {user_id} пытается использовать предмет пользователя {target_user_id}")
                 await query.answer("❌ Это не ваш предмет!", show_alert=True)
                 return
             
             # Используем предмет
+            logger.info(f"🎯 handle_use_item_callback: Вызываем use_item для пользователя {user_id}, предмет '{item_name}'")
             from database_psycopg2 import use_item
             
             result = use_item(user_id, item_name)
+            logger.info(f"📊 handle_use_item_callback: Результат use_item: {result}")
             
             if result['success']:
                 # Предмет успешно использован
+                logger.info(f"✅ handle_use_item_callback: Предмет '{item_name}' успешно использован пользователем {user_id}")
                 await query.answer(result['message'], show_alert=True)
                 
                 # Определяем, откуда был вызван (из команды /инвентарь или из корзинки профиля)
@@ -4478,6 +4486,7 @@ class ForestWolvesBot:
                     await self._update_inventory_message(query, context, user_id)
             else:
                 # Ошибка использования предмета
+                logger.warning(f"❌ handle_use_item_callback: Ошибка использования предмета '{item_name}': {result['message']}")
                 await query.answer(result['message'], show_alert=True)
                 
                 # Если предмет закончился, обновляем сообщение
@@ -6118,6 +6127,9 @@ class ForestWolvesBot:
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^show_shop$"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^game_mode_"))
         application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^casino_menu$"))
+        
+        # Обработчик для использования предметов
+        application.add_handler(CallbackQueryHandler(self.handle_welcome_buttons, pattern=r"^use_item_"))
         
         # Новые callback обработчики
         application.add_handler(CallbackQueryHandler(self.handle_join_game_callback, pattern=r"^join_game$"))

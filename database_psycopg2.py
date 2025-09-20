@@ -2627,8 +2627,11 @@ def use_item(user_id: int, item_name: str) -> dict:
         dict: Результат использования предмета
     """
     try:
+        logger.info(f"🔧 use_item: Попытка использования предмета '{item_name}' пользователем {user_id}")
+        
         # Проверяем, есть ли предмет в инвентаре
         if not has_item_in_inventory(user_id, item_name):
+            logger.warning(f"❌ use_item: Предмет '{item_name}' не найден в инвентаре пользователя {user_id}")
             return {
                 'success': False,
                 'message': '❌ У тебя больше нет этого предмета',
@@ -2638,32 +2641,44 @@ def use_item(user_id: int, item_name: str) -> dict:
         # Получаем информацию о предмете
         from item_effects import get_item_info, can_use_item, apply_item_effect
         
+        logger.info(f"🔍 use_item: Получаем информацию о предмете '{item_name}'")
         item_info = get_item_info(item_name)
         if not item_info:
+            logger.warning(f"❌ use_item: Предмет '{item_name}' не найден в системе эффектов")
             return {
                 'success': False,
                 'message': f'❌ Предмет "{item_name}" не найден в системе',
                 'item_removed': False
             }
         
+        logger.info(f"✅ use_item: Информация о предмете получена: {item_info}")
+        
         # Проверяем, можно ли использовать предмет
+        logger.info(f"🔍 use_item: Проверяем возможность использования предмета '{item_name}'")
         can_use, reason = can_use_item(user_id, item_name)
         if not can_use:
+            logger.warning(f"❌ use_item: Предмет '{item_name}' нельзя использовать: {reason}")
             return {
                 'success': False,
                 'message': f'❌ {reason}',
                 'item_removed': False
             }
         
+        logger.info(f"✅ use_item: Предмет '{item_name}' можно использовать")
+        
         # Применяем эффект предмета
+        logger.info(f"🎯 use_item: Применяем эффект предмета '{item_name}'")
         effect_success, effect_message = apply_item_effect(user_id, item_name)
         
         if not effect_success:
+            logger.warning(f"❌ use_item: Ошибка применения эффекта '{item_name}': {effect_message}")
             return {
                 'success': False,
                 'message': f'❌ {effect_message}',
                 'item_removed': False
             }
+        
+        logger.info(f"✅ use_item: Эффект предмета '{item_name}' успешно применен: {effect_message}")
         
         # Уменьшаем количество предмета на 1 (если это расходник)
         if item_info.get('is_consumable', True):
